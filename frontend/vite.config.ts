@@ -6,5 +6,14 @@ export default defineConfig({
   server: {
     port: 3000,
     host: "0.0.0.0"
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 8080,
+    allowedHosts: [
+      "www.auditcopilot.ai",
+      "auditcopilot.ai",
+      ".up.railway.app"
+    ]
   }
 });
