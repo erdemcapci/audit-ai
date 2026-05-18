@@ -1,0 +1,370 @@
+.audit-map-canvas {
+  min-height: 680px;
+  height: calc(100vh - 260px);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  position: relative;
+}
+
+.map-scrollbar {
+  position: absolute;
+  z-index: 8;
+  accent-color: #0f172a;
+  opacity: 0.76;
+}
+
+.map-scrollbar:hover {
+  opacity: 1;
+}
+
+.map-scrollbar:disabled {
+  opacity: 0.22;
+}
+
+.map-scrollbar-horizontal {
+  left: 18px;
+  right: 48px;
+  bottom: 12px;
+  width: calc(100% - 66px);
+}
+
+.map-scrollbar-vertical {
+  top: 74px;
+  right: 12px;
+  width: 18px;
+  height: calc(100% - 122px);
+  writing-mode: vertical-lr;
+}
+
+.canvas-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.react-flow__node {
+  font-family: inherit;
+  overflow: visible;
+}
+
+.react-flow__node-phaseNode {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.react-flow__node-fieldworkSectionNode {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.react-flow__node-phaseNode .phase-zone-label,
+.react-flow__node-phaseNode .react-flow__resize-control,
+.react-flow__node-fieldworkSectionNode .fieldwork-section-label,
+.react-flow__node-fieldworkSectionNode .react-flow__resize-control {
+  pointer-events: all;
+}
+
+.phase-zone {
+  border: 1px solid rgba(148, 163, 184, 0.75);
+  border-radius: 14px;
+  opacity: 0.92;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  width: 100%;
+  height: 100%;
+}
+
+.phase-zone.selected {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+.phase-planning {
+  background: #dbeafe33;
+  border-color: #93c5fd;
+}
+
+.phase-fieldwork {
+  background: #fef3c733;
+  border-color: #fcd34d;
+}
+
+.phase-reporting {
+  background: #dcfce733;
+  border-color: #86efac;
+}
+
+.fieldwork-section {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.72);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.68);
+}
+
+.fieldwork-section.selected {
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.78);
+}
+
+.fieldwork-section-interviews {
+  background: rgba(245, 243, 255, 0.74);
+  border-color: #c4b5fd;
+}
+
+.fieldwork-section-documents {
+  background: rgba(248, 250, 252, 0.82);
+  border-color: #cbd5e1;
+}
+
+.fieldwork-section-issues {
+  background: rgba(254, 242, 242, 0.76);
+  border-color: #fecaca;
+}
+
+.fieldwork-section-label {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  color: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.48);
+  border-radius: 12px 12px 0 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.fieldwork-section-label:active {
+  cursor: grabbing;
+}
+
+.fieldwork-section-label strong {
+  font-size: 0.92rem;
+  letter-spacing: 0;
+}
+
+.fieldwork-section-label span {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.phase-zone-label {
+  display: grid;
+  gap: 3px;
+  padding: 20px 24px;
+  color: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 14px 14px 0 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.phase-zone-label:active {
+  cursor: grabbing;
+}
+
+.phase-zone-label strong {
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.phase-zone-label span {
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.phase-resize-handle {
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid #ffffff !important;
+  background: #475569 !important;
+}
+
+.phase-resize-line {
+  border-color: #64748b !important;
+}
+
+.card-resize-handle {
+  width: 9px !important;
+  height: 9px !important;
+  border: 2px solid #ffffff !important;
+  background: #334155 !important;
+}
+
+.card-resize-line {
+  border-color: #64748b !important;
+}
+
+.audit-flow-node {
+  width: 100%;
+  height: 100%;
+  min-width: 560px;
+  min-height: 140px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+  padding: 13px;
+  transition: border 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease, opacity 0.14s ease;
+  overflow: visible;
+}
+
+.agent-node {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  border-top: 5px solid #8b5cf6;
+  min-width: 560px;
+  min-height: 160px;
+}
+
+.agent-node .agent-run-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.agent-error {
+  color: #991b1b !important;
+  background: #fee2e2;
+  border-radius: 8px;
+  padding: 7px;
+  margin-top: 8px !important;
+}
+
+.audit-flow-node.selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14), 0 16px 28px rgba(15, 23, 42, 0.12);
+}
+
+.audit-flow-node h3 {
+  margin: 9px 0 6px;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.audit-flow-node p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+
+.node-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.node-type {
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.node-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.node-meta span {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.node-audit {
+  border-color: #cbd5e1;
+}
+
+.node-workstream {
+  border-top: 5px solid #60a5fa;
+}
+
+.node-objective {
+  border-top: 5px solid #93c5fd;
+}
+
+.node-risk {
+  border-top: 5px solid #fca5a5;
+}
+
+.node-test {
+  border-top: 5px solid #c4b5fd;
+}
+
+.node-interview-role,
+.node-interview-question {
+  border-top: 5px solid #a78bfa;
+}
+
+.node-fieldwork-item {
+  border-top: 5px solid #fbbf24;
+}
+
+.node-document-request {
+  border-top: 5px solid #94a3b8;
+}
+
+.node-finding {
+  border-top: 5px solid #ef4444;
+}
+
+.node-report {
+  border-top: 5px solid #22c55e;
+}
+
+.node-faded .audit-flow-node {
+  opacity: 0.35;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #94a3b8;
+  border: 2px solid #ffffff;
+}
+
+.react-flow__controls,
+.react-flow__minimap {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.canvas-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
