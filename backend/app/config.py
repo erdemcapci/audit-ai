@@ -20,6 +20,8 @@ def resolve_projects_dir(value: str) -> Path:
 
 class Settings(BaseModel):
     app_env: str = os.getenv("APP_ENV", "local")
+    deployment_mode: str = os.getenv("DEPLOYMENT_MODE", "local").lower()
+    admin_secret: str = os.getenv("ADMIN_SECRET", "")
     projects_dir: Path = resolve_projects_dir(os.getenv("PROJECTS_DIR", "./projects"))
     demo_mode: bool = os.getenv("DEMO_MODE", "true").lower() == "true"
 

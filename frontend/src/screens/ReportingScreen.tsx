@@ -7,12 +7,14 @@ export function ReportingScreen({
   report,
   findings,
   onGenerate,
-  onOpenReport
+  onOpenReport,
+  agentExecutionEnabled = true
 }: {
   report: ReportState;
   findings: FindingsState;
   onGenerate: () => Promise<void>;
   onOpenReport: (nodeId: string) => void;
+  agentExecutionEnabled?: boolean;
 }) {
   const findingCount = findings.findings.length;
   const draftSectionCount = report.draft_report_structure.length;
@@ -24,7 +26,7 @@ export function ReportingScreen({
           <p className="eyebrow">Reporting</p>
           <h2>Report attachments</h2>
         </div>
-        <Button onClick={onGenerate}>Generate Draft Report</Button>
+        <Button onClick={onGenerate} disabled={!agentExecutionEnabled}>Generate Draft Report</Button>
       </header>
       {!report.executive_summary && !report.draft_markdown ? (
         <EmptyState title="No report draft yet" description="Generate reporting content from planning, fieldwork, and findings." />

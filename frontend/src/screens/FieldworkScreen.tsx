@@ -21,7 +21,8 @@ export function FieldworkScreen({
   onRefineFinding,
   onCreateFinding,
   onSaveFindings,
-  onDeleteFinding
+  onDeleteFinding,
+  agentExecutionEnabled = true
 }: {
   planning: PlanningState | null;
   fieldwork: FieldworkState;
@@ -31,6 +32,7 @@ export function FieldworkScreen({
   onCreateFinding: (finding: Finding) => Promise<void>;
   onSaveFindings: (findings: FindingsState) => Promise<void>;
   onDeleteFinding: (findingId: string) => Promise<void>;
+  agentExecutionEnabled?: boolean;
 }) {
   const [draft, setDraft] = useState(fieldwork);
   const [draftFindings, setDraftFindings] = useState<FindingsState>(findings || { findings: [] });
@@ -182,7 +184,7 @@ export function FieldworkScreen({
           <option>High</option>
         </Select>
         <div className="button-row">
-          <Button variant="ghost" onClick={() => refineIssue(item)} disabled={busy[`preview:${item.id}`]}>Try Again</Button>
+          <Button variant="ghost" onClick={() => refineIssue(item)} disabled={!agentExecutionEnabled || busy[`preview:${item.id}`]}>Try Again</Button>
           <Button onClick={() => createPreview(item.id)}>Create Issue</Button>
         </div>
       </div>
@@ -201,13 +203,13 @@ export function FieldworkScreen({
           <option>High</option>
         </Select>
         <div className="button-row">
-          <Button variant="ghost" onClick={() => regenerateFindingPart(finding, "issue")} disabled={busy[`issue:${finding.id}`]}>
+          <Button variant="ghost" onClick={() => regenerateFindingPart(finding, "issue")} disabled={!agentExecutionEnabled || busy[`issue:${finding.id}`]}>
             {busy[`issue:${finding.id}`] ? "Regenerating issue" : "Regenerate Issue"}
           </Button>
-          <Button variant="ghost" onClick={() => regenerateFindingPart(finding, "recommendation")} disabled={busy[`recommendation:${finding.id}`]}>
+          <Button variant="ghost" onClick={() => regenerateFindingPart(finding, "recommendation")} disabled={!agentExecutionEnabled || busy[`recommendation:${finding.id}`]}>
             {busy[`recommendation:${finding.id}`] ? "Regenerating recommendation" : "Regenerate Recommendation"}
           </Button>
-          <Button variant="ghost" onClick={() => regenerateFinding(finding)} disabled={busy[`finding:${finding.id}`]}>
+          <Button variant="ghost" onClick={() => regenerateFinding(finding)} disabled={!agentExecutionEnabled || busy[`finding:${finding.id}`]}>
             {busy[`finding:${finding.id}`] ? "Regenerating" : "Regenerate"}
           </Button>
           <Button variant="danger" onClick={() => deleteFinding(finding.id)}>Delete</Button>
@@ -250,7 +252,7 @@ export function FieldworkScreen({
             <Button
               variant="secondary"
               onClick={() => refineIssue(item)}
-              disabled={!roughTextByItem[item.id]?.trim() || busy[`preview:${item.id}`]}
+              disabled={!agentExecutionEnabled || !roughTextByItem[item.id]?.trim() || busy[`preview:${item.id}`]}
             >
               {busy[`preview:${item.id}`] ? "Refining" : "Refine"}
             </Button>

@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.models import PlanningState
+from app.runtime import ensure_agent_execution_allowed
 from app.services.planning_service import planning_service
 from app.store.project_store import project_store
 
@@ -9,17 +10,20 @@ router = APIRouter(prefix="/api/projects/{project_id}/planning", tags=["planning
 
 
 @router.post("/generate-objectives", response_model=PlanningState)
-async def generate_objectives(project_id: str) -> PlanningState:
+async def generate_objectives(project_id: str, request: Request) -> PlanningState:
+    ensure_agent_execution_allowed(request)
     return await planning_service.generate_objectives(project_id)
 
 
 @router.post("/generate-risks", response_model=PlanningState)
-async def generate_risks(project_id: str) -> PlanningState:
+async def generate_risks(project_id: str, request: Request) -> PlanningState:
+    ensure_agent_execution_allowed(request)
     return await planning_service.generate_risks(project_id)
 
 
 @router.post("/generate-tests", response_model=PlanningState)
-async def generate_tests(project_id: str) -> PlanningState:
+async def generate_tests(project_id: str, request: Request) -> PlanningState:
+    ensure_agent_execution_allowed(request)
     return await planning_service.generate_tests(project_id)
 
 

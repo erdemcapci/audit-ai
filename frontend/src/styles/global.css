@@ -407,6 +407,72 @@ h3 {
   color: #475569;
 }
 
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
+  gap: 16px;
+}
+
+.admin-card {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-job-card {
+  grid-column: 1 / -1;
+}
+
+.runtime-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+}
+
+.runtime-list dt {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.runtime-list dd {
+  margin: 0;
+  color: #111827;
+  font-weight: 850;
+}
+
+.admin-step-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #64748b;
+}
+
+.admin-step-completed {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.admin-step-running {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.admin-step-failed {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
 .attachment-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1247,6 +1313,10 @@ h3 {
   }
 
   .right-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 

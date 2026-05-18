@@ -8,6 +8,7 @@ import { interviewsApi } from "../api/interviewsApi";
 import { planningApi } from "../api/planningApi";
 import { projectsApi } from "../api/projectsApi";
 import { reportsApi } from "../api/reportsApi";
+import type { RuntimeSettings } from "../api/settingsApi";
 import { BrandingFooter, LinkedInLogoLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
@@ -76,7 +77,7 @@ function agentPhase(agentType: string): PhaseFilter {
   return "planning";
 }
 
-export function AuditWorkspace({ projectId, onReset }: { projectId: string; onReset: () => void }) {
+export function AuditWorkspace({ projectId, onReset, runtime }: { projectId: string; onReset: () => void; runtime: RuntimeSettings | null }) {
   const [project, setProject] = useState<AuditProject | null>(null);
   const [planning, setPlanning] = useState<PlanningState | null>(null);
   const [interviews, setInterviews] = useState<InterviewPlan | null>(null);
@@ -197,6 +198,10 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
   }
 
   async function runAgent(agentId: string, localInputNodeIds?: string[]) {
+    if (runtime && !runtime.agentExecutionEnabled) {
+      setError(runtime.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured for agent execution.");
+      return;
+    }
     const inputNodeIds = localInputNodeIds || map?.edges.filter((edge) => edge.target === agentId).map((edge) => edge.source) || [];
     const agentNode = map?.nodes.find((node) => node.id === agentId);
     if (agentNode?.data.agentType === "report_draft_agent") {
@@ -576,6 +581,9 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
+      {runtime?.deploymentMode === "hosted" && !runtime.agentExecutionEnabled ? (
+        <div className="message-text">AI agent execution is disabled in this hosted showcase.</div>
+      ) : null}
 
       <nav className="workspace-tabs">
         {["Map", "Planning", "Interviews", "Fieldwork", "Reporting"].map((tab) => (
@@ -690,6 +698,8 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
             onAutoLayout={async () => setShowAutoLayoutConfig(true)}
             onError={setError}
             phaseFilter={phaseFilter}
+            agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
+            agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
             hierarchyFilters={{
               ...mapFilters,
               nodeIds: hierarchyNodeIds
@@ -743,6 +753,7 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
         <InterviewsScreen
           plan={interviews}
           onGenerate={() => run(() => interviewsApi.generatePlan(projectId))}
+          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
           onChange={(next) => run(() => interviewsApi.update(projectId, next))}
         />
       ) : null}
@@ -756,6 +767,7 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
           onCreateFinding={(finding) => run(() => findingsApi.create(projectId, finding))}
           onSaveFindings={(next) => run(() => findingsApi.update(projectId, next))}
           onDeleteFinding={(findingId) => run(() => findingsApi.delete(projectId, findingId))}
+          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
         />
       ) : null}
       {activeScreen === "Reporting" && report && findings ? (
@@ -764,6 +776,7 @@ export function AuditWorkspace({ projectId, onReset }: { projectId: string; onRe
           findings={findings}
           onGenerate={() => run(() => reportsApi.generateDraftReport(projectId))}
           onOpenReport={openReportAttachment}
+          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
         />
       ) : null}
       {activeScreen === "Settings" && project ? <SettingsScreen projectId={projectId} projectTitle={project.title} onDeleted={onReset} /> : null}

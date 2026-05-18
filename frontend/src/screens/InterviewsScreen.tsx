@@ -8,11 +8,13 @@ import type { InterviewPlan } from "../types";
 export function InterviewsScreen({
   plan,
   onGenerate,
-  onChange
+  onChange,
+  agentExecutionEnabled = true
 }: {
   plan: InterviewPlan;
   onGenerate: () => Promise<void>;
   onChange: (plan: InterviewPlan) => Promise<void>;
+  agentExecutionEnabled?: boolean;
 }) {
   const [draft, setDraft] = useState(plan);
 
@@ -33,7 +35,7 @@ export function InterviewsScreen({
           <h2>Interview plan</h2>
         </div>
         <div className="button-row">
-          <Button onClick={onGenerate}>Generate Interview Plan</Button>
+          <Button onClick={onGenerate} disabled={!agentExecutionEnabled}>Generate Interview Plan</Button>
           <Button variant="secondary" onClick={() => onChange(draft)} disabled={!draft.roles.length}>Save Notes</Button>
         </div>
       </header>

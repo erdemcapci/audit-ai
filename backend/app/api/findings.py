@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.models import Finding, FindingDraftRequest, FindingsState
+from app.runtime import ensure_agent_execution_allowed
 from app.services.finding_service import finding_service
 from app.store.project_store import project_store
 
@@ -9,13 +10,15 @@ router = APIRouter(prefix="/api/projects/{project_id}/findings", tags=["findings
 
 
 @router.post("/draft", response_model=Finding)
-async def draft_finding(project_id: str, request: FindingDraftRequest) -> Finding:
-    return await finding_service.draft(project_id, request)
+async def draft_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
+    ensure_agent_execution_allowed(request)
+    return await finding_service.draft(project_id, payload)
 
 
 @router.post("/refine", response_model=Finding)
-async def refine_finding(project_id: str, request: FindingDraftRequest) -> Finding:
-    return await finding_service.refine(project_id, request)
+async def refine_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
+    ensure_agent_execution_allowed(request)
+    return await finding_service.refine(project_id, payload)
 
 
 @router.post("", response_model=Finding)

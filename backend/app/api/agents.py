@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.models import (
     AgentCreateRequest,
@@ -10,6 +10,7 @@ from app.models import (
     AgentUpdateRequest,
     MessageResponse,
 )
+from app.runtime import ensure_agent_execution_allowed
 from app.services.agent_service import agent_service
 
 
@@ -38,8 +39,9 @@ def check_agent_outputs(project_id: str, agent_id: str, request: AgentRunRequest
 
 
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
-async def run_agent(project_id: str, agent_id: str, request: AgentRunRequest) -> AgentRunResponse:
-    return await agent_service.run(project_id, agent_id, request)
+async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
+    ensure_agent_execution_allowed(request)
+    return await agent_service.run(project_id, agent_id, payload)
 
 
 @project_router.delete("/{agent_id}", response_model=MessageResponse)

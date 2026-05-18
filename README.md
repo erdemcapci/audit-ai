@@ -93,6 +93,24 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 
 OpenAI and Claude require API keys in `.env`.
 
+## Deployment Modes
+
+AuditCopilot supports two runtime modes:
+
+- `DEPLOYMENT_MODE=local`: local downloaded version. Users can run AI agents when Ollama, OpenAI, Claude, or demo mode is configured.
+- `DEPLOYMENT_MODE=hosted`: hosted showcase version. Public visitors can view the app, but only an authenticated admin can run AI agents.
+
+For hosted admin access, configure:
+
+```env
+DEPLOYMENT_MODE=hosted
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+ADMIN_SECRET=choose_a_secret
+```
+
+Admin users can open `/admin`, log in with `ADMIN_SECRET`, and create a full end-to-end demo audit.
+
 ## Local Development
 
 Backend:

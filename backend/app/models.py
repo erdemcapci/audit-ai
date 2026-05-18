@@ -214,6 +214,45 @@ class LLMSettingsUpdate(BaseModel):
     anthropic_api_key: str | None = None
 
 
+class RuntimeSettings(BaseModel):
+    deploymentMode: Literal["local", "hosted"]
+    isAdmin: bool
+    adminEnabled: bool
+    llmProviderConfigured: bool
+    agentExecutionEnabled: bool
+
+
+class AdminLoginRequest(BaseModel):
+    secret: str
+
+
+class AdminMe(BaseModel):
+    isAdmin: bool
+    runtime: RuntimeSettings
+
+
+class DemoCreateRequest(BaseModel):
+    title: str
+    description: str
+    processArea: str = ""
+    initialConcern: str = ""
+    runFullDemo: bool = False
+
+
+class DemoJobStep(BaseModel):
+    name: str
+    status: Literal["pending", "running", "completed", "failed"] = "pending"
+
+
+class DemoJobStatus(BaseModel):
+    jobId: str
+    status: Literal["running", "completed", "partial", "failed"]
+    projectId: str | None = None
+    currentStep: str = ""
+    steps: list[DemoJobStep] = Field(default_factory=list)
+    error: str | None = None
+
+
 class FlowNode(BaseModel):
     id: str
     type: str

@@ -28,8 +28,11 @@ export function AgentNode({ id, data, selected }: { id: string; data: FlowNodeDa
       {data.lastError ? <p className="agent-error">{data.lastError}</p> : null}
       <Button
         className="agent-run-button"
+        disabled={data.agentExecutionEnabled === false}
+        title={data.agentExecutionEnabled === false ? data.agentExecutionMessage || "Agent execution is disabled." : undefined}
         onClick={(event) => {
           event.stopPropagation();
+          if (data.agentExecutionEnabled === false) return;
           data.onRunAgent?.(id);
         }}
       >

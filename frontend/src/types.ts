@@ -170,6 +170,8 @@ export type FlowNodeData = {
   lastError?: string;
   lastOutput?: Record<string, unknown>;
   inputCount?: number;
+  agentExecutionEnabled?: boolean;
+  agentExecutionMessage?: string;
   onRunAgent?: (agentId: string, inputNodeIds?: string[]) => void;
   onPhaseResize?: (nodeId: string, dimensions: { width: number; height: number }) => void;
   onNodeResize?: (nodeId: string, dimensions: { width: number; height: number }) => void;

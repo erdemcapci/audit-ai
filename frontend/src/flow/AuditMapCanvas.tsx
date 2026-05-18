@@ -176,7 +176,9 @@ function InnerCanvas({
   onAutoLayout,
   onError,
   phaseFilter,
-  hierarchyFilters
+  hierarchyFilters,
+  agentExecutionEnabled,
+  agentExecutionMessage
 }: {
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
@@ -188,6 +190,8 @@ function InnerCanvas({
   onError: (message: string) => void;
   phaseFilter: PhaseFilter;
   hierarchyFilters: MapHierarchyFilters;
+  agentExecutionEnabled: boolean;
+  agentExecutionMessage: string;
 }) {
   const reactFlow = useReactFlow<Node<FlowNodeData>, Edge>();
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -291,6 +295,8 @@ function InnerCanvas({
         data: {
           ...node.data,
           onRunAgent: (agentId: string, inputNodeIds?: string[]) => onRunAgentRef.current(agentId, inputNodeIds),
+          agentExecutionEnabled,
+          agentExecutionMessage,
           onPhaseResize: handlePhaseResize,
           onNodeResize: handleNodeResize
         },
@@ -314,7 +320,7 @@ function InnerCanvas({
     setNodes(nextNodes);
     setEdges(nextEdges);
     window.requestAnimationFrame(() => reactFlow.fitView({ padding: 0.16, duration: 250 }));
-  }, [handleNodeResize, handlePhaseResize, map, reactFlow, setEdges, setNodes]);
+  }, [agentExecutionEnabled, agentExecutionMessage, handleNodeResize, handlePhaseResize, map, reactFlow, setEdges, setNodes]);
 
   const nodeTypeById = useMemo(() => new Map(nodes.map((node) => [node.id, node.type || ""])), [nodes]);
   const connected = useMemo(() => {
@@ -336,6 +342,8 @@ function InnerCanvas({
         data: {
           ...node.data,
           onRunAgent: (agentId: string) => onRunAgentRef.current(agentId, edges.filter((edge) => edge.target === agentId).map((edge) => edge.source)),
+          agentExecutionEnabled,
+          agentExecutionMessage,
           onPhaseResize: handlePhaseResize,
           onNodeResize: handleNodeResize,
           isSelected: node.id === selectedNodeId
@@ -345,7 +353,7 @@ function InnerCanvas({
             ? "node-faded"
             : ""
       })),
-    [connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId]
+    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId]
   );
   const hierarchyVisibleIds = useMemo(() => {
     const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length || hierarchyFilters.status);
@@ -598,6 +606,8 @@ export function AuditMapCanvas(props: {
   onError: (message: string) => void;
   phaseFilter: PhaseFilter;
   hierarchyFilters: MapHierarchyFilters;
+  agentExecutionEnabled: boolean;
+  agentExecutionMessage: string;
 }) {
   return (
     <ReactFlowProvider>

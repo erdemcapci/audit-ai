@@ -1,12 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.config import settings
 from app.llm.base import LLMProviderError
 from app.llm.router import get_llm_provider
-from app.models import LLMSettings, LLMSettingsUpdate
+from app.models import LLMSettings, LLMSettingsUpdate, RuntimeSettings
+from app.runtime import ensure_agent_execution_allowed, runtime_settings
 
 
 router = APIRouter(prefix="/api/settings/llm", tags=["settings"])
+runtime_router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 def current_settings() -> LLMSettings:
@@ -49,8 +51,14 @@ def update_llm_settings(update: LLMSettingsUpdate) -> LLMSettings:
     return current_settings()
 
 
+@runtime_router.get("/runtime", response_model=RuntimeSettings)
+def get_runtime_settings(request: Request) -> RuntimeSettings:
+    return runtime_settings(request)
+
+
 @router.post("/test")
-async def test_llm_settings() -> dict[str, str | bool]:
+async def test_llm_settings(request: Request) -> dict[str, str | bool]:
+    ensure_agent_execution_allowed(request)
     if settings.demo_mode:
         return {"ok": True, "message": "Demo mode is enabled. No provider call required."}
     try:
