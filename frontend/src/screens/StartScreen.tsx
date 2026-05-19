@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
 import { projectsApi } from "../api/projectsApi";
-import { BrandingFooter, CreatorLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { LoadingState } from "../components/LoadingState";
@@ -46,13 +45,9 @@ export function StartScreen({
     <main className="start-screen">
       <section className="start-hero">
         <div>
-          <p className="eyebrow">Local-first AI audit copilot</p>
           <h1>Start a new audit</h1>
           <p className="hero-copy">
             Create a local audit workspace, then generate objectives, risks, and tests when you are ready.
-          </p>
-          <p className="creator-note">
-            Open-source visual AI audit workspace. Created by <CreatorLink />.
           </p>
         </div>
         <Card className="start-card">
@@ -97,7 +92,6 @@ export function StartScreen({
           </div>
         </section>
       ) : null}
-      <BrandingFooter />
     </main>
   );
 }

@@ -107,6 +107,8 @@ DEPLOYMENT_MODE=hosted
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_key_here
 ADMIN_SECRET=choose_a_secret
+PROJECTS_DIR=/data/projects
+CORS_ORIGIN_REGEX=https://.*\\.up\\.railway\\.app
 ```
 
 Admin users can open `/admin`, log in with `ADMIN_SECRET`, and create a full end-to-end demo audit.

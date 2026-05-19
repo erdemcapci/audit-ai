@@ -18,6 +18,10 @@ def resolve_projects_dir(value: str) -> Path:
     return cwd / path
 
 
+def parse_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 class Settings(BaseModel):
     app_env: str = os.getenv("APP_ENV", "local")
     deployment_mode: str = os.getenv("DEPLOYMENT_MODE", "local").lower()
@@ -36,12 +40,13 @@ class Settings(BaseModel):
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 
-    cors_origins: list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
+    cors_origins: list[str] = parse_csv(
+        os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+        )
+    )
+    cors_origin_regex: str | None = os.getenv("CORS_ORIGIN_REGEX", "").strip() or None
 
 
 settings = Settings()

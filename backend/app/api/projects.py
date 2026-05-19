@@ -9,7 +9,10 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 @router.post("", response_model=AuditProject)
 def create_project(payload: AuditCreate) -> AuditProject:
-    return project_store.create_project(payload)
+    try:
+        return project_store.create_project(payload)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to create project workspace: {exc}") from exc
 
 
 @router.get("", response_model=list[AuditProject])
