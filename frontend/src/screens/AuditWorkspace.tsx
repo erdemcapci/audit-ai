@@ -128,8 +128,8 @@ export function AuditWorkspace({ projectId, onReset, runtime }: { projectId: str
     setFieldwork(fieldworkData);
     setFindings(findingsData);
     setReport(reportData);
-    setMap(mapData);
-    setAgentTypes(agentTypeData);
+    setMap({ nodes: Array.isArray(mapData?.nodes) ? mapData.nodes : [], edges: Array.isArray(mapData?.edges) ? mapData.edges : [] });
+    setAgentTypes(Array.isArray(agentTypeData) ? agentTypeData : []);
   }, [projectId]);
 
   useEffect(() => {
