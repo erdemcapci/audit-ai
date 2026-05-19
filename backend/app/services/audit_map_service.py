@@ -543,7 +543,6 @@ class AuditMapService:
         if not findings.findings:
             for item in fieldwork.items[:4]:
                 edges.append(edge(item.id, report_id))
-        edges.append(edge(report_id, "executive-summary"))
 
         for agent in map_state.agents:
             agent_position = map_state.nodePositions.get(agent.id, agent.position)

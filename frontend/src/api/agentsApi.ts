@@ -10,7 +10,10 @@ type AgentRunPayload = {
 };
 
 export const agentsApi = {
-  types: () => apiRequest<AgentDefinition[]>("/api/agents/types"),
+  types: async () => {
+    const payload = await apiRequest<unknown>("/api/agents/types");
+    return Array.isArray(payload) ? (payload as AgentDefinition[]) : [];
+  },
   create: (projectId: string, type: string, position?: { x: number; y: number }) =>
     apiRequest<AgentState>(`/api/projects/${projectId}/agents`, { method: "POST", body: JSON.stringify({ type, position }) }),
   update: (projectId: string, agentId: string, payload: Partial<Pick<AgentState, "title" | "prompt" | "config" | "position" | "status">>) =>

@@ -8,9 +8,13 @@ function normalizeMapResponse(payload: unknown): AuditMapResponse {
   return { nodes, edges } as AuditMapResponse;
 }
 
+function normalizeProjectList(payload: unknown): AuditProject[] {
+  return Array.isArray(payload) ? (payload as AuditProject[]) : [];
+}
+
 export const projectsApi = {
   create: (payload: AuditCreate) => apiRequest<AuditProject>("/api/projects", { method: "POST", body: JSON.stringify(payload) }),
-  list: () => apiRequest<AuditProject[]>("/api/projects"),
+  list: async () => normalizeProjectList(await apiRequest<unknown>("/api/projects")),
   get: (projectId: string) => apiRequest<AuditProject>(`/api/projects/${projectId}`),
   delete: (projectId: string) => apiRequest<{ message: string }>(`/api/projects/${projectId}`, { method: "DELETE" }),
   map: async (projectId: string) =>
