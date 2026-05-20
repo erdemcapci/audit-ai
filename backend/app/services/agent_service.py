@@ -918,7 +918,16 @@ class AgentService:
                             role_title=role.get("role_title", "Interviewee"),
                             rationale=role.get("rationale", ""),
                             expected_information=role.get("expected_information", ""),
-                            questions=[InterviewQuestion(**question) for question in role.get("questions", [])[: max(1, questions_per_role)]],
+                            notes=role.get("notes", ""),
+                            questions=[
+                                InterviewQuestion(
+                                    question_text=question.get("question_text", "Interview question"),
+                                    mapped_objective_id=question.get("mapped_objective_id"),
+                                    mapped_risk_id=question.get("mapped_risk_id"),
+                                    mapped_test_id=question.get("mapped_test_id"),
+                                )
+                                for question in role.get("questions", [])[: max(1, questions_per_role)]
+                            ],
                         )
                         for role in data.get("roles", [])[: max(1, max_roles)]
                     ]
@@ -955,7 +964,16 @@ class AgentService:
                     },
                 )
                 generated = DocumentRequestState(
-                    requests=[DocumentRequest(**item) for item in data.get("requests", [])[: max(1, max_items)]]
+                    requests=[
+                        DocumentRequest(
+                            title=item.get("title", "Document request"),
+                            description=item.get("description", ""),
+                            requested_from=item.get("requested_from", ""),
+                            expected_document=item.get("expected_document", ""),
+                            rationale=item.get("rationale", ""),
+                        )
+                        for item in data.get("requests", [])[: max(1, max_items)]
+                    ]
                 )
             documents_layout = anchored_fieldwork_section_layouts(map_state.phaseLayouts["fieldwork"], map_state)["documents"]
             existing_positions = [
@@ -1041,7 +1059,15 @@ class AgentService:
                         "ai_improved_version": "Improved report language",
                     },
                 )
-                report = ReportState(**data)
+                report = ReportState(
+                    executive_summary=data.get("executive_summary", ""),
+                    audit_conclusion=data.get("audit_conclusion", ""),
+                    key_themes=data.get("key_themes", []),
+                    issue_summary=data.get("issue_summary", ""),
+                    management_attention_points=data.get("management_attention_points", []),
+                    draft_report_structure=data.get("draft_report_structure", []),
+                    ai_improved_version=data.get("ai_improved_version", ""),
+                )
                 report.draft_markdown = report_to_markdown(report)
             project_store.save_report(project_id, report)
             add_custom_edge(map_state, agent.id, "report-main")
@@ -1173,14 +1199,6 @@ class AgentService:
                             "name": "Workstream name",
                             "description": "Detailed workstream description",
                             "rationale": "Why this workstream matters",
-                            "objectives": [
-                                {
-                                    "title": "Optional objective title",
-                                    "description": "Optional objective description",
-                                    "scope_notes": "Optional scope notes",
-                                    "rationale": "Optional objective rationale",
-                                }
-                            ],
                         }
                     ]
                 },
@@ -1190,7 +1208,7 @@ class AgentService:
                     name=item.get("name", "Workstream"),
                     description=item.get("description", ""),
                     rationale=item.get("rationale", ""),
-                    objectives=[Objective(**objective) for objective in item.get("objectives", [])],
+                    objectives=[],
                 )
                 for item in data.get("workstreams", [])[: max(1, count)]
             ]
@@ -1238,7 +1256,16 @@ class AgentService:
                         ]
                     },
                 )
-                objectives = [Objective(**item) for item in data.get("objectives", [])[: max(1, count)]]
+                objectives = [
+                    Objective(
+                        title=item.get("title", "Audit objective"),
+                        description=item.get("description", ""),
+                        scope_notes=item.get("scope_notes", ""),
+                        rationale=item.get("rationale", ""),
+                        risks=[],
+                    )
+                    for item in data.get("objectives", [])[: max(1, count)]
+                ]
             for objective in objectives:
                 workstream.objectives.append(objective)
                 existing_titles.append(objective.title)
@@ -1288,7 +1315,17 @@ class AgentService:
                             ]
                         },
                     )
-                    risks = [Risk(**item) for item in data.get("risks", [])[: max(1, count)]]
+                    risks = [
+                        Risk(
+                            title=item.get("title", "Audit risk"),
+                            description=item.get("description", ""),
+                            why_it_matters=item.get("why_it_matters", ""),
+                            potential_impact=item.get("potential_impact", ""),
+                            severity=item.get("severity", "Medium"),
+                            tests=[],
+                        )
+                        for item in data.get("risks", [])[: max(1, count)]
+                    ]
                 for risk in risks:
                     objective.risks.append(risk)
                     existing_titles.append(risk.title)
@@ -1343,7 +1380,18 @@ class AgentService:
                                 ]
                             },
                         )
-                        tests = [Test(generated_by_agent_id=agent.id, **item) for item in data.get("tests", [])[: max(1, count)]]
+                        tests = [
+                            Test(
+                                title=item.get("title", "Audit test"),
+                                test_type=item.get("test_type", "Detailed Test"),
+                                test_objective=item.get("test_objective", ""),
+                                description=item.get("description", ""),
+                                expected_evidence=item.get("expected_evidence", ""),
+                                sample_considerations=item.get("sample_considerations", ""),
+                                generated_by_agent_id=agent.id,
+                            )
+                            for item in data.get("tests", [])[: max(1, count)]
+                        ]
                     for test in tests:
                         risk.tests.append(test)
                         existing_titles.append(test.title)
