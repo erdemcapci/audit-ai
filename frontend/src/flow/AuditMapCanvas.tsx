@@ -42,7 +42,6 @@ type FlowBounds = { minX: number; minY: number; maxX: number; maxY: number };
 export type MapHierarchyFilters = {
   workstreamId: string;
   objectiveId: string;
-  status: string;
   nodeIds: string[];
   showInterviews: boolean;
   showDocumentRequests: boolean;
@@ -356,7 +355,7 @@ function InnerCanvas({
     [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId]
   );
   const hierarchyVisibleIds = useMemo(() => {
-    const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length || hierarchyFilters.status);
+    const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length);
     if (!hasHierarchyFilter) return null;
 
     const nodeById = new Map(decoratedNodes.map((node) => [node.id, node]));
@@ -394,19 +393,7 @@ function InnerCanvas({
       return expanded;
     };
 
-    const structuralIds = hierarchyFilters.nodeIds.length ? new Set(hierarchyFilters.nodeIds) : null;
-    let visible = structuralIds ? new Set(structuralIds) : new Set<string>();
-
-    if (hierarchyFilters.status) {
-      const statusSeeds = new Set<string>();
-      decoratedNodes.forEach((node) => {
-        const nodeStatus = String(node.data.itemStatus || node.data.status || "");
-        if (nodeStatus !== hierarchyFilters.status) return;
-        if (structuralIds && !structuralIds.has(node.id)) return;
-        statusSeeds.add(node.id);
-      });
-      visible = expandAround(statusSeeds);
-    }
+    const visible = expandAround(new Set(hierarchyFilters.nodeIds));
 
     decoratedNodes.forEach((node) => {
       if (node.type === "phaseNode" || node.type === "fieldworkSectionNode" || node.type === "agentNode") {
@@ -442,11 +429,10 @@ function InnerCanvas({
     () =>
       JSON.stringify({
         nodeIds: [...hierarchyFilters.nodeIds].sort(),
-        status: hierarchyFilters.status,
         showInterviews: hierarchyFilters.showInterviews,
         showDocumentRequests: hierarchyFilters.showDocumentRequests
       }),
-    [hierarchyFilters.nodeIds, hierarchyFilters.showDocumentRequests, hierarchyFilters.showInterviews, hierarchyFilters.status]
+    [hierarchyFilters.nodeIds, hierarchyFilters.showDocumentRequests, hierarchyFilters.showInterviews]
   );
   const scrollMetrics = useMemo(() => {
     const padding = 80;
@@ -488,9 +474,9 @@ function InnerCanvas({
   useEffect(() => {
     if (previousHierarchyFilterRef.current === hierarchyFilterKey) return;
     previousHierarchyFilterRef.current = hierarchyFilterKey;
-    if (!hierarchyFilters.nodeIds.length && !hierarchyFilters.status) return;
+    if (!hierarchyFilters.nodeIds.length) return;
     window.requestAnimationFrame(() => reactFlow.fitView({ nodes: focusNodes, padding: 0.2, duration: 220 }));
-  }, [focusNodes, hierarchyFilterKey, hierarchyFilters.nodeIds.length, hierarchyFilters.status, reactFlow]);
+  }, [focusNodes, hierarchyFilterKey, hierarchyFilters.nodeIds.length, reactFlow]);
 
   function validateConnection(connection: Connection): string {
     const sourceType = nodeTypeById.get(connection.source || "");

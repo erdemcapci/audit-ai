@@ -115,7 +115,6 @@ export function AuditWorkspace({
   const [mapFilters, setMapFilters] = useState<MapHierarchyFilters>({
     workstreamId: "",
     objectiveId: "",
-    status: "",
     nodeIds: [],
     showInterviews: true,
     showDocumentRequests: true
@@ -557,7 +556,7 @@ export function AuditWorkspace({
     return Array.from(collectRelatedEntityIds(auditGraph, [seedId]));
   }, [auditGraph, mapFilters.objectiveId, mapFilters.workstreamId]);
 
-  function updateMapFilter(key: "workstreamId" | "objectiveId" | "status", value: string) {
+  function updateMapFilter(key: "workstreamId" | "objectiveId", value: string) {
     setMapFilters((current) => {
       const next = { ...current, [key]: value };
       if (key === "workstreamId") {
@@ -653,27 +652,12 @@ export function AuditWorkspace({
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Status</span>
-                <select value={mapFilters.status} onChange={(event) => updateMapFilter("status", event.target.value)}>
-                  <option value="">All statuses</option>
-                  <option value="AI Generated">AI Generated</option>
-                  <option value="Edited">Edited</option>
-                  <option value="Confirmed">Confirmed</option>
-                  <option value="Draft">Draft</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Issue Found">Issue Found</option>
-                  <option value="Issue Identified">Issue Identified</option>
-                  <option value="Ready for Report">Ready for Report</option>
-                </select>
-              </label>
               <Button
                 variant="ghost"
                 onClick={() =>
                   setMapFilters({
                     workstreamId: "",
                     objectiveId: "",
-                    status: "",
                     nodeIds: [],
                     showInterviews: true,
                     showDocumentRequests: true
