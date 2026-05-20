@@ -11,6 +11,8 @@ type Draft = Record<string, string>;
 
 const agentPreviewFields = new Set(["title", "prompt"]);
 
+const openAiModelOptions = ["gpt-4.1-mini", "gpt-5.4-mini", "gpt-5-mini"];
+
 const phaseDimensionOptions: Record<string, Array<{ value: string; label: string; warning: string }>> = {
   planning: [
     { value: "testNode", label: "Tests", warning: "Delete all test cards in Planning." },
@@ -138,6 +140,7 @@ function initialDraft(node: Node<FlowNodeData>): Draft {
     return {
       title: node.data.title || "",
       prompt: node.data.description || "",
+      llm_model: openAiModelOptions.includes(String(config.llm_model)) ? String(config.llm_model) : "gpt-4.1-mini",
       temperature: String(config.temperature ?? 0.2),
       output_mode: String(config.output_mode ?? "json"),
       max_output_items: String(config.max_output_items ?? ""),
@@ -242,7 +245,7 @@ export function DetailPanel({
       ["temperature", "max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective", "questions_per_role", "max_roles"].forEach((key) => {
         if (draft[key] !== "") config[key] = Number(draft[key]);
       });
-      ["output_mode", "tone", "report_style"].forEach((key) => {
+      ["output_mode", "tone", "report_style", "llm_model"].forEach((key) => {
         if (draft[key]) config[key] = draft[key];
       });
       if (draft.allowed_test_types) {
@@ -308,6 +311,9 @@ export function DetailPanel({
         <div className="detail-form">
           <TextInput label="Agent title" value={draft.title || ""} onChange={(event) => update("title", event.target.value)} />
           <TextArea label="Prompt" value={draft.prompt || ""} onChange={(event) => update("prompt", event.target.value)} rows={8} />
+          <Select label="OpenAI model" value={draft.llm_model || "gpt-4.1-mini"} onChange={(event) => update("llm_model", event.target.value)}>
+            {openAiModelOptions.map((model) => <option key={model}>{model}</option>)}
+          </Select>
           {node.data.agentType !== "report_draft_agent" ? (
             <div className="agent-connection-actions">
               <Button variant="ghost" onClick={() => onConnectRelated(node.id)}>Connect to related cards</Button>

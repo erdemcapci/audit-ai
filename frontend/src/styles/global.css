@@ -113,8 +113,34 @@ button {
 }
 
 .start-screen,
+.auth-screen,
 .workspace {
   min-height: 100vh;
+}
+
+.auth-screen {
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.auth-card {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 16px;
+}
+
+.auth-card h1 {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
+
+.auth-switch {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 850;
+  padding: 4px;
 }
 
 .start-hero {
@@ -125,6 +151,12 @@ button {
   max-width: 1180px;
   margin: 0 auto;
   padding: 72px 28px 34px;
+}
+
+.start-session-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 28px 0;
 }
 
 .eyebrow {
@@ -418,6 +450,58 @@ h3 {
   gap: 14px;
 }
 
+.admin-session-pill,
+.session-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.session-pill-admin,
+.admin-session-pill {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.admin-session-pill {
+  justify-self: start;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.admin-user-row span {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-user-row small {
+  color: #64748b;
+  font-weight: 700;
+}
+
 .admin-job-card {
   grid-column: 1 / -1;
 }
@@ -534,6 +618,7 @@ h3 {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .stepper {

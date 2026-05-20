@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { projectsApi } from "../api/projectsApi";
+import type { UserMe } from "../api/authApi";
+import type { RuntimeSettings } from "../api/settingsApi";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { LoadingState } from "../components/LoadingState";
@@ -9,10 +11,16 @@ import type { AuditProject } from "../types";
 
 export function StartScreen({
   onStart,
-  onOpenExisting
+  onOpenExisting,
+  runtime,
+  user,
+  onLogoutUser
 }: {
   onStart: (payload: { title: string; description: string; process_area: string; initial_concern: string; extra_context: string }) => Promise<void>;
   onOpenExisting: (projectId: string) => void;
+  runtime: RuntimeSettings | null;
+  user: UserMe | null;
+  onLogoutUser: () => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -43,6 +51,15 @@ export function StartScreen({
 
   return (
     <main className="start-screen">
+      <header className="start-session-bar">
+        <div />
+        <div className="header-actions">
+          {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
+          {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
+          {runtime?.isAdmin ? <Button variant="ghost" onClick={() => { window.location.href = "/admin"; }}>Admin</Button> : null}
+        </div>
+      </header>
       <section className="start-hero">
         <div>
           <h1>Start a new audit</h1>

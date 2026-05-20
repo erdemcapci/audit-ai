@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { adminApi, type AdminMe, type DemoJobStatus } from "../api/adminApi";
+import { adminApi, type AdminMe, type AdminUserSummary, type DemoJobStatus } from "../api/adminApi";
 import type { RuntimeSettings } from "../api/settingsApi";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -23,6 +23,7 @@ export function AdminScreen({
   const [initialConcern, setInitialConcern] = useState("Potential inconsistent approval evidence and vendor due diligence.");
   const [runFullDemo, setRunFullDemo] = useState(true);
   const [job, setJob] = useState<DemoJobStatus | null>(null);
+  const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +31,9 @@ export function AdminScreen({
     adminApi.me().then((next) => {
       setMe(next);
       onRuntimeChange(next.runtime);
+      if (next.isAdmin) {
+        adminApi.users().then(setUsers).catch(() => setUsers([]));
+      }
     }).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load admin status."));
   }, [onRuntimeChange]);
 
@@ -54,6 +58,7 @@ export function AdminScreen({
       const next = await adminApi.login(secret);
       setMe(next);
       onRuntimeChange(next.runtime);
+      setUsers(await adminApi.users());
       setSecret("");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Login failed.");
@@ -65,7 +70,21 @@ export function AdminScreen({
   async function logout() {
     const next = await adminApi.logout();
     setMe(next);
+    setUsers([]);
     onRuntimeChange(next.runtime);
+  }
+
+  async function toggleUserAccess(userId: string, canRunAgents: boolean) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const updated = await adminApi.updateUserAccess(userId, canRunAgents);
+      setUsers((current) => current.map((user) => (user.id === userId ? updated : user)));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to update user access.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createDemo() {
@@ -111,6 +130,7 @@ export function AdminScreen({
         <div className="admin-grid">
           <Card className="admin-card">
             <h2>Runtime status</h2>
+            <div className="admin-session-pill">Logged in as admin</div>
             <dl className="runtime-list">
               <dt>Deployment mode</dt>
               <dd>{runtime?.deploymentMode}</dd>
@@ -121,6 +141,31 @@ export function AdminScreen({
               <dt>AI execution</dt>
               <dd>{runtime?.agentExecutionEnabled ? "Enabled" : "Disabled"}</dd>
             </dl>
+          </Card>
+
+          <Card className="admin-card">
+            <h2>User access</h2>
+            <p className="muted">Grant AI agent access to signed-up users. They will use the OpenAI key configured in Railway.</p>
+            {users.length ? (
+              <div className="admin-user-list">
+                {users.map((user) => (
+                  <label key={user.id} className="admin-user-row">
+                    <span>
+                      <strong>{user.email}</strong>
+                      <small>{user.canRunAgents ? "AI access enabled" : "No AI access yet"}</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={user.canRunAgents}
+                      disabled={busy}
+                      onChange={(event) => toggleUserAccess(user.id, event.target.checked)}
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No users have signed up yet.</p>
+            )}
           </Card>
 
           <Card className="admin-card">

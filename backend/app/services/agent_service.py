@@ -4,6 +4,7 @@ import re
 from fastapi import HTTPException
 
 from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
+from app.config import default_openai_model, validate_openai_model
 from app.agents.finding_agent import FindingAgent
 from app.models import (
     AgentCreateRequest,
@@ -35,7 +36,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Workstream Generator",
         description="Generates audit workstreams from the audit description.",
         default_prompt="You are an internal audit planning assistant. Consider the existing audit map and generate workstreams that improve coverage of important audit areas without overlapping existing workstreams. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "max_output_items": 6, "workstreams_count": 5},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 6, "workstreams_count": 5},
         allowed_input_node_types=["auditNode"],
         output_node_types=["workstreamNode"],
     ),
@@ -44,7 +45,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Objective Generator",
         description="Generates audit objectives for connected workstreams.",
         default_prompt="You are an internal audit planning assistant. Consider existing objectives in the connected workstream and across the audit map. Generate objectives that fill coverage gaps and avoid overlapping existing objective angles. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "max_output_items": 8, "objectives_per_workstream": 2},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 8, "objectives_per_workstream": 2},
         allowed_input_node_types=["workstreamNode"],
         output_node_types=["objectiveNode"],
     ),
@@ -53,7 +54,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Risk Generator",
         description="Generates audit risks for connected objectives.",
         default_prompt="You are an internal audit planning assistant. Consider existing risks under the connected objective and related workstream. Generate additional risks that improve coverage of material risk areas without repeating existing risk themes. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "max_output_items": 10, "risks_per_objective": 2},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 10, "risks_per_objective": 2},
         allowed_input_node_types=["objectiveNode"],
         output_node_types=["riskNode"],
     ),
@@ -65,6 +66,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         default_config={
             "temperature": 0.2,
             "output_mode": "json",
+            "llm_model": default_openai_model(),
             "max_output_items": 12,
             "tests_per_risk": 2,
             "allowed_test_types": ["Test of Design", "Detailed Test"],
@@ -77,7 +79,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Interview Plan Generator",
         description="Generates interview roles and questions from connected planning or fieldwork cards.",
         default_prompt="You are an internal audit interview planning assistant. Generate role-based interview questions mapped to connected objectives, risks, tests, or fieldwork items. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "questions_per_role": 3, "max_roles": 4},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "questions_per_role": 3, "max_roles": 4},
         allowed_input_node_types=["objectiveNode", "riskNode", "testNode", "fieldworkItemNode"],
         output_node_types=["interviewRoleNode", "interviewQuestionNode"],
     ),
@@ -86,7 +88,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Finding Draft Agent",
         description="Drafts a structured finding from connected fieldwork or rough text.",
         default_prompt="You are an internal audit finding drafting assistant. Turn rough fieldwork observations into a structured audit finding. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "tone": "internal audit"},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "tone": "internal audit"},
         allowed_input_node_types=["fieldworkItemNode"],
         output_node_types=["findingNode"],
     ),
@@ -95,7 +97,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Document Request Generator",
         description="Generates document and evidence request cards from connected fieldwork or planning cards.",
         default_prompt="You are an internal audit fieldwork assistant. Generate practical document and evidence requests for the connected audit cards. Return valid JSON only. Each request should include title, description, requested_from, expected_document, and rationale.",
-        default_config={"temperature": 0.2, "output_mode": "json", "max_output_items": 8},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 8},
         allowed_input_node_types=["fieldworkItemNode", "testNode", "riskNode", "objectiveNode"],
         output_node_types=["documentRequestNode"],
     ),
@@ -104,7 +106,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Report Draft Agent",
         description="Drafts report content from the full audit state.",
         default_prompt="You are an internal audit report drafting assistant. Generate executive-ready report language from the full audit plan, fieldwork, and findings. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "report_style": "executive"},
+        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "report_style": "executive"},
         allowed_input_node_types=[],
         output_node_types=["reportNode"],
     ),
@@ -341,7 +343,7 @@ class AgentService:
         if request.prompt is not None:
             agent.prompt = request.prompt
         if request.config is not None:
-            agent.config = request.config
+            agent.config = self._sanitize_agent_config(request.config)
         if request.position is not None:
             agent.position = request.position
         if request.status is not None:
@@ -369,8 +371,9 @@ class AgentService:
         map_state = project_store.load_map_state(project_id)
         prune_deleted_or_orphan_agents(map_state)
         agent = self._get_agent(map_state, agent_id)
+        agent.config = self._sanitize_agent_config(agent.config, strict=False)
         if request.config is not None:
-            agent.config = request.config
+            agent.config = self._sanitize_agent_config(request.config)
         if request.prompt is not None:
             agent.prompt = request.prompt
         input_node_ids = request.input_node_ids or [edge.source for edge in map_state.edges if edge.target == agent.id]
@@ -921,6 +924,7 @@ class AgentService:
                         fieldwork_item_id=item.id,
                     ),
                     item,
+                    model=validate_openai_model(str(agent.config.get("llm_model") or default_openai_model())),
                 )
                 findings.findings.append(finding)
                 item.finding_ids.append(finding.id)
@@ -945,6 +949,16 @@ class AgentService:
             return {"report": 1}
 
         raise ValueError(f"Unsupported agent type: {agent.type}")
+
+    def _sanitize_agent_config(self, config: dict, strict: bool = True) -> dict:
+        next_config = dict(config)
+        try:
+            next_config["llm_model"] = validate_openai_model(str(next_config.get("llm_model") or default_openai_model()))
+        except ValueError:
+            if strict:
+                raise
+            next_config["llm_model"] = default_openai_model()
+        return next_config
 
     def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
         audit = project_store.get_project(project_id)

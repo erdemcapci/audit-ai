@@ -9,6 +9,7 @@ import { planningApi } from "../api/planningApi";
 import { projectsApi } from "../api/projectsApi";
 import { reportsApi } from "../api/reportsApi";
 import type { RuntimeSettings } from "../api/settingsApi";
+import type { UserMe } from "../api/authApi";
 import { BrandingFooter, LinkedInLogoLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
@@ -77,7 +78,19 @@ function agentPhase(agentType: string): PhaseFilter {
   return "planning";
 }
 
-export function AuditWorkspace({ projectId, onReset, runtime }: { projectId: string; onReset: () => void; runtime: RuntimeSettings | null }) {
+export function AuditWorkspace({
+  projectId,
+  onReset,
+  runtime,
+  user,
+  onLogoutUser
+}: {
+  projectId: string;
+  onReset: () => void;
+  runtime: RuntimeSettings | null;
+  user: UserMe | null;
+  onLogoutUser: () => Promise<void>;
+}) {
   const [project, setProject] = useState<AuditProject | null>(null);
   const [planning, setPlanning] = useState<PlanningState | null>(null);
   const [interviews, setInterviews] = useState<InterviewPlan | null>(null);
@@ -562,6 +575,9 @@ export function AuditWorkspace({ projectId, onReset, runtime }: { projectId: str
           <p>{project?.description}</p>
         </div>
         <div className="header-actions">
+          {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
+          {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
           <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
           <Button variant="ghost" onClick={onReset}>New audit</Button>

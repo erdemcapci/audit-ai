@@ -20,6 +20,9 @@ export type LlmSettingsUpdate = {
 export type RuntimeSettings = {
   deploymentMode: "local" | "hosted";
   isAdmin: boolean;
+  isAuthenticated: boolean;
+  userEmail: string | null;
+  userCanRunAgents: boolean;
   adminEnabled: boolean;
   llmProviderConfigured: boolean;
   agentExecutionEnabled: boolean;

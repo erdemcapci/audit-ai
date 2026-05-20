@@ -21,5 +21,6 @@ class LLMProvider:
         user_prompt: str,
         json_mode: bool = True,
         temperature: float = 0.2,
+        model: str | None = None,
     ) -> LLMResponse:
         raise NotImplementedError

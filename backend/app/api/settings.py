@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
-from app.config import settings
+from app.config import default_openai_model, settings, validate_openai_model
 from app.llm.base import LLMProviderError
 from app.llm.router import get_llm_provider
 from app.models import LLMSettings, LLMSettingsUpdate, RuntimeSettings
-from app.runtime import ensure_agent_execution_allowed, runtime_settings
+from app.runtime import deployment_mode, ensure_agent_execution_allowed, is_admin_request, runtime_settings
 
 
 router = APIRouter(prefix="/api/settings/llm", tags=["settings"])
@@ -14,7 +14,7 @@ runtime_router = APIRouter(prefix="/api/settings", tags=["settings"])
 def current_settings() -> LLMSettings:
     model = settings.ollama_model
     if settings.llm_provider == "openai":
-        model = settings.openai_model
+        model = default_openai_model()
     elif settings.llm_provider == "claude":
         model = settings.anthropic_model
     return LLMSettings(
@@ -33,13 +33,15 @@ def get_llm_settings() -> LLMSettings:
 
 
 @router.put("", response_model=LLMSettings)
-def update_llm_settings(update: LLMSettingsUpdate) -> LLMSettings:
+def update_llm_settings(request: Request, update: LLMSettingsUpdate) -> LLMSettings:
+    if deployment_mode() == "hosted" and not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required to change hosted LLM settings.")
     settings.llm_provider = update.provider
     if update.demo_mode is not None:
         settings.demo_mode = update.demo_mode
     if update.model:
         if update.provider == "openai":
-            settings.openai_model = update.model
+            settings.openai_model = validate_openai_model(update.model)
         elif update.provider == "claude":
             settings.anthropic_model = update.model
         else:

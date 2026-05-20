@@ -10,6 +10,8 @@ from app.config import settings
 from app.models import (
     AdminLoginRequest,
     AdminMe,
+    AdminUserAccessUpdate,
+    AdminUserSummary,
     AuditCreate,
     AutoLayoutRequest,
     DemoCreateRequest,
@@ -33,6 +35,7 @@ from app.services.interview_service import interview_service
 from app.services.planning_service import planning_service
 from app.services.report_service import report_service
 from app.store.project_store import project_store
+from app.store.user_store import user_store
 
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -52,6 +55,16 @@ DEMO_STEPS = [
 ]
 
 jobs: dict[str, DemoJobStatus] = {}
+
+
+def _admin_user_summary(user) -> AdminUserSummary:
+    return AdminUserSummary(
+        id=user.id,
+        email=user.email,
+        canRunAgents=user.can_run_agents,
+        createdAt=user.created_at,
+        updatedAt=user.updated_at,
+    )
 
 
 def _new_job() -> DemoJobStatus:
@@ -177,6 +190,20 @@ def me(request: Request) -> AdminMe:
 def logout(request: Request, response: Response) -> AdminMe:
     clear_admin_cookie(response)
     return AdminMe(isAdmin=False, runtime=runtime_settings(request))
+
+
+@router.get("/users", response_model=list[AdminUserSummary])
+def list_users(request: Request) -> list[AdminUserSummary]:
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required.")
+    return [_admin_user_summary(user) for user in user_store.list_users()]
+
+
+@router.put("/users/{user_id}/access", response_model=AdminUserSummary)
+def update_user_access(request: Request, user_id: str, payload: AdminUserAccessUpdate) -> AdminUserSummary:
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required.")
+    return _admin_user_summary(user_store.update_access(user_id, payload.canRunAgents))
 
 
 @router.post("/demo/create-full", response_model=DemoJobStatus)

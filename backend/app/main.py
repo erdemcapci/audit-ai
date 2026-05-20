@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, agents, audit_map, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
+from app.api import admin, agents, audit_map, auth, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
 from app.config import settings
 
 
@@ -52,3 +52,4 @@ app.include_router(audit_map.router)
 app.include_router(agents.types_router)
 app.include_router(agents.project_router)
 app.include_router(admin.router)
+app.include_router(auth.router)

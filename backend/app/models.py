@@ -217,6 +217,9 @@ class LLMSettingsUpdate(BaseModel):
 class RuntimeSettings(BaseModel):
     deploymentMode: Literal["local", "hosted"]
     isAdmin: bool
+    isAuthenticated: bool = False
+    userEmail: str | None = None
+    userCanRunAgents: bool = False
     adminEnabled: bool
     llmProviderConfigured: bool
     agentExecutionEnabled: bool
@@ -229,6 +232,39 @@ class AdminLoginRequest(BaseModel):
 class AdminMe(BaseModel):
     isAdmin: bool
     runtime: RuntimeSettings
+
+
+class UserAuthRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserRecord(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("user"))
+    email: str
+    password_hash: str
+    can_run_agents: bool = False
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+
+
+class UserMe(BaseModel):
+    isAuthenticated: bool
+    email: str | None = None
+    canRunAgents: bool = False
+    runtime: RuntimeSettings
+
+
+class AdminUserSummary(BaseModel):
+    id: str
+    email: str
+    canRunAgents: bool
+    createdAt: str
+    updatedAt: str
+
+
+class AdminUserAccessUpdate(BaseModel):
+    canRunAgents: bool
 
 
 class DemoCreateRequest(BaseModel):
