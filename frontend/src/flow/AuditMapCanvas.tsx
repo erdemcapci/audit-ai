@@ -517,7 +517,11 @@ function InnerCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onSelectionChange={({ nodes: selectedNodes }) => {
-          onSelectNode(selectedNodes.length === 1 ? (selectedNodes[0] as Node<FlowNodeData>) : null);
+          if (selectedNodes.length === 1) {
+            onSelectNode(selectedNodes[0] as Node<FlowNodeData>);
+          } else if (selectedNodes.length > 1) {
+            onSelectNode(null);
+          }
         }}
         onNodeClick={(event, node) => {
           const target = event.target instanceof Element ? event.target : null;
