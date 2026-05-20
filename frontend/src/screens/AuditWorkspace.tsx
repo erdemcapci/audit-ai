@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Node } from "@xyflow/react";
 
 import { agentsApi } from "../api/agentsApi";
@@ -42,7 +42,6 @@ import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { deriveAuditChecklistState } from "../utils/auditChecklist";
-import { buildAuditGraph, collectRelatedEntityIds } from "../utils/auditGraph";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FieldworkCreateMode = "keep" | "missing" | "replace";
@@ -112,10 +111,7 @@ export function AuditWorkspace({
   const [reportAttachmentNodeId, setReportAttachmentNodeId] = useState<string | null>(null);
   const [reportAttachmentDraft, setReportAttachmentDraft] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
-  const [mapFilters, setMapFilters] = useState<MapHierarchyFilters>({
-    workstreamId: "",
-    objectiveId: "",
-    nodeIds: [],
+  const [mapFilters, setMapFilters] = useState<Pick<MapHierarchyFilters, "showInterviews" | "showDocumentRequests">>({
     showInterviews: true,
     showDocumentRequests: true
   });
@@ -521,50 +517,6 @@ export function AuditWorkspace({
 
   const checklist = deriveAuditChecklistState({ project, planning, interviews, fieldwork, findings, report });
   const hasFieldworkItems = Boolean(fieldwork?.items.length);
-  const auditGraph = useMemo(
-    () => buildAuditGraph({ project, planning, interviews, fieldwork, findings, report, map }),
-    [fieldwork, findings, interviews, map, planning, project, report]
-  );
-  const selectedWorkstream = planning?.workstreams.find((workstream) => workstream.id === mapFilters.workstreamId);
-  const objectiveOptions = useMemo(() => {
-    const options = new Map<string, { id: string; title: string }>();
-    const addObjective = (objective: { id: string; title: string }) => options.set(objective.id, { id: objective.id, title: objective.title });
-
-    if (mapFilters.workstreamId) {
-      selectedWorkstream?.objectives.forEach(addObjective);
-      const relatedIds = collectRelatedEntityIds(auditGraph, [mapFilters.workstreamId]);
-      relatedIds.forEach((entityId) => {
-        const entity = auditGraph.entitiesById[entityId];
-        if (entity?.nodeType === "objectiveNode" || entity?.type === "objective") {
-          options.set(entity.id, { id: entity.id, title: entity.title });
-        }
-      });
-    } else {
-      planning?.workstreams.forEach((workstream) => workstream.objectives.forEach(addObjective));
-      Object.values(auditGraph.entitiesById).forEach((entity) => {
-        if (entity.nodeType === "objectiveNode" || entity.type === "objective") {
-          options.set(entity.id, { id: entity.id, title: entity.title });
-        }
-      });
-    }
-
-    return Array.from(options.values());
-  }, [auditGraph, mapFilters.workstreamId, planning?.workstreams, selectedWorkstream]);
-  const hierarchyNodeIds = useMemo(() => {
-    const seedId = mapFilters.objectiveId || mapFilters.workstreamId;
-    if (!seedId) return [];
-    return Array.from(collectRelatedEntityIds(auditGraph, [seedId]));
-  }, [auditGraph, mapFilters.objectiveId, mapFilters.workstreamId]);
-
-  function updateMapFilter(key: "workstreamId" | "objectiveId", value: string) {
-    setMapFilters((current) => {
-      const next = { ...current, [key]: value };
-      if (key === "workstreamId") {
-        next.objectiveId = "";
-      }
-      return next;
-    });
-  }
 
   return (
     <main className="workspace">
@@ -580,7 +532,7 @@ export function AuditWorkspace({
           <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
           <Button variant="ghost" onClick={onReset}>New audit</Button>
-          {busy ? <LoadingState label="AI action running" /> : null}
+          {busy ? <LoadingState label="Action running" /> : null}
         </div>
       </header>
 
@@ -631,42 +583,6 @@ export function AuditWorkspace({
               </select>
             </label>
             <Button variant="secondary" onClick={addAgent} disabled={busy || !agentTypes.length}>Add Agent Card</Button>
-          </div>
-          <div className="map-command-row map-filter-row">
-            <div className="map-filter-controls">
-              <label>
-                <span>Workstream</span>
-                <select value={mapFilters.workstreamId} onChange={(event) => updateMapFilter("workstreamId", event.target.value)}>
-                  <option value="">All workstreams</option>
-                  {planning?.workstreams.map((workstream) => (
-                    <option key={workstream.id} value={workstream.id}>{workstream.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Objective</span>
-                <select value={mapFilters.objectiveId} onChange={(event) => updateMapFilter("objectiveId", event.target.value)}>
-                  <option value="">All objectives</option>
-                  {objectiveOptions.map((objective) => (
-                    <option key={objective.id} value={objective.id}>{objective.title}</option>
-                  ))}
-                </select>
-              </label>
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  setMapFilters({
-                    workstreamId: "",
-                    objectiveId: "",
-                    nodeIds: [],
-                    showInterviews: true,
-                    showDocumentRequests: true
-                  })
-                }
-              >
-                Clear Map Filters
-              </Button>
-            </div>
             <div className="map-section-toggles">
               <label className="map-toggle-label">
                 <span>Show Interviews</span>
@@ -702,7 +618,7 @@ export function AuditWorkspace({
             agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
             hierarchyFilters={{
               ...mapFilters,
-              nodeIds: hierarchyNodeIds
+              nodeIds: []
             }}
           />
           <div className="right-rail">

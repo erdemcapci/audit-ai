@@ -838,7 +838,6 @@ h3 {
 }
 
 .map-command-row,
-.map-filter-controls,
 .map-section-toggles {
   display: flex;
   align-items: end;
@@ -846,16 +845,7 @@ h3 {
   gap: 10px;
 }
 
-.map-filter-row {
-  justify-content: space-between;
-}
-
-.map-filter-controls {
-  flex: 1 1 auto;
-}
-
 .map-section-toggles {
-  justify-content: flex-end;
   margin-left: auto;
 }
 

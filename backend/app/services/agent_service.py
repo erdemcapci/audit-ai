@@ -1,11 +1,15 @@
 from copy import deepcopy
+import json
 import re
 
 from fastapi import HTTPException
 
+from app.agents.json_utils import parse_or_warn
 from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
-from app.config import default_openai_model, validate_openai_model
+from app.config import default_openai_model, settings, validate_openai_model
 from app.agents.finding_agent import FindingAgent
+from app.agents.report_agent import report_to_markdown
+from app.llm.router import get_llm_provider
 from app.models import (
     AgentCreateRequest,
     AgentDefinition,
@@ -16,11 +20,17 @@ from app.models import (
     AgentRunResponse,
     AgentState,
     AgentUpdateRequest,
+    DocumentRequest,
+    DocumentRequestState,
     FlowEdge,
     FindingDraftRequest,
+    InterviewPlan,
+    InterviewQuestion,
+    InterviewRole,
     MapState,
     NodeUpdateRequest,
     Objective,
+    ReportState,
     Risk,
     Test,
     Workstream,
@@ -857,22 +867,62 @@ class AgentService:
 
     async def _run_agent(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], request: AgentRunRequest) -> dict:
         if agent.type == "workstream_generator":
-            return self._run_workstream_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_workstream_generator(project_id, map_state, agent, input_node_ids)
 
         if agent.type == "objective_generator":
-            return self._run_objective_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_objective_generator(project_id, map_state, agent, input_node_ids)
 
         if agent.type == "risk_generator":
-            return self._run_risk_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_risk_generator(project_id, map_state, agent, input_node_ids)
 
         if agent.type == "test_generator":
-            return self._run_test_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_test_generator(project_id, map_state, agent, input_node_ids)
 
         if agent.type == "interview_plan_generator":
             planning = project_store.load_planning(project_id)
             max_roles = int(agent.config.get("max_roles", 3))
             questions_per_role = int(agent.config.get("questions_per_role", 3))
-            plan = demo_interviews(planning, max_roles=max_roles, questions_per_role=questions_per_role)
+            if settings.demo_mode:
+                plan = demo_interviews(planning, max_roles=max_roles, questions_per_role=questions_per_role)
+            else:
+                data = await self._agent_json(
+                    agent,
+                    "Generate interview roles and questions for the connected audit cards.",
+                    {
+                        "planning": planning.model_dump(),
+                        "connected_inputs": [self._node_context(project_id, input_id) for input_id in input_node_ids],
+                        "max_roles": max_roles,
+                        "questions_per_role": questions_per_role,
+                    },
+                    {
+                        "roles": [
+                            {
+                                "role_title": "Interviewee role",
+                                "rationale": "Why this role should be interviewed",
+                                "expected_information": "Information expected from this role",
+                                "questions": [
+                                    {
+                                        "question_text": "Question text",
+                                        "mapped_objective_id": None,
+                                        "mapped_risk_id": None,
+                                        "mapped_test_id": None,
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                )
+                plan = InterviewPlan(
+                    roles=[
+                        InterviewRole(
+                            role_title=role.get("role_title", "Interviewee"),
+                            rationale=role.get("rationale", ""),
+                            expected_information=role.get("expected_information", ""),
+                            questions=[InterviewQuestion(**question) for question in role.get("questions", [])[: max(1, questions_per_role)]],
+                        )
+                        for role in data.get("roles", [])[: max(1, max_roles)]
+                    ]
+                )
             project_store.save_interviews(project_id, plan)
             for role in plan.roles:
                 add_custom_edge(map_state, agent.id, role.id)
@@ -882,7 +932,31 @@ class AgentService:
             document_requests = project_store.load_document_requests(project_id)
             source_titles = [self._node_title(project_id, input_id) for input_id in input_node_ids]
             max_items = int(agent.config.get("max_output_items", 8))
-            generated = demo_document_requests(source_titles, max_items=max_items)
+            if settings.demo_mode:
+                generated = demo_document_requests(source_titles, max_items=max_items)
+            else:
+                data = await self._agent_json(
+                    agent,
+                    "Generate practical document and evidence request cards for the connected audit cards.",
+                    {
+                        "connected_inputs": [self._node_context(project_id, input_id) for input_id in input_node_ids],
+                        "max_items": max_items,
+                    },
+                    {
+                        "requests": [
+                            {
+                                "title": "Request title",
+                                "description": "Detailed request description",
+                                "requested_from": "Role or team",
+                                "expected_document": "Expected evidence",
+                                "rationale": "Why this evidence is needed",
+                            }
+                        ]
+                    },
+                )
+                generated = DocumentRequestState(
+                    requests=[DocumentRequest(**item) for item in data.get("requests", [])[: max(1, max_items)]]
+                )
             documents_layout = anchored_fieldwork_section_layouts(map_state.phaseLayouts["fieldwork"], map_state)["documents"]
             existing_positions = [
                 position for request_item in document_requests.requests if (position := map_state.nodePositions.get(request_item.id))
@@ -943,7 +1017,32 @@ class AgentService:
             return {"findings": generated}
 
         if agent.type == "report_draft_agent":
-            report = demo_report()
+            if settings.demo_mode:
+                report = demo_report()
+            else:
+                planning = project_store.load_planning(project_id)
+                fieldwork = project_store.load_fieldwork(project_id)
+                findings = project_store.load_findings(project_id)
+                data = await self._agent_json(
+                    agent,
+                    "Generate report content from the current audit materials.",
+                    {
+                        "planning": planning.model_dump(),
+                        "fieldwork": fieldwork.model_dump(),
+                        "findings": findings.model_dump(),
+                    },
+                    {
+                        "executive_summary": "Executive summary text",
+                        "audit_conclusion": "Conclusion text",
+                        "key_themes": ["Theme"],
+                        "issue_summary": "Issue summary text",
+                        "management_attention_points": ["Management action"],
+                        "draft_report_structure": [{"heading": "Section", "content": "Section content"}],
+                        "ai_improved_version": "Improved report language",
+                    },
+                )
+                report = ReportState(**data)
+                report.draft_markdown = report_to_markdown(report)
             project_store.save_report(project_id, report)
             add_custom_edge(map_state, agent.id, "report-main")
             return {"report": 1}
@@ -960,7 +1059,93 @@ class AgentService:
             next_config["llm_model"] = default_openai_model()
         return next_config
 
-    def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _agent_json(self, agent: AgentState, task: str, context: dict, response_shape: dict) -> dict:
+        system_prompt = (
+            f"{agent.prompt.strip()}\n\n"
+            "You are running as a configurable internal audit map agent. "
+            "Follow the user's agent instructions exactly when they affect level of detail, tone, or output content. "
+            "Return valid JSON only. Do not include markdown, comments, or explanatory prose."
+        )
+        user_prompt = json.dumps(
+            {
+                "task": task,
+                "agent_config": agent.config,
+                "context": context,
+                "return_json_shape": response_shape,
+            },
+            indent=2,
+        )
+        model = validate_openai_model(str(agent.config.get("llm_model") or default_openai_model())) if settings.llm_provider == "openai" else None
+        response = await get_llm_provider().generate(
+            system_prompt,
+            user_prompt,
+            json_mode=True,
+            temperature=float(agent.config.get("temperature", 0.2)),
+            model=model,
+        )
+        data, warning = parse_or_warn(response.content)
+        if not data:
+            raise ValueError(warning)
+        return data
+
+    def _node_context(self, project_id: str, node_id: str) -> dict:
+        audit = project_store.get_project(project_id)
+        if audit.id == node_id:
+            return {"id": audit.id, "type": "audit", "data": audit.model_dump()}
+
+        planning = project_store.load_planning(project_id)
+        for workstream in planning.workstreams:
+            if workstream.id == node_id:
+                return {"id": workstream.id, "type": "workstream", "data": workstream.model_dump()}
+            for objective in workstream.objectives:
+                if objective.id == node_id:
+                    return {"id": objective.id, "type": "objective", "workstream": workstream.model_dump(), "data": objective.model_dump()}
+                for risk in objective.risks:
+                    if risk.id == node_id:
+                        return {
+                            "id": risk.id,
+                            "type": "risk",
+                            "workstream": workstream.model_dump(),
+                            "objective": objective.model_dump(),
+                            "data": risk.model_dump(),
+                        }
+                    for test in risk.tests:
+                        if test.id == node_id:
+                            return {
+                                "id": test.id,
+                                "type": "test",
+                                "workstream": workstream.model_dump(),
+                                "objective": objective.model_dump(),
+                                "risk": risk.model_dump(),
+                                "data": test.model_dump(),
+                            }
+
+        fieldwork = project_store.load_fieldwork(project_id)
+        for item in fieldwork.items:
+            if item.id == node_id:
+                return {"id": item.id, "type": "fieldwork_item", "data": item.model_dump()}
+
+        findings = project_store.load_findings(project_id)
+        for finding in findings.findings:
+            if finding.id == node_id:
+                return {"id": finding.id, "type": "finding", "data": finding.model_dump()}
+
+        requests = project_store.load_document_requests(project_id)
+        for request_item in requests.requests:
+            if request_item.id == node_id:
+                return {"id": request_item.id, "type": "document_request", "data": request_item.model_dump()}
+
+        interviews = project_store.load_interviews(project_id)
+        for role in interviews.roles:
+            if role.id == node_id:
+                return {"id": role.id, "type": "interview_role", "data": role.model_dump()}
+            for question in role.questions:
+                if question.id == node_id:
+                    return {"id": question.id, "type": "interview_question", "role": role.model_dump(), "data": question.model_dump()}
+
+        return {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}
+
+    async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
         audit = project_store.get_project(project_id)
         if audit.id not in input_node_ids:
             raise ValueError("Connect the Audit card before running this agent.")
@@ -971,7 +1156,45 @@ class AgentService:
         map_state.nodeDimensions.update(project_store.load_map_state(project_id).nodeDimensions)
         add_custom_edge(map_state, audit.id, agent.id)
         existing_titles = [workstream.name for workstream in planning.workstreams]
-        for index, workstream in enumerate(workstream_templates(audit.title, audit.description, count, existing_titles)):
+        if settings.demo_mode:
+            workstreams = workstream_templates(audit.title, audit.description, count, existing_titles)
+        else:
+            data = await self._agent_json(
+                agent,
+                "Generate workstreams for the connected audit card.",
+                {
+                    "audit": audit.model_dump(),
+                    "existing_workstream_titles": existing_titles,
+                    "count": count,
+                },
+                {
+                    "workstreams": [
+                        {
+                            "name": "Workstream name",
+                            "description": "Detailed workstream description",
+                            "rationale": "Why this workstream matters",
+                            "objectives": [
+                                {
+                                    "title": "Optional objective title",
+                                    "description": "Optional objective description",
+                                    "scope_notes": "Optional scope notes",
+                                    "rationale": "Optional objective rationale",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+            workstreams = [
+                Workstream(
+                    name=item.get("name", "Workstream"),
+                    description=item.get("description", ""),
+                    rationale=item.get("rationale", ""),
+                    objectives=[Objective(**objective) for objective in item.get("objectives", [])],
+                )
+                for item in data.get("workstreams", [])[: max(1, count)]
+            ]
+        for index, workstream in enumerate(workstreams):
             planning.workstreams.append(workstream)
             add_custom_edge(map_state, agent.id, workstream.id)
             map_state.nodePositions[workstream.id] = output_position(map_state, agent, "planning", 80, index, occupied)
@@ -982,7 +1205,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"workstreams": generated}
 
-    def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("objectives_per_workstream", 2))
         generated = 0
@@ -993,8 +1216,30 @@ class AgentService:
                 continue
             add_custom_edge(map_state, workstream.id, agent.id)
             existing_titles = [objective.title for objective in workstream.objectives]
-            for index in range(count):
-                objective = objective_templates(index, workstream, existing_titles)
+            if settings.demo_mode:
+                objectives = [objective_templates(index, workstream, existing_titles) for index in range(count)]
+            else:
+                data = await self._agent_json(
+                    agent,
+                    "Generate objectives for this connected workstream.",
+                    {
+                        "workstream": workstream.model_dump(),
+                        "existing_objective_titles": existing_titles,
+                        "count": count,
+                    },
+                    {
+                        "objectives": [
+                            {
+                                "title": "Objective title",
+                                "description": "Detailed objective description",
+                                "scope_notes": "Scope notes",
+                                "rationale": "Why this objective matters",
+                            }
+                        ]
+                    },
+                )
+                objectives = [Objective(**item) for item in data.get("objectives", [])[: max(1, count)]]
+            for objective in objectives:
                 workstream.objectives.append(objective)
                 existing_titles.append(objective.title)
                 add_custom_edge(map_state, agent.id, objective.id)
@@ -1006,7 +1251,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"objectives": generated}
 
-    def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("risks_per_objective", 2))
         generated = 0
@@ -1019,8 +1264,32 @@ class AgentService:
                 add_custom_edge(map_state, objective.id, agent.id)
                 sibling_titles = [risk.title for sibling in workstream.objectives for risk in sibling.risks]
                 existing_titles = [risk.title for risk in objective.risks] + sibling_titles
-                for index in range(count):
-                    risk = risk_templates(index, objective, existing_titles)
+                if settings.demo_mode:
+                    risks = [risk_templates(index, objective, existing_titles) for index in range(count)]
+                else:
+                    data = await self._agent_json(
+                        agent,
+                        "Generate risks for this connected audit objective.",
+                        {
+                            "workstream": workstream.model_dump(),
+                            "objective": objective.model_dump(),
+                            "existing_risk_titles": existing_titles,
+                            "count": count,
+                        },
+                        {
+                            "risks": [
+                                {
+                                    "title": "Risk title",
+                                    "description": "Detailed risk description",
+                                    "why_it_matters": "Why this risk matters",
+                                    "potential_impact": "Potential impact",
+                                    "severity": "Low|Medium|High",
+                                }
+                            ]
+                        },
+                    )
+                    risks = [Risk(**item) for item in data.get("risks", [])[: max(1, count)]]
+                for risk in risks:
                     objective.risks.append(risk)
                     existing_titles.append(risk.title)
                     add_custom_edge(map_state, agent.id, risk.id)
@@ -1032,7 +1301,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"risks": generated}
 
-    def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("tests_per_risk", 2))
         allowed_types = agent.config.get("allowed_test_types", ["Detailed Test"])
@@ -1047,8 +1316,35 @@ class AgentService:
                     add_custom_edge(map_state, risk.id, agent.id)
                     sibling_titles = [test.title for sibling_risk in objective.risks for test in sibling_risk.tests]
                     existing_titles = [test.title for test in risk.tests] + sibling_titles
-                    for index in range(count):
-                        test = test_templates(index, risk, allowed_types, agent.id, existing_titles)
+                    if settings.demo_mode:
+                        tests = [test_templates(index, risk, allowed_types, agent.id, existing_titles) for index in range(count)]
+                    else:
+                        data = await self._agent_json(
+                            agent,
+                            "Generate audit tests for this connected risk.",
+                            {
+                                "workstream": workstream.model_dump(),
+                                "objective": objective.model_dump(),
+                                "risk": risk.model_dump(),
+                                "allowed_test_types": allowed_types,
+                                "existing_test_titles": existing_titles,
+                                "count": count,
+                            },
+                            {
+                                "tests": [
+                                    {
+                                        "title": "Test title",
+                                        "test_type": "Test of Design|Test of Operating Effectiveness|Detailed Test|Analytical Review|Inquiry / Interview",
+                                        "test_objective": "Test objective",
+                                        "description": "Detailed test procedure description",
+                                        "expected_evidence": "Expected evidence",
+                                        "sample_considerations": "Sample considerations",
+                                    }
+                                ]
+                            },
+                        )
+                        tests = [Test(generated_by_agent_id=agent.id, **item) for item in data.get("tests", [])[: max(1, count)]]
+                    for test in tests:
                         risk.tests.append(test)
                         existing_titles.append(test.title)
                         add_custom_edge(map_state, agent.id, test.id)

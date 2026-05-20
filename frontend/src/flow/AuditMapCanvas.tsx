@@ -40,8 +40,6 @@ type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FlowBounds = { minX: number; minY: number; maxX: number; maxY: number };
 
 export type MapHierarchyFilters = {
-  workstreamId: string;
-  objectiveId: string;
   nodeIds: string[];
   showInterviews: boolean;
   showDocumentRequests: boolean;
