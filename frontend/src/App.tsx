@@ -54,7 +54,7 @@ function App() {
     return <StartScreen onStart={startAudit} onOpenExisting={setProjectId} />;
   }
 
-  return <AuditWorkspace projectId={projectId} onReset={() => setProjectId(null)} runtime={runtime} />;
+  return <AuditWorkspace projectId={projectId} onReset={() => setProjectId(null)} runtime={runtime} onRuntimeChanged={refreshRuntime} />;
 }
 
 export default App;

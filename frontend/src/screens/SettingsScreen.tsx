@@ -11,11 +11,13 @@ import { TextInput } from "../components/TextInput";
 export function SettingsScreen({
   projectId,
   projectTitle,
-  onDeleted
+  onDeleted,
+  onRuntimeChanged
 }: {
   projectId: string;
   projectTitle: string;
   onDeleted: () => void;
+  onRuntimeChanged?: () => Promise<unknown>;
 }) {
   const [settings, setSettings] = useState<LlmSettings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
@@ -42,11 +44,13 @@ export function SettingsScreen({
     setOpenaiApiKey("");
     setAnthropicApiKey("");
     setMessage("Settings updated for this backend session.");
+    await onRuntimeChanged?.();
   }
 
   async function test() {
     const result = await settingsApi.test();
     setMessage(result.message);
+    await onRuntimeChanged?.();
   }
 
   async function deleteAudit() {
@@ -64,6 +68,14 @@ export function SettingsScreen({
   }
 
   if (!settings) return null;
+  const activeProviderLabel = settings.demo_mode
+    ? "Demo mode"
+    : settings.provider === "openai"
+      ? "OpenAI"
+      : settings.provider === "claude"
+        ? "Claude"
+        : "Ollama";
+  const activeModelLabel = settings.demo_mode ? "Demo data" : settings.model;
 
   return (
     <section className="screen-panel">
@@ -103,6 +115,7 @@ export function SettingsScreen({
           <span>Demo mode deterministic audit data</span>
         </label>
         <p className="muted">Ollama URL: {settings.ollama_base_url}</p>
+        <p className="muted">Current AI mode: {activeProviderLabel} - {activeModelLabel}</p>
         <p className="muted">OpenAI configured: {settings.openai_configured ? "yes" : "no"} | Claude configured: {settings.anthropic_configured ? "yes" : "no"}</p>
         <p className="muted">
           API keys entered here are used by the running backend session. To make them available after restarting Docker, add them to your local <code>.env</code> file.

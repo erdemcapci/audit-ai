@@ -5,6 +5,7 @@ import { Button } from "../components/Button";
 import { Select } from "../components/Select";
 import { TextArea } from "../components/TextArea";
 import { TextInput } from "../components/TextInput";
+import { settingsApi, type LlmSettings } from "../api/settingsApi";
 import type { AgentDefinition, FlowNodeData } from "../types";
 
 type Draft = Record<string, string>;
@@ -138,7 +139,6 @@ function initialDraft(node: Node<FlowNodeData>): Draft {
     return {
       title: node.data.title || "",
       prompt: node.data.description || "",
-      temperature: String(config.temperature ?? 0.2),
       output_mode: String(config.output_mode ?? "json"),
       max_output_items: String(config.max_output_items ?? ""),
       workstreams_count: String(config.workstreams_count ?? ""),
@@ -181,6 +181,21 @@ function initialDraft(node: Node<FlowNodeData>): Draft {
   };
 }
 
+function currentProviderLabel(settings: LlmSettings | null): string {
+  if (!settings) return "Configured in Settings";
+  if (settings.demo_mode) return "Demo mode";
+  if (settings.provider === "openai") return "OpenAI";
+  if (settings.provider === "claude") return "Claude";
+  if (settings.provider === "ollama") return "Ollama";
+  return settings.provider;
+}
+
+function currentModelLabel(settings: LlmSettings | null): string {
+  if (!settings) return "Configured in Settings";
+  if (settings.demo_mode) return "Demo data";
+  return settings.model;
+}
+
 export function DetailPanel({
   node,
   agentTypes,
@@ -192,7 +207,9 @@ export function DetailPanel({
   onDeleteNode,
   onDeleteOutputs,
   onDeleteDimension,
-  onOpenReport
+  onOpenReport,
+  temporaryRunContent,
+  onTemporaryRunContentChange
 }: {
   node: Node<FlowNodeData> | null;
   agentTypes: AgentDefinition[];
@@ -205,9 +222,12 @@ export function DetailPanel({
   onDeleteOutputs: (nodeId: string) => Promise<void>;
   onDeleteDimension: (phase: "planning" | "fieldwork" | "reporting", dimension: string) => Promise<void>;
   onOpenReport: (nodeId: string) => void;
+  temporaryRunContent: string;
+  onTemporaryRunContentChange: (agentId: string, value: string) => void;
 }) {
   const [draft, setDraft] = useState<Draft>({});
   const [bulkDimension, setBulkDimension] = useState("");
+  const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
 
   useEffect(() => {
     if (!node) return;
@@ -217,6 +237,11 @@ export function DetailPanel({
       setBulkDimension(phaseDimensionOptions[phase]?.[0]?.value || "");
     }
   }, [node]);
+
+  useEffect(() => {
+    if (node?.type !== "agentNode") return;
+    settingsApi.get().then(setLlmSettings).catch(() => setLlmSettings(null));
+  }, [node?.id, node?.type]);
 
   const agentDefinition = useMemo(
     () => agentTypes.find((definition) => definition.type === node?.data.agentType),
@@ -239,7 +264,9 @@ export function DetailPanel({
     if (!node) return;
     if (node.type === "agentNode") {
       const config: Record<string, unknown> = { ...(node.data.config || {}) };
-      ["temperature", "max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective", "questions_per_role", "max_roles"].forEach((key) => {
+      delete config.llm_model;
+      delete config.temperature;
+      ["max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective", "questions_per_role", "max_roles"].forEach((key) => {
         if (draft[key] !== "") config[key] = Number(draft[key]);
       });
       ["output_mode", "tone", "report_style"].forEach((key) => {
@@ -302,19 +329,31 @@ export function DetailPanel({
     <aside className="detail-panel">
       <div className="detail-kicker">{node.type}</div>
       <h2>{node.data.title}</h2>
-      <Badge>{String(node.data.status)}</Badge>
+      {node.type !== "agentNode" ? <Badge>{String(node.data.status)}</Badge> : null}
 
       {node.type === "agentNode" ? (
         <div className="detail-form">
           <TextInput label="Agent title" value={draft.title || ""} onChange={(event) => update("title", event.target.value)} />
           <TextArea label="Prompt" value={draft.prompt || ""} onChange={(event) => update("prompt", event.target.value)} rows={8} />
+          <TextArea
+            label="Temporary run content"
+            value={temporaryRunContent}
+            onChange={(event) => onTemporaryRunContentChange(node.id, event.target.value)}
+            rows={4}
+            placeholder="Optional context for the next run only. This is not saved on the agent card."
+          />
+          <dl className="agent-model-summary">
+            <dt>Current AI provider</dt>
+            <dd>{currentProviderLabel(llmSettings)}</dd>
+            <dt>Current AI model</dt>
+            <dd>{currentModelLabel(llmSettings)}</dd>
+          </dl>
           {node.data.agentType !== "report_draft_agent" ? (
             <div className="agent-connection-actions">
               <Button variant="ghost" onClick={() => onConnectRelated(node.id)}>Connect to related cards</Button>
               <Button variant="ghost" onClick={() => onDisconnectRelated(node.id)}>Disconnect related cards</Button>
             </div>
           ) : null}
-          <TextInput label="Temperature" value={draft.temperature || ""} onChange={(event) => update("temperature", event.target.value)} />
           {node.data.agentType !== "report_draft_agent" ? <TextInput label="Max output items" value={draft.max_output_items || ""} onChange={(event) => update("max_output_items", event.target.value)} /> : null}
           {node.data.agentType === "workstream_generator" ? <TextInput label="Number of workstreams" value={draft.workstreams_count || ""} onChange={(event) => update("workstreams_count", event.target.value)} /> : null}
           {node.data.agentType === "objective_generator" ? <TextInput label="Objectives per workstream" value={draft.objectives_per_workstream || ""} onChange={(event) => update("objectives_per_workstream", event.target.value)} /> : null}

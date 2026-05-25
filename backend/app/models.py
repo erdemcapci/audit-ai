@@ -351,6 +351,7 @@ class AgentRunRequest(BaseModel):
     prompt: str | None = None
     input_node_ids: list[str] = Field(default_factory=list)
     rough_finding_text: str = ""
+    temporary_content: str = ""
     run_mode: Literal["append", "replace"] = "append"
 
 
