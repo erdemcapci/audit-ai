@@ -18,6 +18,10 @@ export type AuditProject = {
   status: string;
   created_at: string;
   updated_at: string;
+  visibility: "local" | "public_sample" | "anonymous_temp" | "private";
+  owner_user_id?: string | null;
+  anonymous_session_id?: string | null;
+  is_read_only_sample: boolean;
 };
 
 export type AuditCreate = {
@@ -26,6 +30,7 @@ export type AuditCreate = {
   process_area?: string;
   initial_concern?: string;
   extra_context?: string;
+  accepted_data_warning?: boolean;
 };
 
 export type Test = {

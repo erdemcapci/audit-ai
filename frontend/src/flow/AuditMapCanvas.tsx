@@ -6,6 +6,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   addEdge,
+  MarkerType,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -19,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import { Button } from "../components/Button";
+import { LoadingState } from "../components/LoadingState";
 import type { AgentDefinition, AuditMapResponse, FlowNodeData, MapStateUpdate, PhaseLayout } from "../types";
 import { calculateRequiredNodeSize, layoutAuditMap } from "./layoutAuditMap";
 import { AgentNode } from "./nodes/AgentNode";
@@ -38,6 +40,9 @@ import { WorkstreamNode } from "./nodes/WorkstreamNode";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FlowBounds = { minX: number; minY: number; maxX: number; maxY: number };
+type RoutedEdge = Edge & {
+  pathOptions?: { borderRadius: number; offset: number };
+};
 
 export type MapHierarchyFilters = {
   nodeIds: string[];
@@ -61,6 +66,26 @@ const nodeTypes: NodeTypes = {
   reportNode: ReportNode,
   agentNode: AgentNode
 } as NodeTypes;
+
+const ROUTED_EDGE_TYPE = "smoothstep";
+const EDGE_STYLE = { stroke: "#64748B", strokeWidth: 2.4 };
+const EDGE_MARKER = { type: MarkerType.ArrowClosed, color: "#64748B", width: 16, height: 16 };
+
+function routedEdge(edge: Edge, ordinal = 0): Edge {
+  const nextEdge: RoutedEdge = {
+    ...edge,
+    type: ROUTED_EDGE_TYPE,
+    animated: Boolean(edge.animated),
+    markerEnd: EDGE_MARKER,
+    interactionWidth: 28,
+    pathOptions: {
+      borderRadius: 16,
+      offset: 32 + (ordinal % 4) * 14
+    },
+    style: { ...EDGE_STYLE, ...(edge.style || {}) }
+  };
+  return nextEdge;
+}
 
 function isHierarchyBridgeNode(nodeType: string): boolean {
   return ["auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "fieldworkItemNode", "documentRequestNode", "interviewRoleNode", "interviewQuestionNode", "findingNode", "reportNode"].includes(nodeType);
@@ -135,7 +160,7 @@ function toMapState(nodes: Node<FlowNodeData>[], edges: Edge[]): MapStateUpdate 
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      type: edge.type || "smoothstep",
+      type: ROUTED_EDGE_TYPE,
       animated: Boolean(edge.animated),
       data: (edge.data || {}) as Record<string, unknown>
     }))
@@ -175,7 +200,8 @@ function InnerCanvas({
   phaseFilter,
   hierarchyFilters,
   agentExecutionEnabled,
-  agentExecutionMessage
+  agentExecutionMessage,
+  actionBusy
 }: {
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
@@ -189,6 +215,7 @@ function InnerCanvas({
   hierarchyFilters: MapHierarchyFilters;
   agentExecutionEnabled: boolean;
   agentExecutionMessage: string;
+  actionBusy: boolean;
 }) {
   const reactFlow = useReactFlow<Node<FlowNodeData>, Edge>();
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -309,11 +336,15 @@ function InnerCanvas({
         selectable: node.type !== "phaseNode",
         dragHandle: node.type === "phaseNode" ? ".phase-zone-label" : node.type === "fieldworkSectionNode" ? ".fieldwork-section-label" : undefined
       })) || [];
+    const edgeOrdinals = new Map<string, number>();
     const nextEdges: Edge[] =
-      laidOut?.edges.map((edge) => ({
-        ...edge,
-        style: { stroke: "#94A3B8", strokeWidth: 2 }
-      })) || [];
+      laidOut?.edges.map((edge) => {
+        const sourceCount = edgeOrdinals.get(edge.source) || 0;
+        const targetCount = edgeOrdinals.get(edge.target) || 0;
+        edgeOrdinals.set(edge.source, sourceCount + 1);
+        edgeOrdinals.set(edge.target, targetCount + 1);
+        return routedEdge(edge, Math.max(sourceCount, targetCount));
+      }) || [];
     setNodes(nextNodes);
     setEdges(nextEdges);
     window.requestAnimationFrame(() => reactFlow.fitView({ padding: 0.16, duration: 250 }));
@@ -414,10 +445,18 @@ function InnerCanvas({
     [decoratedNodes, hierarchyFilters, hierarchyVisibleIds, phaseFilter]
   );
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
-  const visibleEdges = useMemo(
-    () => (phaseFilter === "all" && !hierarchyVisibleIds ? edges : edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))),
-    [edges, hierarchyVisibleIds, phaseFilter, visibleNodeIds]
-  );
+  const visibleEdges = useMemo(() => {
+    const filteredEdges =
+      phaseFilter === "all" && !hierarchyVisibleIds ? edges : edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
+    return filteredEdges.map((edge) => {
+      const relatedToSelection = !selectedNodeId || edge.source === selectedNodeId || edge.target === selectedNodeId;
+      return {
+        ...edge,
+        className: relatedToSelection ? "audit-map-edge" : "audit-map-edge audit-map-edge-muted",
+        style: { ...(edge.style || {}), opacity: relatedToSelection ? 1 : 0.28 }
+      };
+    });
+  }, [edges, hierarchyVisibleIds, phaseFilter, selectedNodeId, visibleNodeIds]);
   const focusNodes = useMemo(() => {
     if (!hierarchyVisibleIds) return visibleNodes;
     const filteredCards = visibleNodes.filter((node) => node.type !== "phaseNode" && node.type !== "fieldworkSectionNode");
@@ -543,7 +582,7 @@ function InnerCanvas({
             onError(error);
             return;
           }
-          const nextEdges = addEdge({ ...connection, type: "smoothstep", animated: true }, edges);
+          const nextEdges = addEdge(routedEdge({ ...connection, type: ROUTED_EDGE_TYPE, animated: true } as Edge, edges.length), edges);
           setEdges(nextEdges);
           void persist(nodes, nextEdges);
         }}
@@ -553,6 +592,11 @@ function InnerCanvas({
           <Button variant="secondary" onClick={onAutoLayout}>Auto Layout</Button>
           {saving ? <span className="saving-pill">Saving</span> : null}
         </Panel>
+        {actionBusy ? (
+          <Panel position="top-right" className="canvas-action-status">
+            <LoadingState label="Agent running" />
+          </Panel>
+        ) : null}
         <Background color="#E2E8F0" gap={28} />
         <Controls />
         <MiniMap pannable zoomable nodeStrokeWidth={3} />
@@ -596,6 +640,7 @@ export function AuditMapCanvas(props: {
   hierarchyFilters: MapHierarchyFilters;
   agentExecutionEnabled: boolean;
   agentExecutionMessage: string;
+  actionBusy: boolean;
 }) {
   return (
     <ReactFlowProvider>

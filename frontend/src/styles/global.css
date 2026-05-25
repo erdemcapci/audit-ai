@@ -39,10 +39,21 @@ a:hover {
   font-weight: 700;
 }
 
-.app-footer span:not(:last-child)::after {
+.app-footer span:not(:last-child)::after,
+.app-footer a:not(:last-child)::after {
   content: "·";
   margin-left: 10px;
   color: #cbd5e1;
+}
+
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px;
+}
+
+.legal-page h1 {
+  margin-top: 18px;
 }
 
 .creator-note,
@@ -56,6 +67,22 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.warning-checkbox {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #facc15;
+  border-radius: 8px;
+  background: #fefce8;
+  color: #713f12;
+  font-size: 0.9rem;
 }
 
 .header-contact {
@@ -392,19 +419,6 @@ h3 {
   padding: 10px 12px;
 }
 
-.fieldwork-success-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 8px;
-  padding: 12px;
-  font-weight: 800;
-}
-
 .recent-projects {
   max-width: 1180px;
   margin: 0 auto;
@@ -492,7 +506,7 @@ h3 {
   background: #f8fafc;
 }
 
-.admin-user-row span {
+.admin-user-row > span {
   display: grid;
   gap: 2px;
 }
@@ -500,6 +514,17 @@ h3 {
 .admin-user-row small {
   color: #64748b;
   font-weight: 700;
+}
+
+.admin-user-actions {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 160px) auto auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.admin-user-actions .field {
+  margin: 0;
 }
 
 .admin-job-card {
@@ -586,6 +611,14 @@ h3 {
 .recent-card span,
 .muted {
   color: #6b7280;
+}
+
+.recent-card em {
+  color: #475569;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .workspace {
@@ -1030,6 +1063,29 @@ h3 {
 
 .agent-connection-actions .button {
   width: 100%;
+}
+
+.agent-model-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.agent-model-summary dt {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.agent-model-summary dd {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 850;
 }
 
 .action-stack,

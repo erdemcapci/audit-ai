@@ -74,12 +74,16 @@ export function AdminScreen({
     onRuntimeChange(next.runtime);
   }
 
-  async function toggleUserAccess(userId: string, canRunAgents: boolean) {
+  async function updateUserAccess(user: AdminUserSummary, changes: Partial<Pick<AdminUserSummary, "canRunAgents" | "aiTotalRunLimit" | "aiRunsUsed">>) {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await adminApi.updateUserAccess(userId, canRunAgents);
-      setUsers((current) => current.map((user) => (user.id === userId ? updated : user)));
+      const updated = await adminApi.updateUserAccess(user.id, {
+        canRunAgents: changes.canRunAgents ?? user.canRunAgents,
+        aiTotalRunLimit: changes.aiTotalRunLimit ?? user.aiTotalRunLimit,
+        aiRunsUsed: changes.aiRunsUsed ?? user.aiRunsUsed
+      });
+      setUsers((current) => current.map((item) => (item.id === user.id ? updated : item)));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to update user access.");
     } finally {
@@ -145,22 +149,43 @@ export function AdminScreen({
 
           <Card className="admin-card">
             <h2>User access</h2>
-            <p className="muted">Grant AI agent access to signed-up users. They will use the OpenAI key configured in Railway.</p>
+            <p className="muted">Grant AI access, set one total run limit, reset usage, or revoke access.</p>
             {users.length ? (
               <div className="admin-user-list">
                 {users.map((user) => (
-                  <label key={user.id} className="admin-user-row">
+                  <div key={user.id} className="admin-user-row">
                     <span>
                       <strong>{user.email}</strong>
-                      <small>{user.canRunAgents ? "AI access enabled" : "No AI access yet"}</small>
+                      <small>
+                        {user.canRunAgents ? `${user.aiRunsRemaining} of ${user.aiTotalRunLimit} AI runs remaining` : "AI access not enabled"}
+                      </small>
                     </span>
-                    <input
-                      type="checkbox"
-                      checked={user.canRunAgents}
-                      disabled={busy}
-                      onChange={(event) => toggleUserAccess(user.id, event.target.checked)}
-                    />
-                  </label>
+                    <div className="admin-user-actions">
+                      <label className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={user.canRunAgents}
+                          disabled={busy}
+                          onChange={(event) => updateUserAccess(user, { canRunAgents: event.target.checked })}
+                        />
+                        <span>AI access</span>
+                      </label>
+                      <TextInput
+                        label="Total run limit"
+                        type="number"
+                        value={String(user.aiTotalRunLimit)}
+                        onChange={(event) => {
+                          const value = Math.max(0, Number(event.target.value || 0));
+                          setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, aiTotalRunLimit: value } : item)));
+                        }}
+                        onBlur={(event) => updateUserAccess(user, { aiTotalRunLimit: Math.max(0, Number(event.target.value || 0)) })}
+                      />
+                      <small>{user.aiRunsUsed} used</small>
+                      <Button variant="ghost" onClick={() => updateUserAccess(user, { aiRunsUsed: 0 })} disabled={busy}>
+                        Reset used
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -178,7 +203,7 @@ export function AdminScreen({
               <input type="checkbox" checked={runFullDemo} onChange={(event) => setRunFullDemo(event.target.checked)} />
               <span>Run full end-to-end demo</span>
             </label>
-            <Button onClick={createDemo} disabled={busy || !title.trim() || !description.trim() || runtime?.agentExecutionEnabled === false}>
+            <Button onClick={createDemo} disabled={busy || !title.trim() || !description.trim()}>
               Create Demo Audit
             </Button>
           </Card>

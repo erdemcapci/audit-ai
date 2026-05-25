@@ -51,6 +51,7 @@ type PendingAgentRun = {
   inputNodeIds: string[];
   conflicts: AgentOutputConflict[];
   roughFindingText?: string;
+  temporaryContent?: string;
 };
 
 type PendingFindingAgentRun = {
@@ -77,18 +78,26 @@ function agentPhase(agentType: string): PhaseFilter {
   return "planning";
 }
 
+function isNotFoundError(err: unknown): boolean {
+  return err instanceof Error && /not found/i.test(err.message);
+}
+
 export function AuditWorkspace({
   projectId,
   onReset,
   runtime,
   user,
-  onLogoutUser
+  onLogoutUser,
+  onSignIn,
+  onRuntimeChanged
 }: {
   projectId: string;
   onReset: () => void;
   runtime: RuntimeSettings | null;
   user: UserMe | null;
   onLogoutUser: () => Promise<void>;
+  onSignIn: () => void;
+  onRuntimeChanged: () => Promise<void>;
 }) {
   const [project, setProject] = useState<AuditProject | null>(null);
   const [planning, setPlanning] = useState<PlanningState | null>(null);
@@ -108,6 +117,7 @@ export function AuditWorkspace({
   const [pendingAgentRun, setPendingAgentRun] = useState<PendingAgentRun | null>(null);
   const [pendingFindingAgentRun, setPendingFindingAgentRun] = useState<PendingFindingAgentRun | null>(null);
   const [findingAgentText, setFindingAgentText] = useState("");
+  const [temporaryAgentContentById, setTemporaryAgentContentById] = useState<Record<string, string>>({});
   const [reportAttachmentNodeId, setReportAttachmentNodeId] = useState<string | null>(null);
   const [reportAttachmentDraft, setReportAttachmentDraft] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
@@ -117,7 +127,6 @@ export function AuditWorkspace({
   });
   const [showApprovePlanning, setShowApprovePlanning] = useState(false);
   const [fieldworkCreateMode, setFieldworkCreateMode] = useState<FieldworkCreateMode>("missing");
-  const [fieldworkQuickMessage, setFieldworkQuickMessage] = useState("");
 
   const refresh = useCallback(async () => {
     const [projectData, planningData, interviewData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
@@ -141,8 +150,14 @@ export function AuditWorkspace({
   }, [projectId]);
 
   useEffect(() => {
-    refresh().catch((err) => setError(err instanceof Error ? err.message : "Unable to load audit."));
-  }, [refresh]);
+    refresh().catch((err) => {
+      if (isNotFoundError(err)) {
+        onReset();
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Unable to load audit.");
+    });
+  }, [onReset, refresh]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -151,6 +166,7 @@ export function AuditWorkspace({
     try {
       await action();
       await refresh();
+      await onRuntimeChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
     } finally {
@@ -207,13 +223,14 @@ export function AuditWorkspace({
 
   async function runAgent(agentId: string, localInputNodeIds?: string[]) {
     if (runtime && !runtime.agentExecutionEnabled) {
-      setError(runtime.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured for agent execution.");
+      setError(runtime.aiAccessMessage || (runtime.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured for agent execution."));
       return;
     }
     const inputNodeIds = localInputNodeIds || map?.edges.filter((edge) => edge.target === agentId).map((edge) => edge.source) || [];
     const agentNode = map?.nodes.find((node) => node.id === agentId);
+    const temporaryContent = temporaryAgentContentById[agentId] || "";
     if (agentNode?.data.agentType === "report_draft_agent") {
-      await prepareAgentRun(agentId, []);
+      await prepareAgentRun(agentId, [], "", temporaryContent);
       return;
     }
     if (inputNodeIds.length === 0) {
@@ -227,10 +244,10 @@ export function AuditWorkspace({
       setPendingFindingAgentRun({ agentId, inputNodeIds: findingInputNodeIds, selectedInputNodeId: findingInputNodeIds[0] || "" });
       return;
     }
-    await prepareAgentRun(agentId, inputNodeIds);
+    await prepareAgentRun(agentId, inputNodeIds, "", temporaryContent);
   }
 
-  async function prepareAgentRun(agentId: string, inputNodeIds: string[], roughFindingText = "") {
+  async function prepareAgentRun(agentId: string, inputNodeIds: string[], roughFindingText = "", temporaryContent = "") {
     setBusy(true);
     setError("");
     setNotice("");
@@ -238,7 +255,7 @@ export function AuditWorkspace({
       const check = await agentsApi.checkOutputs(projectId, agentId, { input_node_ids: inputNodeIds });
       if (check.conflicts.length) {
         setPendingFindingAgentRun(null);
-        setPendingAgentRun({ agentId, inputNodeIds, conflicts: check.conflicts, roughFindingText });
+        setPendingAgentRun({ agentId, inputNodeIds, conflicts: check.conflicts, roughFindingText, temporaryContent });
         return;
       }
     } catch (err) {
@@ -247,13 +264,20 @@ export function AuditWorkspace({
     } finally {
       setBusy(false);
     }
-    await executeAgentRun(agentId, inputNodeIds, "append", roughFindingText);
+    await executeAgentRun(agentId, inputNodeIds, "append", roughFindingText, temporaryContent);
   }
 
-  async function executeAgentRun(agentId: string, inputNodeIds: string[], runMode: AgentRunMode, roughFindingText = "") {
+  async function executeAgentRun(agentId: string, inputNodeIds: string[], runMode: AgentRunMode, roughFindingText = "", temporaryContent = "") {
     setPendingAgentRun(null);
     setPendingFindingAgentRun(null);
-    await run(() => agentsApi.run(projectId, agentId, { input_node_ids: inputNodeIds, run_mode: runMode, rough_finding_text: roughFindingText }));
+    await run(() =>
+      agentsApi.run(projectId, agentId, {
+        input_node_ids: inputNodeIds,
+        run_mode: runMode,
+        rough_finding_text: roughFindingText,
+        temporary_content: temporaryContent
+      })
+    );
   }
 
   async function submitFindingAgentRun() {
@@ -266,7 +290,12 @@ export function AuditWorkspace({
       setError("Choose the fieldwork test card this finding relates to.");
       return;
     }
-    await prepareAgentRun(pendingFindingAgentRun.agentId, [pendingFindingAgentRun.selectedInputNodeId], findingAgentText);
+    await prepareAgentRun(
+      pendingFindingAgentRun.agentId,
+      [pendingFindingAgentRun.selectedInputNodeId],
+      findingAgentText,
+      temporaryAgentContentById[pendingFindingAgentRun.agentId] || ""
+    );
   }
 
   async function saveNode(nodeId: string, nodeType: string, fields: Record<string, unknown>) {
@@ -487,7 +516,6 @@ export function AuditWorkspace({
     setBusy(true);
     setError("");
     setNotice("");
-    setFieldworkQuickMessage("");
     try {
       await planningApi.approve(projectId);
       let createdCount = 0;
@@ -502,7 +530,6 @@ export function AuditWorkspace({
         setActiveScreen("Map");
         const message = `Planning approved. Created ${createdCount} fieldwork item${createdCount === 1 ? "" : "s"}.`;
         setNotice(message);
-        setFieldworkQuickMessage(message);
       } else {
         setNotice("Planning approved.");
       }
@@ -528,11 +555,12 @@ export function AuditWorkspace({
         <div className="header-actions">
           {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
           {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          {runtime?.deploymentMode === "hosted" && !user?.isAuthenticated ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
           {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
           <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
           <Button variant="ghost" onClick={onReset}>New audit</Button>
-          {busy ? <LoadingState label="Action running" /> : null}
+          {busy && activeScreen !== "Map" ? <LoadingState label="Action running" /> : null}
         </div>
       </header>
 
@@ -548,8 +576,17 @@ export function AuditWorkspace({
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
-      {runtime?.deploymentMode === "hosted" && !runtime.agentExecutionEnabled ? (
-        <div className="message-text">AI agent execution is disabled in this hosted showcase.</div>
+      {runtime?.deploymentMode === "hosted" && runtime.aiAccessMessage ? (
+        <div className="message-text">{runtime.aiAccessMessage}</div>
+      ) : null}
+      {runtime?.deploymentMode === "hosted" ? (
+        <div className="message-text">Demo environment — do not enter confidential or sensitive audit data. Run locally for sensitive use cases.</div>
+      ) : null}
+      {runtime?.deploymentMode === "hosted" && project?.visibility === "anonymous_temp" ? (
+        <div className="message-text">Temporary demo audit — changes are only available in this browser/session. Sign in to save your audit.</div>
+      ) : null}
+      {runtime?.deploymentMode === "hosted" && project?.visibility === "public_sample" ? (
+        <div className="message-text">Public sample audit — this demo data is read-only for visitors.</div>
       ) : null}
 
       <nav className="workspace-tabs">
@@ -615,7 +652,8 @@ export function AuditWorkspace({
             onError={setError}
             phaseFilter={phaseFilter}
             agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-            agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
+            agentExecutionMessage={runtime?.aiAccessMessage || (runtime?.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured.")}
+            actionBusy={busy}
             hierarchyFilters={{
               ...mapFilters,
               nodeIds: []
@@ -637,6 +675,10 @@ export function AuditWorkspace({
                 onDeleteOutputs={deleteOutputs}
                 onDeleteDimension={deleteDimension}
                 onOpenReport={openReportAttachment}
+                temporaryRunContent={selectedNode.type === "agentNode" ? temporaryAgentContentById[selectedNode.id] || "" : ""}
+                onTemporaryRunContentChange={(agentId, value) =>
+                  setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
+                }
               />
             ) : (
               <AiAssistantPanel
@@ -695,7 +737,9 @@ export function AuditWorkspace({
           agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
         />
       ) : null}
-      {activeScreen === "Settings" && project ? <SettingsScreen projectId={projectId} projectTitle={project.title} onDeleted={onReset} /> : null}
+      {activeScreen === "Settings" && project ? (
+        <SettingsScreen projectId={projectId} projectTitle={project.title} onDeleted={onReset} onRuntimeChanged={onRuntimeChanged} />
+      ) : null}
 
       {pendingAgentRun ? (
         <Modal title="Existing outputs found" onClose={() => setPendingAgentRun(null)}>
@@ -721,14 +765,30 @@ export function AuditWorkspace({
               <Button variant="ghost" onClick={() => setPendingAgentRun(null)}>Cancel</Button>
               <Button
                 variant="danger"
-                onClick={() => executeAgentRun(pendingAgentRun.agentId, pendingAgentRun.inputNodeIds, "replace", pendingAgentRun.roughFindingText || "")}
+                onClick={() =>
+                  executeAgentRun(
+                    pendingAgentRun.agentId,
+                    pendingAgentRun.inputNodeIds,
+                    "replace",
+                    pendingAgentRun.roughFindingText || "",
+                    pendingAgentRun.temporaryContent || ""
+                  )
+                }
                 disabled={busy}
               >
                 Delete outputs and create new
               </Button>
               <Button
                 variant="secondary"
-                onClick={() => executeAgentRun(pendingAgentRun.agentId, pendingAgentRun.inputNodeIds, "append", pendingAgentRun.roughFindingText || "")}
+                onClick={() =>
+                  executeAgentRun(
+                    pendingAgentRun.agentId,
+                    pendingAgentRun.inputNodeIds,
+                    "append",
+                    pendingAgentRun.roughFindingText || "",
+                    pendingAgentRun.temporaryContent || ""
+                  )
+                }
                 disabled={busy}
               >
                 Keep old and add new
@@ -738,7 +798,12 @@ export function AuditWorkspace({
         </Modal>
       ) : null}
       {pendingFindingAgentRun ? (
-        <Modal title="Draft issue from fieldwork" onClose={() => setPendingFindingAgentRun(null)}>
+        <Modal
+          title="Draft issue from fieldwork"
+          onClose={() => {
+            setPendingFindingAgentRun(null);
+          }}
+        >
           <div className="modal-body">
             <p>Choose the fieldwork test card this issue relates to, then describe the rough issue or exception. The Finding Draft Agent will create one linked issue and recommendation.</p>
             {pendingFindingAgentRun.inputNodeIds.length > 1 ? (
@@ -763,7 +828,14 @@ export function AuditWorkspace({
               placeholder="Example: Approval evidence was missing for two sampled items, and the process owner could not explain the exception review."
             />
             <div className="button-row modal-actions">
-              <Button variant="ghost" onClick={() => setPendingFindingAgentRun(null)}>Cancel</Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setPendingFindingAgentRun(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button onClick={submitFindingAgentRun} disabled={busy || !findingAgentText.trim()}>Run Agent</Button>
             </div>
           </div>
@@ -845,16 +917,6 @@ export function AuditWorkspace({
             </div>
           </div>
         </Modal>
-      ) : null}
-      {fieldworkQuickMessage ? (
-        <div className="fieldwork-success-actions">
-          <span>{fieldworkQuickMessage}</span>
-          <div className="button-row">
-            <Button variant="secondary" onClick={() => setPhaseFilter("fieldwork")}>Focus Fieldwork</Button>
-            <Button variant="ghost" onClick={() => setPhaseFilter("execution")}>Hide Planning</Button>
-            <Button variant="ghost" onClick={() => setPhaseFilter("all")}>Show Full Map</Button>
-          </div>
-        </div>
       ) : null}
       <BrandingFooter />
     </main>

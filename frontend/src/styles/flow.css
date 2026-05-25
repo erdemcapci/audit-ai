@@ -51,6 +51,21 @@
   backdrop-filter: blur(10px);
 }
 
+.canvas-action-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(147, 197, 253, 0.95);
+  border-radius: 8px;
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.canvas-action-status .loading-state {
+  color: #1e3a8a;
+}
+
 .react-flow__node {
   font-family: inherit;
   overflow: visible;
@@ -341,6 +356,18 @@
 
 .react-flow__edge-path {
   stroke-linecap: round;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.12));
+  transition: opacity 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
+}
+
+.react-flow__edge.audit-map-edge:hover .react-flow__edge-path,
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #2563eb;
+  stroke-width: 3;
+}
+
+.react-flow__edge.audit-map-edge-muted .react-flow__edge-path {
+  stroke-dasharray: 6 8;
 }
 
 .react-flow__handle {

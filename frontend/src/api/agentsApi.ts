@@ -6,6 +6,7 @@ type AgentRunPayload = {
   config?: Record<string, unknown>;
   prompt?: string;
   rough_finding_text?: string;
+  temporary_content?: string;
   run_mode?: AgentRunMode;
 };
 

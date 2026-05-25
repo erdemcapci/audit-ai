@@ -59,16 +59,45 @@ class UserStore:
         users = self._read()
         if any(user.email == normalized for user in users):
             raise ValueError("A user with this email already exists.")
-        user = UserRecord(email=normalized, password_hash=password_hash(password))
+        user = UserRecord(
+            email=normalized,
+            password_hash=password_hash(password),
+            ai_total_run_limit=max(0, settings.ai_default_total_limit),
+        )
         users.append(user)
         self._write(users)
         return user
 
-    def update_access(self, user_id: str, can_run_agents: bool) -> UserRecord:
+    def update_access(
+        self,
+        user_id: str,
+        can_run_agents: bool,
+        ai_total_run_limit: int | None = None,
+        ai_runs_used: int | None = None,
+    ) -> UserRecord:
         users = self._read()
         for user in users:
             if user.id == user_id:
                 user.can_run_agents = can_run_agents
+                if ai_total_run_limit is not None:
+                    user.ai_total_run_limit = max(0, ai_total_run_limit)
+                    user.ai_runs_used = min(user.ai_runs_used, user.ai_total_run_limit)
+                if ai_runs_used is not None:
+                    user.ai_runs_used = min(max(0, ai_runs_used), user.ai_total_run_limit)
+                user.updated_at = utc_now()
+                self._write(users)
+                return user
+        raise FileNotFoundError("User not found.")
+
+    def record_ai_run(self, user_id: str) -> UserRecord:
+        users = self._read()
+        for user in users:
+            if user.id == user_id:
+                if not user.can_run_agents:
+                    raise PermissionError("AI access is not enabled for your account yet.")
+                if user.ai_runs_used >= user.ai_total_run_limit:
+                    raise PermissionError("Your AI usage limit has been reached.")
+                user.ai_runs_used += 1
                 user.updated_at = utc_now()
                 self._write(users)
                 return user

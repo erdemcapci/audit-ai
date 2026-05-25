@@ -32,15 +32,29 @@ def _me_response(request: Request) -> UserMe:
     )
 
 
-def _runtime_for_user(request: Request, email: str, can_run_agents: bool):
+def _runtime_for_user(request: Request, email: str, can_run_agents: bool, ai_total_run_limit: int, ai_runs_used: int):
     runtime = runtime_settings(request)
+    remaining = max(0, ai_total_run_limit - ai_runs_used)
+    enabled = can_run_agents and remaining > 0
+    if runtime.deploymentMode == "hosted" and not can_run_agents:
+        access_message = "AI access is not enabled for your account yet. Please contact the project owner to request access."
+    elif runtime.deploymentMode == "hosted" and remaining <= 0:
+        access_message = "Your AI usage limit has been reached."
+    elif runtime.deploymentMode == "hosted":
+        access_message = f"{remaining} AI run{'s' if remaining != 1 else ''} remaining."
+    else:
+        access_message = runtime.aiAccessMessage
     return runtime.model_copy(
         update={
             "isAuthenticated": True,
             "userEmail": email,
-            "userCanRunAgents": can_run_agents,
+            "userCanRunAgents": enabled,
+            "userAiRunLimit": ai_total_run_limit,
+            "userAiRunsUsed": ai_runs_used,
+            "userAiRunsRemaining": remaining,
+            "aiAccessMessage": access_message,
             "agentExecutionEnabled": runtime.llmProviderConfigured
-            and (runtime.deploymentMode == "local" or runtime.isAdmin or can_run_agents),
+            and (runtime.deploymentMode == "local" or runtime.isAdmin or enabled),
         }
     )
 
@@ -53,7 +67,12 @@ def signup(request: Request, response: Response, payload: UserAuthRequest) -> Us
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     set_user_cookie(response, user.email)
-    return UserMe(isAuthenticated=True, email=user.email, canRunAgents=user.can_run_agents, runtime=_runtime_for_user(request, user.email, user.can_run_agents))
+    return UserMe(
+        isAuthenticated=True,
+        email=user.email,
+        canRunAgents=user.can_run_agents,
+        runtime=_runtime_for_user(request, user.email, user.can_run_agents, user.ai_total_run_limit, user.ai_runs_used),
+    )
 
 
 @router.post("/login", response_model=UserMe)
@@ -63,7 +82,12 @@ def login(request: Request, response: Response, payload: UserAuthRequest) -> Use
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     set_user_cookie(response, user.email)
-    return UserMe(isAuthenticated=True, email=user.email, canRunAgents=user.can_run_agents, runtime=_runtime_for_user(request, user.email, user.can_run_agents))
+    return UserMe(
+        isAuthenticated=True,
+        email=user.email,
+        canRunAgents=user.can_run_agents,
+        runtime=_runtime_for_user(request, user.email, user.can_run_agents, user.ai_total_run_limit, user.ai_runs_used),
+    )
 
 
 @router.get("/me", response_model=UserMe)
@@ -80,6 +104,12 @@ def logout(request: Request, response: Response) -> UserMe:
             "isAuthenticated": False,
             "userEmail": None,
             "userCanRunAgents": False,
+            "userAiRunLimit": None,
+            "userAiRunsUsed": 0,
+            "userAiRunsRemaining": None,
+            "aiAccessMessage": "You can explore demo data, but AI generation requires approved access."
+            if current_runtime.deploymentMode == "hosted"
+            else current_runtime.aiAccessMessage,
             "agentExecutionEnabled": current_runtime.llmProviderConfigured
             and (current_runtime.deploymentMode == "local" or current_runtime.isAdmin),
         }

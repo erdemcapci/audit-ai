@@ -4,7 +4,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { TextInput } from "../components/TextInput";
 
-export function AuthScreen({ onAuthenticated }: { onAuthenticated: (me: UserMe) => void }) {
+export function AuthScreen({ onAuthenticated, onCancel }: { onAuthenticated: (me: UserMe) => void; onCancel?: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +30,7 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (me: UserMe) 
         <div>
           <p className="eyebrow">AuditCopilot</p>
           <h1>{mode === "login" ? "Sign in" : "Create account"}</h1>
-          <p className="muted">Use your account to access the showcase workspace.</p>
+          <p className="muted">Sign in to request or use approved AI generation access.</p>
         </div>
         {message ? <div className="error-banner">{message}</div> : null}
         <TextInput label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -41,6 +41,11 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (me: UserMe) 
         <button className="auth-switch" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
           {mode === "login" ? "Create a user account" : "Already have an account? Sign in"}
         </button>
+        {onCancel ? (
+          <button className="auth-switch" type="button" onClick={onCancel}>
+            Continue exploring without AI
+          </button>
+        ) : null}
       </Card>
     </main>
   );

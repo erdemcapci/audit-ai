@@ -38,14 +38,29 @@ class ProjectStore:
                 return child
         raise FileNotFoundError(f"Project not found: {project_id}")
 
-    def create_project(self, payload: AuditCreate) -> AuditProject:
+    def create_project(
+        self,
+        payload: AuditCreate,
+        visibility: str | None = None,
+        owner_user_id: str | None = None,
+        anonymous_session_id: str | None = None,
+        is_read_only_sample: bool = False,
+    ) -> AuditProject:
         base_slug = slugify(payload.title)
         slug = base_slug
         suffix = 2
         while (settings.projects_dir / slug).exists():
             slug = f"{base_slug}-{suffix}"
             suffix += 1
-        audit = AuditProject(slug=slug, **payload.model_dump())
+        audit_payload = payload.model_dump(exclude={"accepted_data_warning"})
+        audit = AuditProject(
+            slug=slug,
+            **audit_payload,
+            visibility=visibility or ("local" if settings.deployment_mode != "hosted" else "private"),
+            owner_user_id=owner_user_id,
+            anonymous_session_id=anonymous_session_id,
+            is_read_only_sample=is_read_only_sample,
+        )
         project_dir = settings.projects_dir / slug
         (project_dir / "documents").mkdir(parents=True, exist_ok=True)
         self.file_store.write_json(project_dir / "audit.json", audit.model_dump())
@@ -65,6 +80,22 @@ class ProjectStore:
             if audit_path.exists():
                 projects.append(AuditProject.model_validate(self.file_store.read_json(audit_path, {})))
         return sorted(projects, key=lambda project: project.updated_at, reverse=True)
+
+    def list_visible_projects(self, *, is_hosted: bool, is_admin: bool, user_id: str | None, anonymous_session_id: str | None) -> list[AuditProject]:
+        if not is_hosted or is_admin:
+            return self.list_projects()
+        projects = []
+        for project in self.list_projects():
+            if project.visibility == "public_sample":
+                projects.append(project)
+            elif user_id and project.visibility == "private" and project.owner_user_id == user_id:
+                projects.append(project)
+            elif anonymous_session_id and project.visibility == "anonymous_temp" and project.anonymous_session_id == anonymous_session_id:
+                projects.append(project)
+        return projects
+
+    def public_sample_projects(self) -> list[AuditProject]:
+        return [project for project in self.list_projects() if project.visibility == "public_sample"]
 
     def get_project(self, project_id: str) -> AuditProject:
         path = self.project_dir(project_id) / "audit.json"

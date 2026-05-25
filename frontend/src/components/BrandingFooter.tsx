@@ -1,4 +1,5 @@
 const LINKEDIN_URL = "https://www.linkedin.com/in/erdemcapci/";
+const GITHUB_URL = "https://github.com/erdemcapci/audit-ai";
 
 export function LinkedInLogoLink({ label = "LinkedIn profile" }: { label?: string }) {
   return (
@@ -38,6 +39,10 @@ export function BrandingFooter() {
     <footer className="app-footer">
       <span>AuditCopilot</span>
       <span>Created by <CreatorLink /></span>
+      <a href="/impressum">Impressum</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
     </footer>
   );
 }

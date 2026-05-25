@@ -23,6 +23,10 @@ export type RuntimeSettings = {
   isAuthenticated: boolean;
   userEmail: string | null;
   userCanRunAgents: boolean;
+  userAiRunLimit: number | null;
+  userAiRunsUsed: number;
+  userAiRunsRemaining: number | null;
+  aiAccessMessage: string;
   adminEnabled: boolean;
   llmProviderConfigured: boolean;
   agentExecutionEnabled: boolean;

@@ -12,6 +12,7 @@ import { AdminScreen } from "./screens/AdminScreen";
 import { AuthScreen } from "./screens/AuthScreen";
 import { AuditWorkspace } from "./screens/AuditWorkspace";
 import { StartScreen } from "./screens/StartScreen";
+import { LegalPage } from "./showcase/LegalPage";
 
 const CURRENT_PROJECT_KEY = "audit-ai-current-project";
 
@@ -20,7 +21,10 @@ function App() {
   const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
   const [user, setUser] = useState<UserMe | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
-  const isAdminRoute = window.location.pathname.startsWith("/admin");
+  const [path, setPath] = useState(window.location.pathname);
+  const isAdminRoute = path.startsWith("/admin");
+  const isAuthRoute = path.startsWith("/auth");
+  const legalPage = path === "/impressum" || path === "/privacy" || path === "/terms" ? path.slice(1) : null;
 
   async function refreshRuntime() {
     const next = await settingsApi.runtime();
@@ -30,6 +34,12 @@ function App() {
 
   useEffect(() => {
     refreshRuntime().catch(() => setRuntime(null));
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => setPath(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   useEffect(() => {
@@ -43,7 +53,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user?.isAuthenticated || user.canRunAgents) return;
+    if (!user?.isAuthenticated || runtime?.deploymentMode !== "hosted") return;
     const interval = window.setInterval(() => {
       authApi.me()
         .then((next) => {
@@ -53,7 +63,7 @@ function App() {
         .catch(() => undefined);
     }, 10000);
     return () => window.clearInterval(interval);
-  }, [user?.isAuthenticated, user?.canRunAgents]);
+  }, [runtime?.deploymentMode, user?.isAuthenticated]);
 
   useEffect(() => {
     if (projectId) {
@@ -63,14 +73,27 @@ function App() {
     }
   }, [projectId]);
 
-  async function startAudit(payload: { title: string; description: string; process_area: string; initial_concern: string; extra_context: string }) {
+  async function startAudit(payload: {
+    title: string;
+    description: string;
+    process_area: string;
+    initial_concern: string;
+    extra_context: string;
+    accepted_data_warning?: boolean;
+  }) {
     const project = await projectsApi.create(payload);
     setProjectId(project.id);
   }
 
   function openProject(id: string) {
     window.history.pushState({}, "", "/");
+    setPath("/");
     setProjectId(id);
+  }
+
+  function goTo(pathname: string) {
+    window.history.pushState({}, "", pathname);
+    setPath(pathname);
   }
 
   async function logoutUser() {
@@ -84,19 +107,55 @@ function App() {
     return <AdminScreen onOpenProject={openProject} onRuntimeChange={setRuntime} refreshRuntime={refreshRuntime} />;
   }
 
+  if (legalPage) {
+    return <LegalPage page={legalPage} onBack={() => goTo("/")} />;
+  }
+
   if (!authLoaded) {
     return <main className="workspace"><p className="muted">Loading session...</p></main>;
   }
 
-  if (!user?.isAuthenticated && !runtime?.isAdmin) {
-    return <AuthScreen onAuthenticated={(next) => { setUser(next); setRuntime(next.runtime); }} />;
+  if (isAuthRoute) {
+    return (
+      <AuthScreen
+        onAuthenticated={(next) => {
+          setUser(next);
+          setRuntime(next.runtime);
+          goTo("/");
+        }}
+        onCancel={() => {
+          goTo("/");
+        }}
+      />
+    );
   }
 
   if (!projectId) {
-    return <StartScreen onStart={startAudit} onOpenExisting={setProjectId} runtime={runtime} user={user} onLogoutUser={logoutUser} />;
+    return (
+      <StartScreen
+        onStart={startAudit}
+        onOpenExisting={setProjectId}
+        runtime={runtime}
+        user={user}
+        onLogoutUser={logoutUser}
+        onSignIn={() => goTo("/auth")}
+      />
+    );
   }
 
-  return <AuditWorkspace projectId={projectId} onReset={() => setProjectId(null)} runtime={runtime} user={user} onLogoutUser={logoutUser} />;
+  return (
+    <AuditWorkspace
+      projectId={projectId}
+      onReset={() => setProjectId(null)}
+      runtime={runtime}
+      user={user}
+      onLogoutUser={logoutUser}
+      onSignIn={() => goTo("/auth")}
+      onRuntimeChanged={async () => {
+        await refreshRuntime();
+      }}
+    />
+  );
 }
 
 export default App;

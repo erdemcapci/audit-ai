@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import admin, agents, audit_map, auth, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
 from app.config import settings
+from app.showcase.sample_audit import bootstrap_hosted_showcase
 
 
 app = FastAPI(title="Audit AI Copilot", version="0.1.0")
@@ -38,6 +39,11 @@ async def value_error_handler(_: Request, exc: ValueError) -> JSONResponse:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+def startup() -> None:
+    bootstrap_hosted_showcase()
 
 
 app.include_router(projects.router)

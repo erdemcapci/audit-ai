@@ -5,7 +5,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from app.agents.demo_data import demo_document_requests
+from app.agents.demo_data import demo_document_requests, demo_finding, demo_interviews, demo_objectives, demo_report, demo_risks, demo_tests
+from app.agents.report_agent import report_to_markdown
 from app.config import settings
 from app.models import (
     AdminLoginRequest,
@@ -19,11 +20,9 @@ from app.models import (
     DemoJobStep,
     DocumentRequestState,
     FieldworkCreateFromPlanningRequest,
-    FindingDraftRequest,
 )
 from app.runtime import (
     clear_admin_cookie,
-    ensure_agent_execution_allowed,
     is_admin_request,
     runtime_settings,
     set_admin_cookie,
@@ -31,9 +30,7 @@ from app.runtime import (
 from app.services.audit_map_service import audit_map_service
 from app.services.fieldwork_service import fieldwork_service
 from app.services.finding_service import finding_service
-from app.services.interview_service import interview_service
 from app.services.planning_service import planning_service
-from app.services.report_service import report_service
 from app.store.project_store import project_store
 from app.store.user_store import user_store
 
@@ -58,10 +55,14 @@ jobs: dict[str, DemoJobStatus] = {}
 
 
 def _admin_user_summary(user) -> AdminUserSummary:
+    remaining = max(0, user.ai_total_run_limit - user.ai_runs_used)
     return AdminUserSummary(
         id=user.id,
         email=user.email,
         canRunAgents=user.can_run_agents,
+        aiTotalRunLimit=user.ai_total_run_limit,
+        aiRunsUsed=user.ai_runs_used,
+        aiRunsRemaining=remaining,
         createdAt=user.created_at,
         updatedAt=user.updated_at,
     )
@@ -120,19 +121,19 @@ async def _run_full_demo(job: DemoJobStatus, payload: DemoCreateRequest) -> None
             job.status = "completed"
             return
 
-        await _run_step(job, "Generate objectives", lambda: planning_service.generate_objectives(audit.id))
-        await _run_step(job, "Generate risks", lambda: planning_service.generate_risks(audit.id))
-        await _run_step(job, "Generate tests", lambda: planning_service.generate_tests(audit.id))
+        await _run_step(job, "Generate objectives", lambda: _create_demo_objectives(audit.id))
+        await _run_step(job, "Generate risks", lambda: _create_demo_risks(audit.id))
+        await _run_step(job, "Generate tests", lambda: _create_demo_tests(audit.id))
         await _run_step(job, "Approve planning", lambda: planning_service.approve(audit.id))
         await _run_step(
             job,
             "Create fieldwork items",
             lambda: fieldwork_service.create_from_planning(audit.id, FieldworkCreateFromPlanningRequest(mode="missing")),
         )
-        await _run_step(job, "Generate interview plan", lambda: interview_service.generate_plan(audit.id))
+        await _run_step(job, "Generate interview plan", lambda: _create_demo_interviews(audit.id))
         await _run_step(job, "Generate document requests", lambda: _create_document_requests(audit.id))
         await _run_step(job, "Generate findings", lambda: _create_demo_findings(audit.id))
-        await _run_step(job, "Generate report", lambda: report_service.generate(audit.id))
+        await _run_step(job, "Generate report", lambda: _create_demo_report(audit.id))
         await _run_step(job, "Auto layout map", lambda: audit_map_service.auto_layout(audit.id, AutoLayoutRequest()))
         job.status = "completed"
         job.currentStep = "Completed"
@@ -152,20 +153,54 @@ def _create_document_requests(project_id: str) -> DocumentRequestState:
     return project_store.save_document_requests(project_id, existing)
 
 
+def _create_demo_objectives(project_id: str):
+    audit = project_store.get_project(project_id)
+    planning = demo_objectives(audit.title, audit.description)
+    return project_store.save_planning(project_id, planning)
+
+
+def _create_demo_risks(project_id: str):
+    planning = project_store.load_planning(project_id)
+    return project_store.save_planning(project_id, demo_risks(planning))
+
+
+def _create_demo_tests(project_id: str):
+    planning = project_store.load_planning(project_id)
+    return project_store.save_planning(project_id, demo_tests(planning))
+
+
+def _create_demo_interviews(project_id: str):
+    planning = project_store.load_planning(project_id)
+    return project_store.save_interviews(project_id, demo_interviews(planning))
+
+
 async def _create_demo_findings(project_id: str):
     fieldwork = project_store.load_fieldwork(project_id)
     selected_items = fieldwork.items[: max(1, min(3, len(fieldwork.items)))]
     created = []
     for item in selected_items:
-        finding = await finding_service.draft(
+        finding = finding_service.create(
             project_id,
-            FindingDraftRequest(
+            demo_finding(
                 raw_description=f"Testing for {item.title} identified an exception requiring validation with management.",
-                fieldwork_item_id=item.id,
+                fieldwork_item=item,
             ),
         )
         created.append(finding)
     return created
+
+
+def _create_demo_report(project_id: str):
+    report = demo_report()
+    findings = project_store.load_findings(project_id)
+    if findings.findings:
+        report.issue_summary = "; ".join(finding.title for finding in findings.findings)
+        report.draft_markdown = ""
+        report.draft_markdown = report_to_markdown(report)
+    audit = project_store.get_project(project_id)
+    audit.status = "reporting"
+    project_store.save_project(audit)
+    return project_store.save_report(project_id, report)
 
 
 @router.post("/login", response_model=AdminMe)
@@ -203,12 +238,18 @@ def list_users(request: Request) -> list[AdminUserSummary]:
 def update_user_access(request: Request, user_id: str, payload: AdminUserAccessUpdate) -> AdminUserSummary:
     if not is_admin_request(request):
         raise HTTPException(status_code=403, detail="Admin login is required.")
-    return _admin_user_summary(user_store.update_access(user_id, payload.canRunAgents))
+    return _admin_user_summary(
+        user_store.update_access(
+            user_id,
+            payload.canRunAgents,
+            ai_total_run_limit=payload.aiTotalRunLimit,
+            ai_runs_used=payload.aiRunsUsed,
+        )
+    )
 
 
 @router.post("/demo/create-full", response_model=DemoJobStatus)
 async def create_full_demo(request: Request, payload: DemoCreateRequest) -> DemoJobStatus:
-    ensure_agent_execution_allowed(request)
     if not is_admin_request(request):
         raise HTTPException(status_code=403, detail="Admin login is required.")
     job = _new_job()

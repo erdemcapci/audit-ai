@@ -10,6 +10,9 @@ export type AdminUserSummary = {
   id: string;
   email: string;
   canRunAgents: boolean;
+  aiTotalRunLimit: number;
+  aiRunsUsed: number;
+  aiRunsRemaining: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -41,10 +44,10 @@ export const adminApi = {
   me: () => apiRequest<AdminMe>("/api/admin/me"),
   logout: () => apiRequest<AdminMe>("/api/admin/logout", { method: "POST" }),
   users: () => apiRequest<AdminUserSummary[]>("/api/admin/users"),
-  updateUserAccess: (userId: string, canRunAgents: boolean) =>
+  updateUserAccess: (userId: string, payload: { canRunAgents: boolean; aiTotalRunLimit?: number; aiRunsUsed?: number }) =>
     apiRequest<AdminUserSummary>(`/api/admin/users/${userId}/access`, {
       method: "PUT",
-      body: JSON.stringify({ canRunAgents })
+      body: JSON.stringify(payload)
     }),
   createDemo: (payload: DemoCreatePayload) =>
     apiRequest<DemoJobStatus>("/api/admin/demo/create-full", { method: "POST", body: JSON.stringify(payload) }),

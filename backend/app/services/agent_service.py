@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from app.agents.json_utils import parse_or_warn
 from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
-from app.config import default_openai_model, settings, validate_openai_model
+from app.config import default_openai_model, settings
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
 from app.llm.router import get_llm_provider
@@ -46,7 +46,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Workstream Generator",
         description="Generates audit workstreams from the audit description.",
         default_prompt="You are an internal audit planning assistant. Consider the existing audit map and generate workstreams that improve coverage of important audit areas without overlapping existing workstreams. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 6, "workstreams_count": 5},
+        default_config={"output_mode": "json", "max_output_items": 6, "workstreams_count": 5},
         allowed_input_node_types=["auditNode"],
         output_node_types=["workstreamNode"],
     ),
@@ -55,7 +55,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Objective Generator",
         description="Generates audit objectives for connected workstreams.",
         default_prompt="You are an internal audit planning assistant. Consider existing objectives in the connected workstream and across the audit map. Generate objectives that fill coverage gaps and avoid overlapping existing objective angles. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 8, "objectives_per_workstream": 2},
+        default_config={"output_mode": "json", "max_output_items": 8, "objectives_per_workstream": 2},
         allowed_input_node_types=["workstreamNode"],
         output_node_types=["objectiveNode"],
     ),
@@ -64,7 +64,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Risk Generator",
         description="Generates audit risks for connected objectives.",
         default_prompt="You are an internal audit planning assistant. Consider existing risks under the connected objective and related workstream. Generate additional risks that improve coverage of material risk areas without repeating existing risk themes. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 10, "risks_per_objective": 2},
+        default_config={"output_mode": "json", "max_output_items": 10, "risks_per_objective": 2},
         allowed_input_node_types=["objectiveNode"],
         output_node_types=["riskNode"],
     ),
@@ -74,9 +74,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         description="Generates audit tests for connected risks.",
         default_prompt="You are an internal audit planning assistant. Consider existing tests under the connected risk and related objective. Generate tests that complement existing procedures and cover untested assertions or evidence sources. Return valid JSON only.",
         default_config={
-            "temperature": 0.2,
             "output_mode": "json",
-            "llm_model": default_openai_model(),
             "max_output_items": 12,
             "tests_per_risk": 2,
             "allowed_test_types": ["Test of Design", "Detailed Test"],
@@ -89,7 +87,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Interview Plan Generator",
         description="Generates interview roles and questions from connected planning or fieldwork cards.",
         default_prompt="You are an internal audit interview planning assistant. Generate role-based interview questions mapped to connected objectives, risks, tests, or fieldwork items. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "questions_per_role": 3, "max_roles": 4},
+        default_config={"output_mode": "json", "questions_per_role": 3, "max_roles": 4},
         allowed_input_node_types=["objectiveNode", "riskNode", "testNode", "fieldworkItemNode"],
         output_node_types=["interviewRoleNode", "interviewQuestionNode"],
     ),
@@ -98,7 +96,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Finding Draft Agent",
         description="Drafts a structured finding from connected fieldwork or rough text.",
         default_prompt="You are an internal audit finding drafting assistant. Turn rough fieldwork observations into a structured audit finding. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "tone": "internal audit"},
+        default_config={"output_mode": "json", "tone": "internal audit"},
         allowed_input_node_types=["fieldworkItemNode"],
         output_node_types=["findingNode"],
     ),
@@ -107,7 +105,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Document Request Generator",
         description="Generates document and evidence request cards from connected fieldwork or planning cards.",
         default_prompt="You are an internal audit fieldwork assistant. Generate practical document and evidence requests for the connected audit cards. Return valid JSON only. Each request should include title, description, requested_from, expected_document, and rationale.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "max_output_items": 8},
+        default_config={"output_mode": "json", "max_output_items": 8},
         allowed_input_node_types=["fieldworkItemNode", "testNode", "riskNode", "objectiveNode"],
         output_node_types=["documentRequestNode"],
     ),
@@ -116,7 +114,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         title="Report Draft Agent",
         description="Drafts report content from the full audit state.",
         default_prompt="You are an internal audit report drafting assistant. Generate executive-ready report language from the full audit plan, fieldwork, and findings. Return valid JSON only.",
-        default_config={"temperature": 0.2, "output_mode": "json", "llm_model": default_openai_model(), "report_style": "executive"},
+        default_config={"output_mode": "json", "report_style": "executive"},
         allowed_input_node_types=[],
         output_node_types=["reportNode"],
     ),
@@ -391,16 +389,27 @@ class AgentService:
         agent.last_error = ""
         project_store.save_map_state(project_id, map_state)
 
+        saved_prompt = agent.prompt
+        temporary_content = request.temporary_content.strip()
+        if temporary_content:
+            agent.prompt = (
+                f"{agent.prompt.strip()}\n\n"
+                "Temporary run content for this execution only:\n"
+                f"{temporary_content}"
+            )
+
         try:
             if not input_node_ids and agent.type != "report_draft_agent":
                 raise ValueError("This agent has no inputs yet. Connect it to related cards first.")
             if request.run_mode == "replace":
                 self._delete_agent_outputs(project_id, map_state, agent, input_node_ids)
             generated = await self._run_agent(project_id, map_state, agent, input_node_ids, request)
+            agent.prompt = saved_prompt
             agent.status = "completed"
             agent.last_run_at = utc_now()
             agent.last_output = generated
         except Exception as exc:
+            agent.prompt = saved_prompt
             agent.status = "error"
             agent.last_error = str(exc)
             project_store.save_map_state(project_id, map_state)
@@ -599,7 +608,7 @@ class AgentService:
                 return [{"id": finding.id, "type": "findingNode", "title": finding.title} for finding in findings.findings if finding.id in item.finding_ids]
         if agent.type == "report_draft_agent":
             report = project_store.load_report(project_id)
-            if report.executive_summary or report.audit_conclusion or report.issue_summary:
+            if report.executive_summary or report.audit_conclusion or report.issue_summary or report.draft_markdown:
                 return [{"id": "report-main", "type": "reportNode", "title": "Draft Report"}]
         return []
 
@@ -642,6 +651,8 @@ class AgentService:
         return node_id
 
     def _delete_agent_outputs(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> int:
+        if agent.type == "report_draft_agent":
+            return self._delete_nodes(project_id, map_state, {"report-main", "executive-summary"})
         output_ids: set[str] = set()
         for input_id in input_node_ids:
             for item in self._outputs_for_agent_input(project_id, agent, input_id):
@@ -832,6 +843,7 @@ class AgentService:
             report.management_attention_points = []
             report.draft_report_structure = []
             report.ai_improved_version = ""
+            report.draft_markdown = ""
             project_store.save_report(project_id, report)
             removed.update(report_node_ids)
 
@@ -1009,14 +1021,17 @@ class AgentService:
             y = issues_layout.y + SECTION_PADDING["top"]
             generated = 0
             for item in items:
+                raw_description = request.rough_finding_text or "Fieldwork exception requires follow-up."
+                if request.temporary_content.strip():
+                    raw_description = f"{raw_description}\n\nTemporary run content:\n{request.temporary_content.strip()}"
                 finding = await FindingAgent().run(
                     audit,
                     FindingDraftRequest(
-                        raw_description=request.rough_finding_text or "Fieldwork exception requires follow-up.",
+                        raw_description=raw_description,
                         fieldwork_item_id=item.id,
                     ),
                     item,
-                    model=validate_openai_model(str(agent.config.get("llm_model") or default_openai_model())),
+                    model=default_openai_model() if settings.llm_provider == "openai" else None,
                 )
                 findings.findings.append(finding)
                 item.finding_ids.append(finding.id)
@@ -1043,7 +1058,7 @@ class AgentService:
                 findings = project_store.load_findings(project_id)
                 data = await self._agent_json(
                     agent,
-                    "Generate report content from the current audit materials.",
+                    "Generate substantive report content from the current audit materials. Do not return empty strings or empty arrays when audit materials are available.",
                     {
                         "planning": planning.model_dump(),
                         "fieldwork": fieldwork.model_dump(),
@@ -1057,18 +1072,10 @@ class AgentService:
                         "management_attention_points": ["Management action"],
                         "draft_report_structure": [{"heading": "Section", "content": "Section content"}],
                         "ai_improved_version": "Improved report language",
+                        "draft_markdown": "Optional full markdown report",
                     },
                 )
-                report = ReportState(
-                    executive_summary=data.get("executive_summary", ""),
-                    audit_conclusion=data.get("audit_conclusion", ""),
-                    key_themes=data.get("key_themes", []),
-                    issue_summary=data.get("issue_summary", ""),
-                    management_attention_points=data.get("management_attention_points", []),
-                    draft_report_structure=data.get("draft_report_structure", []),
-                    ai_improved_version=data.get("ai_improved_version", ""),
-                )
-                report.draft_markdown = report_to_markdown(report)
+                report = self._report_from_agent_data(data)
             project_store.save_report(project_id, report)
             add_custom_edge(map_state, agent.id, "report-main")
             return {"report": 1}
@@ -1077,12 +1084,8 @@ class AgentService:
 
     def _sanitize_agent_config(self, config: dict, strict: bool = True) -> dict:
         next_config = dict(config)
-        try:
-            next_config["llm_model"] = validate_openai_model(str(next_config.get("llm_model") or default_openai_model()))
-        except ValueError:
-            if strict:
-                raise
-            next_config["llm_model"] = default_openai_model()
+        next_config.pop("llm_model", None)
+        next_config.pop("temperature", None)
         return next_config
 
     async def _agent_json(self, agent: AgentState, task: str, context: dict, response_shape: dict) -> dict:
@@ -1101,18 +1104,79 @@ class AgentService:
             },
             indent=2,
         )
-        model = validate_openai_model(str(agent.config.get("llm_model") or default_openai_model())) if settings.llm_provider == "openai" else None
+        model = default_openai_model() if settings.llm_provider == "openai" else None
         response = await get_llm_provider().generate(
             system_prompt,
             user_prompt,
             json_mode=True,
-            temperature=float(agent.config.get("temperature", 0.2)),
+            temperature=0.2,
             model=model,
         )
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)
         return data
+
+    def _report_from_agent_data(self, data: dict) -> ReportState:
+        draft_markdown = self._first_text(data, ["draft_markdown", "report_markdown", "markdown", "report", "content"])
+        report = ReportState(
+            executive_summary=self._first_text(data, ["executive_summary", "summary"]),
+            audit_conclusion=self._first_text(data, ["audit_conclusion", "conclusion"]),
+            key_themes=self._text_list(data.get("key_themes") or data.get("themes")),
+            issue_summary=self._first_text(data, ["issue_summary", "findings_summary"]),
+            management_attention_points=self._text_list(data.get("management_attention_points") or data.get("attention_points") or data.get("recommendations")),
+            draft_report_structure=self._report_sections(data.get("draft_report_structure") or data.get("sections")),
+            ai_improved_version=self._first_text(data, ["ai_improved_version", "improved_version"]),
+            draft_markdown=draft_markdown,
+        )
+        if not report.draft_markdown.strip():
+            report.draft_markdown = report_to_markdown(report)
+        if not self._report_has_content(report):
+            raise ValueError("The model returned an empty draft report. Try a stronger local model or add temporary run content.")
+        return report
+
+    def _report_has_content(self, report: ReportState) -> bool:
+        meaningful = [
+            report.executive_summary,
+            report.audit_conclusion,
+            report.issue_summary,
+            report.ai_improved_version,
+            *report.key_themes,
+            *report.management_attention_points,
+        ]
+        meaningful.extend(str(section.get("content", "")) for section in report.draft_report_structure)
+        if any(value.strip() for value in meaningful):
+            return True
+        return bool(report.draft_markdown.strip() and report.draft_markdown.strip() != "# Draft Audit Report")
+
+    def _first_text(self, data: dict, keys: list[str]) -> str:
+        for key in keys:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    def _text_list(self, value: object) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str) and value.strip():
+            return [value.strip()]
+        return []
+
+    def _report_sections(self, value: object) -> list[dict]:
+        if not isinstance(value, list):
+            return []
+        sections: list[dict] = []
+        for index, item in enumerate(value, start=1):
+            if isinstance(item, dict):
+                heading = str(item.get("heading") or item.get("title") or f"Section {index}").strip()
+                content = str(item.get("content") or item.get("body") or item.get("text") or "").strip()
+            else:
+                heading = f"Section {index}"
+                content = str(item).strip()
+            if content:
+                sections.append({"heading": heading or f"Section {index}", "content": content})
+        return sections
 
     def _node_context(self, project_id: str, node_id: str) -> dict:
         audit = project_store.get_project(project_id)

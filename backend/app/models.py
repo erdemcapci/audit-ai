@@ -34,6 +34,7 @@ class AuditCreate(BaseModel):
     process_area: str = ""
     initial_concern: str = ""
     extra_context: str = ""
+    accepted_data_warning: bool = False
 
 
 class AuditProject(BaseModel):
@@ -47,6 +48,10 @@ class AuditProject(BaseModel):
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
     status: str = "planning"
+    visibility: Literal["local", "public_sample", "anonymous_temp", "private"] = "local"
+    owner_user_id: str | None = None
+    anonymous_session_id: str | None = None
+    is_read_only_sample: bool = False
 
 
 class Risk(BaseModel):
@@ -220,6 +225,10 @@ class RuntimeSettings(BaseModel):
     isAuthenticated: bool = False
     userEmail: str | None = None
     userCanRunAgents: bool = False
+    userAiRunLimit: int | None = None
+    userAiRunsUsed: int = 0
+    userAiRunsRemaining: int | None = None
+    aiAccessMessage: str = ""
     adminEnabled: bool
     llmProviderConfigured: bool
     agentExecutionEnabled: bool
@@ -244,6 +253,8 @@ class UserRecord(BaseModel):
     email: str
     password_hash: str
     can_run_agents: bool = False
+    ai_total_run_limit: int = 50
+    ai_runs_used: int = 0
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
 
@@ -259,12 +270,17 @@ class AdminUserSummary(BaseModel):
     id: str
     email: str
     canRunAgents: bool
+    aiTotalRunLimit: int
+    aiRunsUsed: int
+    aiRunsRemaining: int
     createdAt: str
     updatedAt: str
 
 
 class AdminUserAccessUpdate(BaseModel):
     canRunAgents: bool
+    aiTotalRunLimit: int | None = None
+    aiRunsUsed: int | None = None
 
 
 class DemoCreateRequest(BaseModel):
@@ -387,6 +403,7 @@ class AgentRunRequest(BaseModel):
     prompt: str | None = None
     input_node_ids: list[str] = Field(default_factory=list)
     rough_finding_text: str = ""
+    temporary_content: str = ""
     run_mode: Literal["append", "replace"] = "append"
 
 

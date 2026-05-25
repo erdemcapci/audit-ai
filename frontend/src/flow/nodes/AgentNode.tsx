@@ -23,7 +23,6 @@ export function AgentNode({ id, data, selected }: { id: string; data: FlowNodeDa
       <p>{data.agentType?.replace(/_/g, " ")}</p>
       <div className="node-meta">
         <span>{data.inputCount || 0} inputs</span>
-        {data.config?.llm_model ? <span>{String(data.config.llm_model)}</span> : null}
         {data.lastRunAt ? <span>{new Date(data.lastRunAt).toLocaleTimeString()}</span> : <span>Not run</span>}
       </div>
       {data.lastError ? <p className="agent-error">{data.lastError}</p> : null}
