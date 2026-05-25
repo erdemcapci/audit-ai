@@ -12,6 +12,7 @@ import { AdminScreen } from "./screens/AdminScreen";
 import { AuthScreen } from "./screens/AuthScreen";
 import { AuditWorkspace } from "./screens/AuditWorkspace";
 import { StartScreen } from "./screens/StartScreen";
+import { CookieNotice } from "./showcase/CookieNotice";
 import { LegalPage } from "./showcase/LegalPage";
 
 const CURRENT_PROJECT_KEY = "audit-ai-current-project";
@@ -117,44 +118,53 @@ function App() {
 
   if (isAuthRoute) {
     return (
-      <AuthScreen
-        onAuthenticated={(next) => {
-          setUser(next);
-          setRuntime(next.runtime);
-          goTo("/");
-        }}
-        onCancel={() => {
-          goTo("/");
-        }}
-      />
+      <>
+        <AuthScreen
+          onAuthenticated={(next) => {
+            setUser(next);
+            setRuntime(next.runtime);
+            goTo("/");
+          }}
+          onCancel={() => {
+            goTo("/");
+          }}
+        />
+        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
+      </>
     );
   }
 
   if (!projectId) {
     return (
-      <StartScreen
-        onStart={startAudit}
-        onOpenExisting={setProjectId}
-        runtime={runtime}
-        user={user}
-        onLogoutUser={logoutUser}
-        onSignIn={() => goTo("/auth")}
-      />
+      <>
+        <StartScreen
+          onStart={startAudit}
+          onOpenExisting={setProjectId}
+          runtime={runtime}
+          user={user}
+          onLogoutUser={logoutUser}
+          onSignIn={() => goTo("/auth")}
+        />
+        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
+      </>
     );
   }
 
   return (
-    <AuditWorkspace
-      projectId={projectId}
-      onReset={() => setProjectId(null)}
-      runtime={runtime}
-      user={user}
-      onLogoutUser={logoutUser}
-      onSignIn={() => goTo("/auth")}
-      onRuntimeChanged={async () => {
-        await refreshRuntime();
-      }}
-    />
+    <>
+      <AuditWorkspace
+        projectId={projectId}
+        onReset={() => setProjectId(null)}
+        runtime={runtime}
+        user={user}
+        onLogoutUser={logoutUser}
+        onSignIn={() => goTo("/auth")}
+        onRuntimeChanged={async () => {
+          await refreshRuntime();
+        }}
+      />
+      <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
+    </>
   );
 }
 

@@ -56,6 +56,63 @@ a:hover {
   margin-top: 18px;
 }
 
+.legal-page h2 {
+  margin: 26px 0 8px;
+  font-size: 1.15rem;
+}
+
+.legal-list {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  gap: 10px 18px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.legal-list dt {
+  color: #475569;
+  font-weight: 800;
+}
+
+.legal-list dd {
+  margin: 0;
+}
+
+.cookie-notice {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  max-width: 620px;
+  padding: 14px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
+.cookie-notice p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.cookie-notice button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #ffffff;
+  background: #1d4ed8;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .creator-note,
 .workspace-contact {
   color: #64748b;

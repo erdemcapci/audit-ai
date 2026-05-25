@@ -97,6 +97,12 @@ class ProjectStore:
     def public_sample_projects(self) -> list[AuditProject]:
         return [project for project in self.list_projects() if project.visibility == "public_sample"]
 
+    def count_anonymous_projects(self, anonymous_session_id: str) -> int:
+        return sum(1 for project in self.list_projects() if project.visibility == "anonymous_temp" and project.anonymous_session_id == anonymous_session_id)
+
+    def count_user_projects(self, owner_user_id: str) -> int:
+        return sum(1 for project in self.list_projects() if project.visibility == "private" and project.owner_user_id == owner_user_id)
+
     def get_project(self, project_id: str) -> AuditProject:
         path = self.project_dir(project_id) / "audit.json"
         return AuditProject.model_validate(self.file_store.read_json(path, {}))

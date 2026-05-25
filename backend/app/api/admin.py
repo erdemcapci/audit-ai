@@ -27,6 +27,7 @@ from app.runtime import (
     runtime_settings,
     set_admin_cookie,
 )
+from app.showcase.rate_limit import enforce_hosted_rate_limit
 from app.services.audit_map_service import audit_map_service
 from app.services.fieldwork_service import fieldwork_service
 from app.services.finding_service import finding_service
@@ -205,6 +206,7 @@ def _create_demo_report(project_id: str):
 
 @router.post("/login", response_model=AdminMe)
 def login(request: Request, response: Response, payload: AdminLoginRequest) -> AdminMe:
+    enforce_hosted_rate_limit(request, "admin-login", settings.admin_rate_limit_attempts)
     if not settings.admin_secret:
         raise HTTPException(status_code=403, detail="Admin access is not configured.")
     if payload.secret != settings.admin_secret:

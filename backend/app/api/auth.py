@@ -4,8 +4,10 @@ import re
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from app.config import settings
 from app.models import UserAuthRequest, UserMe
 from app.runtime import clear_user_cookie, current_user, runtime_settings, set_user_cookie
+from app.showcase.rate_limit import enforce_hosted_rate_limit
 from app.store.user_store import user_store, verify_password
 
 
@@ -17,8 +19,8 @@ def _validate_credentials(payload: UserAuthRequest) -> tuple[str, str]:
     password = payload.password
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         raise HTTPException(status_code=400, detail="Enter a valid email address.")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if len(password) < settings.password_min_length:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {settings.password_min_length} characters.")
     return email, password
 
 
@@ -61,6 +63,7 @@ def _runtime_for_user(request: Request, email: str, can_run_agents: bool, ai_tot
 
 @router.post("/signup", response_model=UserMe)
 def signup(request: Request, response: Response, payload: UserAuthRequest) -> UserMe:
+    enforce_hosted_rate_limit(request, "auth-signup", settings.auth_rate_limit_attempts)
     email, password = _validate_credentials(payload)
     try:
         user = user_store.create_user(email, password)
@@ -77,6 +80,7 @@ def signup(request: Request, response: Response, payload: UserAuthRequest) -> Us
 
 @router.post("/login", response_model=UserMe)
 def login(request: Request, response: Response, payload: UserAuthRequest) -> UserMe:
+    enforce_hosted_rate_limit(request, "auth-login", settings.auth_rate_limit_attempts)
     email, password = _validate_credentials(payload)
     user = user_store.get_by_email(email)
     if not user or not verify_password(password, user.password_hash):

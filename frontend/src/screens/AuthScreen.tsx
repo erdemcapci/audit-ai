@@ -35,7 +35,7 @@ export function AuthScreen({ onAuthenticated, onCancel }: { onAuthenticated: (me
         {message ? <div className="error-banner">{message}</div> : null}
         <TextInput label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
         <TextInput label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        <Button onClick={submit} disabled={busy || !email.trim() || password.length < 8}>
+        <Button onClick={submit} disabled={busy || !email.trim() || password.length < 10}>
           {mode === "login" ? "Sign In" : "Sign Up"}
         </Button>
         <button className="auth-switch" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>

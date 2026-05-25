@@ -31,6 +31,12 @@ class Settings(BaseModel):
     admin_secret: str = os.getenv("ADMIN_SECRET", "")
     session_secret: str = os.getenv("SESSION_SECRET", os.getenv("ADMIN_SECRET", "local-development-session-secret"))
     ai_default_total_limit: int = int(os.getenv("AI_DEFAULT_TOTAL_LIMIT", "50"))
+    password_min_length: int = int(os.getenv("PASSWORD_MIN_LENGTH", "10"))
+    auth_rate_limit_attempts: int = int(os.getenv("AUTH_RATE_LIMIT_ATTEMPTS", "10"))
+    admin_rate_limit_attempts: int = int(os.getenv("ADMIN_RATE_LIMIT_ATTEMPTS", "5"))
+    rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
+    max_anonymous_projects: int = int(os.getenv("MAX_ANONYMOUS_PROJECTS", "3"))
+    max_user_projects: int = int(os.getenv("MAX_USER_PROJECTS", "20"))
     projects_dir: Path = resolve_projects_dir(os.getenv("PROJECTS_DIR", "./projects"))
     demo_mode: bool = os.getenv("DEMO_MODE", "false" if os.getenv("DEPLOYMENT_MODE", "local").lower() == "hosted" else "true").lower() == "true"
 

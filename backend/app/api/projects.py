@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from app.config import settings
 from app.models import AuditCreate, AuditProject, MessageResponse
 from app.runtime import anonymous_session_id, current_user, deployment_mode, ensure_anonymous_session, is_admin_request
 from app.showcase.project_access import require_project_read, require_project_write
+from app.showcase.rate_limit import enforce_hosted_rate_limit
 from app.store.project_store import project_store
 
 
@@ -11,6 +13,7 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 @router.post("", response_model=AuditProject)
 def create_project(request: Request, response: Response, payload: AuditCreate) -> AuditProject:
+    enforce_hosted_rate_limit(request, "project-create", settings.auth_rate_limit_attempts)
     user = current_user(request)
     try:
         if deployment_mode() != "hosted":
@@ -18,8 +21,12 @@ def create_project(request: Request, response: Response, payload: AuditCreate) -
         if not payload.accepted_data_warning:
             raise HTTPException(status_code=400, detail="Confirm that you will not enter confidential or sensitive data.")
         if user:
+            if project_store.count_user_projects(user.id) >= settings.max_user_projects:
+                raise HTTPException(status_code=403, detail="Project limit reached for this account.")
             return project_store.create_project(payload, visibility="private", owner_user_id=user.id)
         session_id = ensure_anonymous_session(request, response)
+        if project_store.count_anonymous_projects(session_id) >= settings.max_anonymous_projects:
+            raise HTTPException(status_code=403, detail="Temporary demo audit limit reached for this browser/session. Sign in to create saved audits.")
         return project_store.create_project(payload, visibility="anonymous_temp", anonymous_session_id=session_id)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Unable to create project workspace: {exc}") from exc

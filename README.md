@@ -107,14 +107,28 @@ DEPLOYMENT_MODE=hosted
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_key_here
 ADMIN_SECRET=choose_a_secret
+SESSION_SECRET=choose_a_different_long_random_secret
 AI_DEFAULT_TOTAL_LIMIT=50
+PASSWORD_MIN_LENGTH=10
+AUTH_RATE_LIMIT_ATTEMPTS=10
+ADMIN_RATE_LIMIT_ATTEMPTS=5
+RATE_LIMIT_WINDOW_SECONDS=300
+MAX_ANONYMOUS_PROJECTS=3
+MAX_USER_PROJECTS=20
 PROJECTS_DIR=/data/projects
 CORS_ORIGIN_REGEX=https://.*\\.up\\.railway\\.app
+VITE_LEGAL_PROVIDER_NAME=Erdem Capci
+VITE_LEGAL_PROVIDER_ADDRESS=Your legal address
+VITE_LEGAL_PROVIDER_EMAIL=contact@example.com
+VITE_LEGAL_PROVIDER_COUNTRY=Germany
+VITE_LEGAL_PROVIDER_LINKEDIN=https://www.linkedin.com/in/erdemcapci/
 ```
 
 Admin users can open `/admin`, log in with `ADMIN_SECRET`, approve user AI access, set each user's total run limit, reset used runs, revoke access, and create a full end-to-end demo audit.
 
 Hosted deployments still use JSON storage. On Railway or similar platforms, set `PROJECTS_DIR` to a persistent volume path such as `/data/projects`; otherwise projects, users, sessions, access grants, and usage counters may be lost when the container restarts.
+
+Before public launch, complete the legal provider environment variables used by `/impressum`, `/privacy`, and `/terms`. The hosted demo uses only strictly necessary HTTP-only session cookies for login/admin/anonymous demo sessions; add a cookie consent banner before introducing analytics, tracking, or other non-essential cookies.
 
 ## Local Development
 
