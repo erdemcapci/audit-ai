@@ -13,6 +13,7 @@ import { AuthScreen } from "./screens/AuthScreen";
 import { AuditWorkspace } from "./screens/AuditWorkspace";
 import { StartScreen } from "./screens/StartScreen";
 import { CookieNotice } from "./showcase/CookieNotice";
+import { HowToUsePage } from "./showcase/HowToUsePage";
 import { LegalPage } from "./showcase/LegalPage";
 
 const CURRENT_PROJECT_KEY = "audit-ai-current-project";
@@ -25,6 +26,7 @@ function App() {
   const [path, setPath] = useState(window.location.pathname);
   const isAdminRoute = path.startsWith("/admin");
   const isAuthRoute = path.startsWith("/auth");
+  const isHowToUseRoute = path === "/how-to-use";
   const legalPage = path === "/impressum" || path === "/privacy" || path === "/terms" ? path.slice(1) : null;
 
   async function refreshRuntime() {
@@ -112,6 +114,15 @@ function App() {
     return <LegalPage page={legalPage} onBack={() => goTo("/")} />;
   }
 
+  if (isHowToUseRoute) {
+    return (
+      <>
+        <HowToUsePage onBack={() => goTo("/")} />
+        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
+      </>
+    );
+  }
+
   if (!authLoaded) {
     return <main className="workspace"><p className="muted">Loading session...</p></main>;
   }
@@ -144,6 +155,7 @@ function App() {
           user={user}
           onLogoutUser={logoutUser}
           onSignIn={() => goTo("/auth")}
+          onHowToUse={() => goTo("/how-to-use")}
         />
         <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
       </>
@@ -159,6 +171,7 @@ function App() {
         user={user}
         onLogoutUser={logoutUser}
         onSignIn={() => goTo("/auth")}
+        onHowToUse={() => goTo("/how-to-use")}
         onRuntimeChanged={async () => {
           await refreshRuntime();
         }}

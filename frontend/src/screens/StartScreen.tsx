@@ -16,7 +16,8 @@ export function StartScreen({
   runtime,
   user,
   onLogoutUser,
-  onSignIn
+  onSignIn,
+  onHowToUse
 }: {
   onStart: (payload: {
     title: string;
@@ -31,6 +32,7 @@ export function StartScreen({
   user: UserMe | null;
   onLogoutUser: () => Promise<void>;
   onSignIn: () => void;
+  onHowToUse: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -78,6 +80,7 @@ export function StartScreen({
         <div className="header-actions">
           {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
           {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          <Button variant="ghost" onClick={onHowToUse}>How to use</Button>
           {runtime?.deploymentMode === "hosted" && !user?.isAuthenticated ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
           {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
           {runtime?.isAdmin ? <Button variant="ghost" onClick={() => { window.location.href = "/admin"; }}>Admin</Button> : null}

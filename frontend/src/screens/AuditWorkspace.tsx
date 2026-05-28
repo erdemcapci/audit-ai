@@ -89,6 +89,7 @@ export function AuditWorkspace({
   user,
   onLogoutUser,
   onSignIn,
+  onHowToUse,
   onRuntimeChanged
 }: {
   projectId: string;
@@ -97,6 +98,7 @@ export function AuditWorkspace({
   user: UserMe | null;
   onLogoutUser: () => Promise<void>;
   onSignIn: () => void;
+  onHowToUse: () => void;
   onRuntimeChanged: () => Promise<void>;
 }) {
   const [project, setProject] = useState<AuditProject | null>(null);
@@ -555,9 +557,10 @@ export function AuditWorkspace({
         <div className="header-actions">
           {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
           {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
+          <Button variant="ghost" onClick={onHowToUse}>How to use</Button>
           {runtime?.deploymentMode === "hosted" && !user?.isAuthenticated ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
           {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
-          <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
           <Button variant="ghost" onClick={onReset}>New audit</Button>
           {busy && activeScreen !== "Map" ? <LoadingState label="Action running" /> : null}

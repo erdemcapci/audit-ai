@@ -61,6 +61,89 @@ a:hover {
   font-size: 1.15rem;
 }
 
+.help-page {
+  max-width: 920px;
+}
+
+.help-page-header {
+  margin: 18px 0 22px;
+}
+
+.help-page-header h1 {
+  margin: 4px 0 8px;
+}
+
+.help-page-header p {
+  margin: 0;
+  color: #475569;
+}
+
+.help-warning {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 26px;
+  padding: 16px;
+  border: 1px solid #f59e0b;
+  border-left: 5px solid #d97706;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.help-warning p {
+  margin: 0;
+}
+
+.help-section {
+  margin-top: 24px;
+  padding-top: 4px;
+}
+
+.help-section p {
+  margin: 8px 0;
+  color: #334155;
+}
+
+.help-section ul {
+  margin: 10px 0 0;
+  padding-left: 22px;
+  color: #334155;
+}
+
+.help-section li {
+  margin: 5px 0;
+}
+
+.help-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.help-mode-grid article {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.help-mode-grid h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.help-actions .button:hover {
+  text-decoration: none;
+}
+
 .legal-list {
   display: grid;
   grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
