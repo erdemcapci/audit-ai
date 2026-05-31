@@ -10,6 +10,15 @@ AuditCopilot helps auditors turn a simple audit title and description into a vis
 
 GitHub repository: [https://github.com/erdemcapci/audit-ai](https://github.com/erdemcapci/audit-ai)
 
+## Repository Note
+
+This repository contains the hosted showcase version of AuditCopilot.
+
+The open-source/local-first core is available at:
+https://github.com/erdemcapci/audit-ai
+
+This showcase version includes additional hosted-demo features such as user sign-in, admin-approved AI access, usage limits, legal pages, and Railway deployment configuration.
+
 ## Who It Is For
 
 AuditCopilot is for auditors who want a local-first workspace to think through an audit visually.
