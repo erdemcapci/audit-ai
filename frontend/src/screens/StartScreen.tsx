@@ -86,12 +86,6 @@ export function StartScreen({
           {runtime?.isAdmin ? <Button variant="ghost" onClick={() => { window.location.href = "/admin"; }}>Admin</Button> : null}
         </div>
       </header>
-      {runtime?.deploymentMode === "hosted" && runtime.aiAccessMessage ? (
-        <div className="message-text">{runtime.aiAccessMessage}</div>
-      ) : null}
-      {runtime?.deploymentMode === "hosted" ? (
-        <div className="message-text">Demo environment — do not enter confidential or sensitive audit data. Run locally for sensitive use cases.</div>
-      ) : null}
       <section className="start-hero">
         <div>
           <h1>Start a new audit</h1>

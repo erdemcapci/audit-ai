@@ -579,12 +579,6 @@ export function AuditWorkspace({
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
-      {runtime?.deploymentMode === "hosted" && runtime.aiAccessMessage ? (
-        <div className="message-text">{runtime.aiAccessMessage}</div>
-      ) : null}
-      {runtime?.deploymentMode === "hosted" ? (
-        <div className="message-text">Demo environment - do not enter confidential or sensitive audit data. Run locally for sensitive use cases.</div>
-      ) : null}
       {runtime?.deploymentMode === "hosted" && project?.visibility === "anonymous_temp" ? (
         <div className="message-text">Temporary demo audit — changes are only available in this browser/session. Sign in to save your audit.</div>
       ) : null}
