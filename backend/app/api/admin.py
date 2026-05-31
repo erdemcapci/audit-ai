@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.agents.demo_data import demo_document_requests, demo_finding, demo_interviews, demo_objectives, demo_report, demo_risks, demo_tests
 from app.agents.report_agent import report_to_markdown
-from app.config import settings
+from app.config import default_openai_model, settings
 from app.models import (
     AdminLoginRequest,
     AdminMe,
@@ -64,6 +64,7 @@ def _admin_user_summary(user) -> AdminUserSummary:
         aiTotalRunLimit=user.ai_total_run_limit,
         aiRunsUsed=user.ai_runs_used,
         aiRunsRemaining=remaining,
+        aiModel=user.ai_model or default_openai_model(),
         createdAt=user.created_at,
         updatedAt=user.updated_at,
     )
@@ -240,14 +241,18 @@ def list_users(request: Request) -> list[AdminUserSummary]:
 def update_user_access(request: Request, user_id: str, payload: AdminUserAccessUpdate) -> AdminUserSummary:
     if not is_admin_request(request):
         raise HTTPException(status_code=403, detail="Admin login is required.")
-    return _admin_user_summary(
-        user_store.update_access(
-            user_id,
-            payload.canRunAgents,
-            ai_total_run_limit=payload.aiTotalRunLimit,
-            ai_runs_used=payload.aiRunsUsed,
+    try:
+        return _admin_user_summary(
+            user_store.update_access(
+                user_id,
+                payload.canRunAgents,
+                ai_total_run_limit=payload.aiTotalRunLimit,
+                ai_runs_used=payload.aiRunsUsed,
+                ai_model=payload.aiModel,
+            )
         )
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/demo/create-full", response_model=DemoJobStatus)

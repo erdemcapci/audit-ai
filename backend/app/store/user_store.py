@@ -5,7 +5,7 @@ import hmac
 import os
 from pathlib import Path
 
-from app.config import settings
+from app.config import settings, validate_openai_model
 from app.models import UserRecord, utc_now
 from app.store.file_store import FileStore
 
@@ -74,6 +74,7 @@ class UserStore:
         can_run_agents: bool,
         ai_total_run_limit: int | None = None,
         ai_runs_used: int | None = None,
+        ai_model: str | None = None,
     ) -> UserRecord:
         users = self._read()
         for user in users:
@@ -84,6 +85,8 @@ class UserStore:
                     user.ai_runs_used = min(user.ai_runs_used, user.ai_total_run_limit)
                 if ai_runs_used is not None:
                     user.ai_runs_used = min(max(0, ai_runs_used), user.ai_total_run_limit)
+                if ai_model is not None:
+                    user.ai_model = validate_openai_model(ai_model) if ai_model.strip() else None
                 user.updated_at = utc_now()
                 self._write(users)
                 return user

@@ -664,8 +664,8 @@ export function AuditWorkspace({
                 node={selectedNode}
                 agentTypes={agentTypes}
                 showAiProviderInfo={runtime?.deploymentMode !== "hosted"}
-                aiProviderLabel={runtime?.deploymentMode === "hosted" ? "Demo Data" : undefined}
-                aiModelLabel={runtime?.deploymentMode === "hosted" ? "Demo Model" : undefined}
+                aiProviderLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiProviderLabel : undefined}
+                aiModelLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiModelLabel : undefined}
                 onSaveNode={saveNode}
                 onSaveAgent={saveAgent}
                 onConnectRelated={connectRelated}

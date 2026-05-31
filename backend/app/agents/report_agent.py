@@ -3,7 +3,7 @@ import json
 from app.agents.demo_data import demo_report
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import REPORT_PROMPT, SYSTEM_PROMPT
-from app.demo_generation import demo_generation_enabled
+from app.demo_generation import current_ai_model, demo_generation_enabled
 from app.llm.router import get_llm_provider
 from app.models import FieldworkState, FindingsState, PlanningState, ReportState
 
@@ -47,7 +47,7 @@ class ReportAgent:
             {"planning": planning.model_dump(), "fieldwork": fieldwork.model_dump(), "findings": findings.model_dump()},
             indent=2,
         )
-        response = await get_llm_provider().generate(SYSTEM_PROMPT, REPORT_PROMPT.format(report_context=context))
+        response = await get_llm_provider().generate(SYSTEM_PROMPT, REPORT_PROMPT.format(report_context=context), model=current_ai_model())
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)

@@ -74,14 +74,15 @@ export function AdminScreen({
     onRuntimeChange(next.runtime);
   }
 
-  async function updateUserAccess(user: AdminUserSummary, changes: Partial<Pick<AdminUserSummary, "canRunAgents" | "aiTotalRunLimit" | "aiRunsUsed">>) {
+  async function updateUserAccess(user: AdminUserSummary, changes: Partial<Pick<AdminUserSummary, "canRunAgents" | "aiTotalRunLimit" | "aiRunsUsed" | "aiModel">>) {
     setBusy(true);
     setMessage("");
     try {
       const updated = await adminApi.updateUserAccess(user.id, {
         canRunAgents: changes.canRunAgents ?? user.canRunAgents,
         aiTotalRunLimit: changes.aiTotalRunLimit ?? user.aiTotalRunLimit,
-        aiRunsUsed: changes.aiRunsUsed ?? user.aiRunsUsed
+        aiRunsUsed: changes.aiRunsUsed ?? user.aiRunsUsed,
+        aiModel: changes.aiModel ?? user.aiModel
       });
       setUsers((current) => current.map((item) => (item.id === user.id ? updated : item)));
     } catch (err) {
@@ -106,6 +107,7 @@ export function AdminScreen({
 
   const runtime = me?.runtime;
   const isAdmin = Boolean(me?.isAdmin);
+  const allowedAiModels = runtime?.allowedAiModels?.length ? runtime.allowedAiModels : [];
 
   return (
     <main className="workspace admin-workspace">
@@ -180,6 +182,20 @@ export function AdminScreen({
                         }}
                         onBlur={(event) => updateUserAccess(user, { aiTotalRunLimit: Math.max(0, Number(event.target.value || 0)) })}
                       />
+                      {allowedAiModels.length ? (
+                        <label className="field">
+                          <span>AI model</span>
+                          <select
+                            value={user.aiModel || allowedAiModels[0]}
+                            disabled={busy}
+                            onChange={(event) => updateUserAccess(user, { aiModel: event.target.value })}
+                          >
+                            {allowedAiModels.map((model) => (
+                              <option key={model} value={model}>{model}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <small>{user.aiRunsUsed} used</small>
                       <Button variant="ghost" onClick={() => updateUserAccess(user, { aiRunsUsed: 0 })} disabled={busy}>
                         Reset used

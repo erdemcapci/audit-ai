@@ -232,6 +232,9 @@ class RuntimeSettings(BaseModel):
     adminEnabled: bool
     llmProviderConfigured: bool
     agentExecutionEnabled: bool
+    activeAiProviderLabel: str = "Demo Data"
+    activeAiModelLabel: str = "Demo Model"
+    allowedAiModels: list[str] = Field(default_factory=list)
 
 
 class AdminLoginRequest(BaseModel):
@@ -255,6 +258,7 @@ class UserRecord(BaseModel):
     can_run_agents: bool = False
     ai_total_run_limit: int = 50
     ai_runs_used: int = 0
+    ai_model: str | None = None
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
 
@@ -273,6 +277,7 @@ class AdminUserSummary(BaseModel):
     aiTotalRunLimit: int
     aiRunsUsed: int
     aiRunsRemaining: int
+    aiModel: str | None = None
     createdAt: str
     updatedAt: str
 
@@ -281,6 +286,7 @@ class AdminUserAccessUpdate(BaseModel):
     canRunAgents: bool
     aiTotalRunLimit: int | None = None
     aiRunsUsed: int | None = None
+    aiModel: str | None = None
 
 
 class DemoCreateRequest(BaseModel):

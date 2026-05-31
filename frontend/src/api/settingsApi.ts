@@ -30,6 +30,9 @@ export type RuntimeSettings = {
   adminEnabled: boolean;
   llmProviderConfigured: boolean;
   agentExecutionEnabled: boolean;
+  activeAiProviderLabel: string;
+  activeAiModelLabel: string;
+  allowedAiModels: string[];
 };
 
 export const settingsApi = {

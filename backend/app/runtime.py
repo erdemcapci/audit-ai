@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException, Request, Response
 
-from app.config import settings
+from app.config import allowed_openai_models, default_openai_model, settings
 from app.demo_generation import demo_generation_enabled, force_demo_generation
 from app.models import RuntimeSettings
 from app.store.user_store import user_store
@@ -156,9 +156,7 @@ def runtime_settings(request: Request) -> RuntimeSettings:
     elif mode == "hosted" and user and user.ai_runs_used >= user.ai_total_run_limit:
         access_message = "Your AI usage limit has been reached."
     elif mode == "hosted" and user and user.can_run_agents:
-        if settings.demo_mode:
-            access_message = "Demo generation is enabled. Real AI runs are available only when the hosted demo is switched out of demo mode."
-        elif real_provider_configured:
+        if real_provider_configured:
             access_message = f"{user_runs_remaining} AI run{'s' if user_runs_remaining != 1 else ''} remaining."
         else:
             access_message = "Demo generation is enabled because no real AI provider is configured."
@@ -166,6 +164,10 @@ def runtime_settings(request: Request) -> RuntimeSettings:
         access_message = "No AI provider is configured."
     else:
         access_message = ""
+    use_demo = should_use_demo_generation(request)
+    selected_model = selected_ai_model_for_request(request) if not use_demo else None
+    active_provider_label = "Demo Data" if use_demo else provider_label()
+    active_model_label = "Demo Model" if use_demo else model_label(selected_model)
     return RuntimeSettings(
         deploymentMode=mode,
         isAdmin=is_admin,
@@ -179,6 +181,9 @@ def runtime_settings(request: Request) -> RuntimeSettings:
         adminEnabled=admin_enabled,
         llmProviderConfigured=provider_configured,
         agentExecutionEnabled=execution_enabled,
+        activeAiProviderLabel=active_provider_label,
+        activeAiModelLabel=active_model_label,
+        allowedAiModels=allowed_openai_models() if settings.llm_provider == "openai" else [],
     )
 
 
@@ -198,10 +203,8 @@ def ensure_agent_execution_allowed(request: Request) -> None:
 def should_use_demo_generation(request: Request) -> bool:
     if deployment_mode() != "hosted":
         return settings.demo_mode
-    if settings.demo_mode:
-        return True
     if is_admin_request(request):
-        return False
+        return not real_llm_provider_configured()
     if not settings.showcase_demo_agents_enabled:
         return False
     user = current_user(request)
@@ -215,9 +218,41 @@ def should_use_demo_generation(request: Request) -> bool:
     return not real_access_available
 
 
+def selected_ai_model_for_request(request: Request) -> str | None:
+    if settings.llm_provider != "openai":
+        return None
+    user = current_user(request)
+    if user and user.ai_model and user.ai_model in allowed_openai_models():
+        return user.ai_model
+    return default_openai_model()
+
+
+def provider_label() -> str:
+    if settings.llm_provider == "openai":
+        return "OpenAI"
+    if settings.llm_provider == "claude":
+        return "Claude"
+    if settings.llm_provider == "ollama":
+        return "Ollama"
+    return settings.llm_provider
+
+
+def model_label(selected_model: str | None = None) -> str:
+    if selected_model:
+        return selected_model
+    if settings.llm_provider == "openai":
+        return default_openai_model()
+    if settings.llm_provider == "claude":
+        return settings.anthropic_model
+    if settings.llm_provider == "ollama":
+        return settings.ollama_model
+    return "Configured model"
+
+
 def agent_execution_context(request: Request):
     ensure_agent_execution_allowed(request)
-    return force_demo_generation(should_use_demo_generation(request))
+    use_demo = should_use_demo_generation(request)
+    return force_demo_generation(use_demo, selected_ai_model_for_request(request) if not use_demo else None)
 
 
 def record_successful_ai_run(request: Request) -> None:

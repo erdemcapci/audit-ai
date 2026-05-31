@@ -3,7 +3,7 @@ import json
 from app.agents.demo_data import demo_finding
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import FINDING_PROMPT, SYSTEM_PROMPT
-from app.demo_generation import demo_generation_enabled
+from app.demo_generation import current_ai_model, demo_generation_enabled
 from app.llm.router import get_llm_provider
 from app.models import AuditProject, FieldworkItem, Finding, FindingDraftRequest
 
@@ -26,7 +26,7 @@ class FindingAgent:
             },
             indent=2,
         )
-        response = await get_llm_provider().generate(SYSTEM_PROMPT, FINDING_PROMPT.format(finding_context=context), model=model)
+        response = await get_llm_provider().generate(SYSTEM_PROMPT, FINDING_PROMPT.format(finding_context=context), model=model or current_ai_model())
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)

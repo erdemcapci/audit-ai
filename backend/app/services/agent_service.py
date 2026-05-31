@@ -6,8 +6,8 @@ from fastapi import HTTPException
 
 from app.agents.json_utils import parse_or_warn
 from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
-from app.config import default_openai_model, settings
-from app.demo_generation import demo_generation_enabled
+from app.config import settings
+from app.demo_generation import current_ai_model, demo_generation_enabled
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
 from app.llm.router import get_llm_provider
@@ -1032,7 +1032,7 @@ class AgentService:
                         fieldwork_item_id=item.id,
                     ),
                     item,
-                    model=default_openai_model() if settings.llm_provider == "openai" else None,
+                    model=current_ai_model() if settings.llm_provider == "openai" else None,
                 )
                 findings.findings.append(finding)
                 item.finding_ids.append(finding.id)
@@ -1105,7 +1105,7 @@ class AgentService:
             },
             indent=2,
         )
-        model = default_openai_model() if settings.llm_provider == "openai" else None
+        model = current_ai_model() if settings.llm_provider == "openai" else None
         response = await get_llm_provider().generate(
             system_prompt,
             user_prompt,
