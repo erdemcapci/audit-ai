@@ -65,6 +65,8 @@ http://localhost:3000
 
 `DEMO_MODE=true` is enabled by default, so the app works without Ollama, OpenAI, or Claude.
 
+By default, Docker Compose publishes the app only on your own computer using `HOST_BIND=127.0.0.1`. This is the safer local setting for confidential audit work. If you intentionally deploy it on a server or use it as a hosted showcase base, set `HOST_BIND=0.0.0.0` in that deployment environment and protect it with your normal network, authentication, and access controls.
+
 ## Optional Local AI
 
 AuditCopilot supports:
@@ -132,6 +134,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+The local frontend dev server also defaults to `127.0.0.1`. Set `VITE_DEV_HOST=0.0.0.0` only when you intentionally need access from another device or container.
 
 ## Privacy
 
