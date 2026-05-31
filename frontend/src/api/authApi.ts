@@ -3,16 +3,17 @@ import type { RuntimeSettings } from "./settingsApi";
 
 export type UserMe = {
   isAuthenticated: boolean;
-  email: string | null;
+  username: string | null;
+  accessCode?: string | null;
   canRunAgents: boolean;
   runtime: RuntimeSettings;
 };
 
 export const authApi = {
   me: () => apiRequest<UserMe>("/api/auth/me"),
-  login: (email: string, password: string) =>
-    apiRequest<UserMe>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-  signup: (email: string, password: string) =>
-    apiRequest<UserMe>("/api/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: (username: string, accessCode: string) =>
+    apiRequest<UserMe>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, access_code: accessCode }) }),
+  signup: (username: string) =>
+    apiRequest<UserMe>("/api/auth/signup", { method: "POST", body: JSON.stringify({ username }) }),
   logout: () => apiRequest<UserMe>("/api/auth/logout", { method: "POST" })
 };

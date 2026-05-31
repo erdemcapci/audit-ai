@@ -53,9 +53,9 @@ def create_admin_token() -> str:
     return base64.urlsafe_b64encode(token.encode("utf-8")).decode("utf-8")
 
 
-def create_user_token(email: str) -> str:
+def create_user_token(username: str) -> str:
     issued_at = str(int(time.time()))
-    payload = f"user:{email}:{issued_at}"
+    payload = f"user:{username}:{issued_at}"
     token = f"{payload}:{_sign(payload)}"
     return base64.urlsafe_b64encode(token.encode("utf-8")).decode("utf-8")
 
@@ -90,13 +90,13 @@ def current_user(request: Request):
         return None
     try:
         decoded = base64.urlsafe_b64decode(raw_token.encode("utf-8")).decode("utf-8")
-        subject, email, issued_at, signature = decoded.split(":", 3)
-        payload = f"{subject}:{email}:{issued_at}"
+        subject, username, issued_at, signature = decoded.split(":", 3)
+        payload = f"{subject}:{username}:{issued_at}"
         if subject != "user" or not hmac.compare_digest(signature, _sign(payload)):
             return None
         if time.time() - int(issued_at) > SESSION_MAX_AGE_SECONDS:
             return None
-        return user_store.get_by_email(email)
+        return user_store.get_by_username(username)
     except Exception:
         return None
 
@@ -280,10 +280,10 @@ def set_admin_cookie(response: Response) -> None:
     )
 
 
-def set_user_cookie(response: Response, email: str) -> None:
+def set_user_cookie(response: Response, username: str) -> None:
     response.set_cookie(
         USER_COOKIE,
-        create_user_token(email),
+        create_user_token(username),
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         secure=deployment_mode() == "hosted",

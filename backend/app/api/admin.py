@@ -59,7 +59,7 @@ def _admin_user_summary(user) -> AdminUserSummary:
     remaining = max(0, user.ai_total_run_limit - user.ai_runs_used)
     return AdminUserSummary(
         id=user.id,
-        email=user.email,
+        username=user.email,
         canRunAgents=user.can_run_agents,
         aiTotalRunLimit=user.ai_total_run_limit,
         aiRunsUsed=user.ai_runs_used,

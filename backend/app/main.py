@@ -9,8 +9,11 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.config import log_projects_dir, settings
+
+log_projects_dir()
+
 from app.api import admin, agents, audit_map, auth, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
-from app.config import settings
 from app.showcase.sample_audit import bootstrap_hosted_showcase
 
 

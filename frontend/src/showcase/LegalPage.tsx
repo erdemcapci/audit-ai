@@ -33,7 +33,7 @@ function Privacy() {
       </p>
 
       <h2>Data processed</h2>
-      <p>The hosted demo may store account email addresses, password hashes, session identifiers, admin access state, AI access grants, total AI run limits, AI usage counters, and demo project content entered by users.</p>
+      <p>The hosted demo may store demo usernames, hashed access codes, session identifiers, admin access state, AI access grants, total AI run limits, AI usage counters, and demo project content entered by users.</p>
 
       <h2>Purpose</h2>
       <p>Data is processed to operate the hosted evaluation demo, provide private demo workspaces, protect public sample audits, control AI access, and prevent abuse.</p>

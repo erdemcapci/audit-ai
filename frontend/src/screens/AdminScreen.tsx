@@ -157,7 +157,7 @@ export function AdminScreen({
                 {users.map((user) => (
                   <div key={user.id} className="admin-user-row">
                     <span>
-                      <strong>{user.email}</strong>
+                      <strong>{user.username}</strong>
                       <small>
                         {user.canRunAgents ? `${user.aiRunsRemaining} of ${user.aiTotalRunLimit} AI runs remaining` : "AI access not enabled"}
                       </small>

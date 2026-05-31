@@ -247,8 +247,8 @@ class AdminMe(BaseModel):
 
 
 class UserAuthRequest(BaseModel):
-    email: str
-    password: str
+    username: str
+    access_code: str = ""
 
 
 class UserRecord(BaseModel):
@@ -265,14 +265,15 @@ class UserRecord(BaseModel):
 
 class UserMe(BaseModel):
     isAuthenticated: bool
-    email: str | None = None
+    username: str | None = None
+    accessCode: str | None = None
     canRunAgents: bool = False
     runtime: RuntimeSettings
 
 
 class AdminUserSummary(BaseModel):
     id: str
-    email: str
+    username: str
     canRunAgents: bool
     aiTotalRunLimit: int
     aiRunsUsed: int

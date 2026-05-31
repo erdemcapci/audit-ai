@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import secrets
+import string
 from pathlib import Path
 
 from app.config import settings, validate_openai_model
@@ -11,10 +13,11 @@ from app.store.file_store import FileStore
 
 
 PBKDF2_ITERATIONS = 210_000
+ACCESS_CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
-def normalize_email(email: str) -> str:
-    return email.strip().lower()
+def normalize_username(username: str) -> str:
+    return username.strip().lower()
 
 
 def password_hash(password: str, salt: bytes | None = None) -> str:
@@ -35,6 +38,13 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
 
 
+def generate_access_code(length: int = 10) -> str:
+    return "-".join(
+        "".join(secrets.choice(ACCESS_CODE_ALPHABET) for _ in range(5))
+        for _ in range(max(1, length // 5))
+    )
+
+
 class UserStore:
     def __init__(self):
         self.file_store = FileStore(settings.projects_dir)
@@ -50,23 +60,27 @@ class UserStore:
     def list_users(self) -> list[UserRecord]:
         return sorted(self._read(), key=lambda user: user.created_at, reverse=True)
 
-    def get_by_email(self, email: str) -> UserRecord | None:
-        normalized = normalize_email(email)
+    def get_by_username(self, username: str) -> UserRecord | None:
+        normalized = normalize_username(username)
         return next((user for user in self._read() if user.email == normalized), None)
 
-    def create_user(self, email: str, password: str) -> UserRecord:
-        normalized = normalize_email(email)
+    def get_by_email(self, email: str) -> UserRecord | None:
+        return self.get_by_username(email)
+
+    def create_user(self, username: str, access_code: str | None = None) -> tuple[UserRecord, str]:
+        normalized = normalize_username(username)
         users = self._read()
         if any(user.email == normalized for user in users):
-            raise ValueError("A user with this email already exists.")
+            raise ValueError("This username is already taken.")
+        actual_access_code = access_code or generate_access_code()
         user = UserRecord(
             email=normalized,
-            password_hash=password_hash(password),
+            password_hash=password_hash(actual_access_code),
             ai_total_run_limit=max(0, settings.ai_default_total_limit),
         )
         users.append(user)
         self._write(users)
-        return user
+        return user, actual_access_code
 
     def update_access(
         self,

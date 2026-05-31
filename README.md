@@ -126,7 +126,18 @@ VITE_LEGAL_PROVIDER_LINKEDIN=https://www.linkedin.com/in/erdemcapci/
 
 Admin users can open `/admin`, log in with `ADMIN_SECRET`, approve user AI access, set each user's total run limit, reset used runs, revoke access, and create a full end-to-end demo audit.
 
-Hosted deployments still use JSON storage. On Railway or similar platforms, set `PROJECTS_DIR` to a persistent volume path such as `/data/projects`; otherwise projects, users, sessions, access grants, and usage counters may be lost when the container restarts.
+Hosted deployments use JSON storage under `PROJECTS_DIR`. Railway's normal container filesystem is ephemeral, so any files written inside the app container can disappear on redeploy. Add a Railway persistent volume and point `PROJECTS_DIR` at that mounted volume.
+
+Recommended Railway setup:
+
+```text
+Volume mount path: /data
+PROJECTS_DIR=/data/projects
+```
+
+The app creates `PROJECTS_DIR` if it does not exist and logs the resolved path on startup. All persistent JSON data is stored under this directory, including project workspaces, anonymous temporary audits, signed-in private audits, `users.json`, AI access grants, usage counters, generated report markdown, and the public sample audit. Login/admin/anonymous sessions are signed HTTP-only cookies, not server-side JSON files.
+
+If you keep `PROJECTS_DIR` inside the app working directory in hosted mode, startup logs will print a warning because that location is not safe for Railway redeploys.
 
 Before public launch, complete the legal provider environment variables used by `/impressum`, `/privacy`, and `/terms`. The hosted demo uses only strictly necessary HTTP-only session cookies for login/admin/anonymous demo sessions; add a cookie consent banner before introducing analytics, tracking, or other non-essential cookies.
 

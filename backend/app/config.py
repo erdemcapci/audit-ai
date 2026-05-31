@@ -79,3 +79,22 @@ def validate_openai_model(model: str | None) -> str:
     if selected not in allowed_openai_models():
         raise ValueError(f"Unsupported OpenAI model. Choose one of: {', '.join(allowed_openai_models())}.")
     return selected
+
+
+def log_projects_dir() -> None:
+    configured = os.getenv("PROJECTS_DIR", "./projects")
+    resolved = settings.projects_dir.resolve()
+    existed_before = resolved.exists()
+    resolved.mkdir(parents=True, exist_ok=True)
+    print(f"[storage] PROJECTS_DIR configured as: {configured}")
+    print(f"[storage] PROJECTS_DIR resolved to: {resolved}")
+    print(f"[storage] PROJECTS_DIR existed before storage check: {'yes' if existed_before else 'no'}")
+    print(f"[storage] PROJECTS_DIR exists now: {'yes' if resolved.exists() else 'no'}")
+    if settings.deployment_mode == "hosted":
+        cwd = Path.cwd().resolve()
+        if resolved == cwd or cwd in resolved.parents:
+            print(
+                "[storage][warning] Hosted PROJECTS_DIR appears to be inside the app working directory. "
+                "Railway container filesystems are ephemeral; mount a persistent volume such as /data "
+                "and set PROJECTS_DIR=/data/projects."
+            )

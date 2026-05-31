@@ -556,7 +556,7 @@ export function AuditWorkspace({
         </div>
         <div className="header-actions">
           {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
-          {user?.isAuthenticated ? <span className="session-pill">{user.email}</span> : null}
+          {user?.isAuthenticated ? <span className="session-pill">{user.username}</span> : null}
           <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant="ghost" onClick={onHowToUse}>How to use</Button>
           {runtime?.deploymentMode === "hosted" && !user?.isAuthenticated ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}

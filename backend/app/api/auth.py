@@ -14,27 +14,24 @@ from app.store.user_store import user_store, verify_password
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-def _validate_credentials(payload: UserAuthRequest) -> tuple[str, str]:
-    email = payload.email.strip().lower()
-    password = payload.password
-    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-        raise HTTPException(status_code=400, detail="Enter a valid email address.")
-    if len(password) < settings.password_min_length:
-        raise HTTPException(status_code=400, detail=f"Password must be at least {settings.password_min_length} characters.")
-    return email, password
+def _validate_username(username: str) -> str:
+    normalized = username.strip().lower()
+    if not re.match(r"^[a-z0-9][a-z0-9_-]{2,31}$", normalized):
+        raise HTTPException(status_code=400, detail="Use 3-32 characters: letters, numbers, underscore, or hyphen.")
+    return normalized
 
 
 def _me_response(request: Request) -> UserMe:
     user = current_user(request)
     return UserMe(
         isAuthenticated=bool(user),
-        email=user.email if user else None,
+        username=user.email if user else None,
         canRunAgents=bool(user and user.can_run_agents),
         runtime=runtime_settings(request),
     )
 
 
-def _runtime_for_user(request: Request, email: str, can_run_agents: bool, ai_total_run_limit: int, ai_runs_used: int, ai_model: str | None):
+def _runtime_for_user(request: Request, username: str, can_run_agents: bool, ai_total_run_limit: int, ai_runs_used: int, ai_model: str | None):
     runtime = runtime_settings(request)
     remaining = max(0, ai_total_run_limit - ai_runs_used)
     enabled = can_run_agents and remaining > 0
@@ -57,7 +54,7 @@ def _runtime_for_user(request: Request, email: str, can_run_agents: bool, ai_tot
     return runtime.model_copy(
         update={
             "isAuthenticated": True,
-            "userEmail": email,
+            "userEmail": username,
             "userCanRunAgents": enabled,
             "userAiRunLimit": ai_total_run_limit,
             "userAiRunsUsed": ai_runs_used,
@@ -74,15 +71,16 @@ def _runtime_for_user(request: Request, email: str, can_run_agents: bool, ai_tot
 @router.post("/signup", response_model=UserMe)
 def signup(request: Request, response: Response, payload: UserAuthRequest) -> UserMe:
     enforce_hosted_rate_limit(request, "auth-signup", settings.auth_rate_limit_attempts)
-    email, password = _validate_credentials(payload)
+    username = _validate_username(payload.username)
     try:
-        user = user_store.create_user(email, password)
+        user, access_code = user_store.create_user(username)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     set_user_cookie(response, user.email)
     return UserMe(
         isAuthenticated=True,
-        email=user.email,
+        username=user.email,
+        accessCode=access_code,
         canRunAgents=user.can_run_agents,
         runtime=_runtime_for_user(request, user.email, user.can_run_agents, user.ai_total_run_limit, user.ai_runs_used, user.ai_model),
     )
@@ -91,14 +89,15 @@ def signup(request: Request, response: Response, payload: UserAuthRequest) -> Us
 @router.post("/login", response_model=UserMe)
 def login(request: Request, response: Response, payload: UserAuthRequest) -> UserMe:
     enforce_hosted_rate_limit(request, "auth-login", settings.auth_rate_limit_attempts)
-    email, password = _validate_credentials(payload)
-    user = user_store.get_by_email(email)
-    if not user or not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    username = _validate_username(payload.username)
+    access_code = payload.access_code.strip().upper()
+    user = user_store.get_by_username(username)
+    if not user or not verify_password(access_code, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or access code.")
     set_user_cookie(response, user.email)
     return UserMe(
         isAuthenticated=True,
-        email=user.email,
+        username=user.email,
         canRunAgents=user.can_run_agents,
         runtime=_runtime_for_user(request, user.email, user.can_run_agents, user.ai_total_run_limit, user.ai_runs_used, user.ai_model),
     )

@@ -8,7 +8,7 @@ export type AdminMe = {
 
 export type AdminUserSummary = {
   id: string;
-  email: string;
+  username: string;
   canRunAgents: boolean;
   aiTotalRunLimit: number;
   aiRunsUsed: number;
