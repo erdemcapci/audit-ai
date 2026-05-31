@@ -3,7 +3,7 @@ import json
 from app.agents.demo_data import demo_report
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import REPORT_PROMPT, SYSTEM_PROMPT
-from app.config import settings
+from app.demo_generation import demo_generation_enabled
 from app.llm.router import get_llm_provider
 from app.models import FieldworkState, FindingsState, PlanningState, ReportState
 
@@ -37,7 +37,7 @@ def report_to_markdown(report: ReportState) -> str:
 
 class ReportAgent:
     async def run(self, planning: PlanningState, fieldwork: FieldworkState, findings: FindingsState) -> ReportState:
-        if settings.demo_mode:
+        if demo_generation_enabled():
             report = demo_report()
             if findings.findings:
                 report.issue_summary = "; ".join(finding.title for finding in findings.findings)

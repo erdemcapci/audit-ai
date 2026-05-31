@@ -11,7 +11,7 @@ from app.models import (
     MessageResponse,
 )
 from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import ensure_agent_execution_allowed, record_successful_ai_run
+from app.runtime import agent_execution_context, record_successful_ai_run
 from app.services.agent_service import agent_service
 
 
@@ -45,9 +45,9 @@ def check_agent_outputs(project_id: str, agent_id: str, payload: AgentRunRequest
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
 async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    result = await agent_service.run(project_id, agent_id, payload)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        result = await agent_service.run(project_id, agent_id, payload)
+        record_successful_ai_run(request)
     return result
 
 

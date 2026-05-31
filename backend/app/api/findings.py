@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from app.models import Finding, FindingDraftRequest, FindingsState
 from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import ensure_agent_execution_allowed, record_successful_ai_run
+from app.runtime import agent_execution_context, record_successful_ai_run
 from app.services.finding_service import finding_service
 from app.store.project_store import project_store
 
@@ -13,18 +13,18 @@ router = APIRouter(prefix="/api/projects/{project_id}/findings", tags=["findings
 @router.post("/draft", response_model=Finding)
 async def draft_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    finding = await finding_service.draft(project_id, payload)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        finding = await finding_service.draft(project_id, payload)
+        record_successful_ai_run(request)
     return finding
 
 
 @router.post("/refine", response_model=Finding)
 async def refine_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    finding = await finding_service.refine(project_id, payload)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        finding = await finding_service.refine(project_id, payload)
+        record_successful_ai_run(request)
     return finding
 
 

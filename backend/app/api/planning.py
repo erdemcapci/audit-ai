@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from app.models import PlanningState
 from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import ensure_agent_execution_allowed, record_successful_ai_run
+from app.runtime import agent_execution_context, record_successful_ai_run
 from app.services.planning_service import planning_service
 from app.store.project_store import project_store
 
@@ -13,27 +13,27 @@ router = APIRouter(prefix="/api/projects/{project_id}/planning", tags=["planning
 @router.post("/generate-objectives", response_model=PlanningState)
 async def generate_objectives(project_id: str, request: Request) -> PlanningState:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    planning = await planning_service.generate_objectives(project_id)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        planning = await planning_service.generate_objectives(project_id)
+        record_successful_ai_run(request)
     return planning
 
 
 @router.post("/generate-risks", response_model=PlanningState)
 async def generate_risks(project_id: str, request: Request) -> PlanningState:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    planning = await planning_service.generate_risks(project_id)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        planning = await planning_service.generate_risks(project_id)
+        record_successful_ai_run(request)
     return planning
 
 
 @router.post("/generate-tests", response_model=PlanningState)
 async def generate_tests(project_id: str, request: Request) -> PlanningState:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    planning = await planning_service.generate_tests(project_id)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        planning = await planning_service.generate_tests(project_id)
+        record_successful_ai_run(request)
     return planning
 
 

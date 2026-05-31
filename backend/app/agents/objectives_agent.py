@@ -3,14 +3,14 @@ import json
 from app.agents.demo_data import demo_objectives
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import OBJECTIVES_PROMPT, SYSTEM_PROMPT
-from app.config import settings
+from app.demo_generation import demo_generation_enabled
 from app.llm.router import get_llm_provider
 from app.models import AuditProject, Objective, PlanningState, Workstream
 
 
 class ObjectivesAgent:
     async def run(self, audit: AuditProject) -> PlanningState:
-        if settings.demo_mode:
+        if demo_generation_enabled():
             return demo_objectives(audit.title, audit.description)
         context = json.dumps(audit.model_dump(), indent=2)
         response = await get_llm_provider().generate(SYSTEM_PROMPT, OBJECTIVES_PROMPT.format(audit_context=context))

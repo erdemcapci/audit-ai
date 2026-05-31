@@ -3,7 +3,7 @@ import json
 from app.agents.demo_data import demo_finding
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import FINDING_PROMPT, SYSTEM_PROMPT
-from app.config import settings
+from app.demo_generation import demo_generation_enabled
 from app.llm.router import get_llm_provider
 from app.models import AuditProject, FieldworkItem, Finding, FindingDraftRequest
 
@@ -16,7 +16,7 @@ class FindingAgent:
         fieldwork_item: FieldworkItem | None,
         model: str | None = None,
     ) -> Finding:
-        if settings.demo_mode:
+        if demo_generation_enabled():
             return demo_finding(request.raw_description, fieldwork_item)
         context = json.dumps(
             {

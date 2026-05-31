@@ -669,6 +669,7 @@ export function AuditWorkspace({
               <DetailPanel
                 node={selectedNode}
                 agentTypes={agentTypes}
+                showAiProviderInfo={runtime?.deploymentMode !== "hosted"}
                 onSaveNode={saveNode}
                 onSaveAgent={saveAgent}
                 onConnectRelated={connectRelated}
@@ -741,7 +742,14 @@ export function AuditWorkspace({
         />
       ) : null}
       {activeScreen === "Settings" && project ? (
-        <SettingsScreen projectId={projectId} projectTitle={project.title} onDeleted={onReset} onRuntimeChanged={onRuntimeChanged} />
+        <SettingsScreen
+          projectId={projectId}
+          projectTitle={project.title}
+          runtime={runtime}
+          isReadOnlySample={project.visibility === "public_sample" || project.is_read_only_sample}
+          onDeleted={onReset}
+          onRuntimeChanged={onRuntimeChanged}
+        />
       ) : null}
 
       {pendingAgentRun ? (

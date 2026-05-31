@@ -199,6 +199,7 @@ function currentModelLabel(settings: LlmSettings | null): string {
 export function DetailPanel({
   node,
   agentTypes,
+  showAiProviderInfo = true,
   onSaveNode,
   onSaveAgent,
   onConnectRelated,
@@ -213,6 +214,7 @@ export function DetailPanel({
 }: {
   node: Node<FlowNodeData> | null;
   agentTypes: AgentDefinition[];
+  showAiProviderInfo?: boolean;
   onSaveNode: (nodeId: string, nodeType: string, fields: Record<string, unknown>) => Promise<void>;
   onSaveAgent: (agentId: string, fields: { title?: string; prompt?: string; config?: Record<string, unknown> }) => Promise<void>;
   onConnectRelated: (agentId: string) => Promise<void>;
@@ -239,9 +241,9 @@ export function DetailPanel({
   }, [node]);
 
   useEffect(() => {
-    if (node?.type !== "agentNode") return;
+    if (!showAiProviderInfo || node?.type !== "agentNode") return;
     settingsApi.get().then(setLlmSettings).catch(() => setLlmSettings(null));
-  }, [node?.id, node?.type]);
+  }, [node?.id, node?.type, showAiProviderInfo]);
 
   const agentDefinition = useMemo(
     () => agentTypes.find((definition) => definition.type === node?.data.agentType),
@@ -342,12 +344,14 @@ export function DetailPanel({
             rows={4}
             placeholder="Optional context for the next run only. This is not saved on the agent card."
           />
-          <dl className="agent-model-summary">
-            <dt>Current AI provider</dt>
-            <dd>{currentProviderLabel(llmSettings)}</dd>
-            <dt>Current AI model</dt>
-            <dd>{currentModelLabel(llmSettings)}</dd>
-          </dl>
+          {showAiProviderInfo ? (
+            <dl className="agent-model-summary">
+              <dt>Current AI provider</dt>
+              <dd>{currentProviderLabel(llmSettings)}</dd>
+              <dt>Current AI model</dt>
+              <dd>{currentModelLabel(llmSettings)}</dd>
+            </dl>
+          ) : null}
           {node.data.agentType !== "report_draft_agent" ? (
             <div className="agent-connection-actions">
               <Button variant="ghost" onClick={() => onConnectRelated(node.id)}>Connect to related cards</Button>

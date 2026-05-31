@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Response
 
 from app.models import ReportState
 from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import ensure_agent_execution_allowed, record_successful_ai_run
+from app.runtime import agent_execution_context, record_successful_ai_run
 from app.services.export_service import export_service
 from app.services.report_service import report_service
 from app.store.project_store import project_store
@@ -14,18 +14,18 @@ router = APIRouter(prefix="/api/projects/{project_id}/reports", tags=["reports"]
 @router.post("/generate-executive-summary", response_model=ReportState)
 async def generate_executive_summary(project_id: str, request: Request) -> ReportState:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    report = await report_service.generate(project_id)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        report = await report_service.generate(project_id)
+        record_successful_ai_run(request)
     return report
 
 
 @router.post("/generate-draft-report", response_model=ReportState)
 async def generate_draft_report(project_id: str, request: Request) -> ReportState:
     require_project_write(request, project_id)
-    ensure_agent_execution_allowed(request)
-    report = await report_service.generate(project_id)
-    record_successful_ai_run(request)
+    with agent_execution_context(request):
+        report = await report_service.generate(project_id)
+        record_successful_ai_run(request)
     return report
 
 

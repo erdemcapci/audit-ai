@@ -53,6 +53,9 @@ def get_project(project_id: str, request: Request) -> AuditProject:
 
 @router.delete("/{project_id}", response_model=MessageResponse)
 def delete_project(project_id: str, request: Request) -> MessageResponse:
+    project = require_project_read(request, project_id)
+    if project.visibility == "public_sample" or project.is_read_only_sample:
+        raise HTTPException(status_code=403, detail="The default sample audit cannot be deleted.")
     require_project_write(request, project_id)
     try:
         project_store.delete_project(project_id)

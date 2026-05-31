@@ -37,6 +37,7 @@ class Settings(BaseModel):
     rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
     max_anonymous_projects: int = int(os.getenv("MAX_ANONYMOUS_PROJECTS", "3"))
     max_user_projects: int = int(os.getenv("MAX_USER_PROJECTS", "20"))
+    showcase_demo_agents_enabled: bool = os.getenv("SHOWCASE_DEMO_AGENTS_ENABLED", "true").lower() == "true"
     projects_dir: Path = resolve_projects_dir(os.getenv("PROJECTS_DIR", "./projects"))
     demo_mode: bool = os.getenv("DEMO_MODE", "false" if os.getenv("DEPLOYMENT_MODE", "local").lower() == "hosted" else "true").lower() == "true"
 

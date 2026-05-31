@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from app.agents.json_utils import parse_or_warn
 from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
 from app.config import default_openai_model, settings
+from app.demo_generation import demo_generation_enabled
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
 from app.llm.router import get_llm_provider
@@ -894,7 +895,7 @@ class AgentService:
             planning = project_store.load_planning(project_id)
             max_roles = int(agent.config.get("max_roles", 3))
             questions_per_role = int(agent.config.get("questions_per_role", 3))
-            if settings.demo_mode:
+            if demo_generation_enabled():
                 plan = demo_interviews(planning, max_roles=max_roles, questions_per_role=questions_per_role)
             else:
                 data = await self._agent_json(
@@ -953,7 +954,7 @@ class AgentService:
             document_requests = project_store.load_document_requests(project_id)
             source_titles = [self._node_title(project_id, input_id) for input_id in input_node_ids]
             max_items = int(agent.config.get("max_output_items", 8))
-            if settings.demo_mode:
+            if demo_generation_enabled():
                 generated = demo_document_requests(source_titles, max_items=max_items)
             else:
                 data = await self._agent_json(
@@ -1050,7 +1051,7 @@ class AgentService:
             return {"findings": generated}
 
         if agent.type == "report_draft_agent":
-            if settings.demo_mode:
+            if demo_generation_enabled():
                 report = demo_report()
             else:
                 planning = project_store.load_planning(project_id)
@@ -1246,7 +1247,7 @@ class AgentService:
         map_state.nodeDimensions.update(project_store.load_map_state(project_id).nodeDimensions)
         add_custom_edge(map_state, audit.id, agent.id)
         existing_titles = [workstream.name for workstream in planning.workstreams]
-        if settings.demo_mode:
+        if demo_generation_enabled():
             workstreams = workstream_templates(audit.title, audit.description, count, existing_titles)
         else:
             data = await self._agent_json(
@@ -1298,7 +1299,7 @@ class AgentService:
                 continue
             add_custom_edge(map_state, workstream.id, agent.id)
             existing_titles = [objective.title for objective in workstream.objectives]
-            if settings.demo_mode:
+            if demo_generation_enabled():
                 objectives = [objective_templates(index, workstream, existing_titles) for index in range(count)]
             else:
                 data = await self._agent_json(
@@ -1355,7 +1356,7 @@ class AgentService:
                 add_custom_edge(map_state, objective.id, agent.id)
                 sibling_titles = [risk.title for sibling in workstream.objectives for risk in sibling.risks]
                 existing_titles = [risk.title for risk in objective.risks] + sibling_titles
-                if settings.demo_mode:
+                if demo_generation_enabled():
                     risks = [risk_templates(index, objective, existing_titles) for index in range(count)]
                 else:
                     data = await self._agent_json(
@@ -1417,7 +1418,7 @@ class AgentService:
                     add_custom_edge(map_state, risk.id, agent.id)
                     sibling_titles = [test.title for sibling_risk in objective.risks for test in sibling_risk.tests]
                     existing_titles = [test.title for test in risk.tests] + sibling_titles
-                    if settings.demo_mode:
+                    if demo_generation_enabled():
                         tests = [test_templates(index, risk, allowed_types, agent.id, existing_titles) for index in range(count)]
                     else:
                         data = await self._agent_json(

@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import HTTPException, Request, Response
 
 from app.config import settings
+from app.demo_generation import demo_generation_enabled, force_demo_generation
 from app.models import RuntimeSettings
 from app.store.user_store import user_store
 
@@ -25,8 +26,12 @@ def deployment_mode() -> str:
 
 
 def llm_provider_configured() -> bool:
-    if deployment_mode() == "local" and settings.demo_mode:
+    if settings.demo_mode:
         return True
+    return real_llm_provider_configured()
+
+
+def real_llm_provider_configured() -> bool:
     if settings.llm_provider == "openai":
         return bool(settings.openai_api_key)
     if settings.llm_provider == "claude":
@@ -129,21 +134,34 @@ def runtime_settings(request: Request) -> RuntimeSettings:
     user_runs_used = user.ai_runs_used if user else 0
     user_runs_remaining = max(0, user.ai_total_run_limit - user.ai_runs_used) if user else None
     user_can_run_agents = bool(user and user.can_run_agents and user_runs_remaining and user_runs_remaining > 0)
-    provider_configured = llm_provider_configured()
+    real_provider_configured = real_llm_provider_configured()
+    hosted_demo_available = bool(mode == "hosted" and settings.showcase_demo_agents_enabled and user)
+    provider_configured = llm_provider_configured() or hosted_demo_available
     if mode == "local":
         execution_enabled = provider_configured
     elif is_admin:
         execution_enabled = provider_configured and admin_enabled
+    elif user:
+        execution_enabled = hosted_demo_available or (real_provider_configured and user_can_run_agents)
     else:
-        execution_enabled = provider_configured and user_can_run_agents
+        execution_enabled = False
     if mode == "hosted" and not user and not is_admin:
-        access_message = "You can explore demo data, but AI generation requires approved access."
+        access_message = "You can explore demo data. Sign in to run demo generation; real AI requires approved access."
+    elif mode == "hosted" and user and not user.can_run_agents and hosted_demo_available:
+        access_message = "Demo generation is enabled. Real AI access is limited and requires approval from the project owner."
     elif mode == "hosted" and user and not user.can_run_agents:
         access_message = "AI access is not enabled for your account yet. Please contact the project owner to request access."
+    elif mode == "hosted" and user and user.ai_runs_used >= user.ai_total_run_limit and hosted_demo_available:
+        access_message = "Demo generation is enabled. Your real AI usage limit has been reached."
     elif mode == "hosted" and user and user.ai_runs_used >= user.ai_total_run_limit:
         access_message = "Your AI usage limit has been reached."
     elif mode == "hosted" and user and user.can_run_agents:
-        access_message = f"{user_runs_remaining} AI run{'s' if user_runs_remaining != 1 else ''} remaining."
+        if settings.demo_mode:
+            access_message = "Demo generation is enabled. Real AI runs are available only when the hosted demo is switched out of demo mode."
+        elif real_provider_configured:
+            access_message = f"{user_runs_remaining} AI run{'s' if user_runs_remaining != 1 else ''} remaining."
+        else:
+            access_message = "Demo generation is enabled because no real AI provider is configured."
     elif not provider_configured:
         access_message = "No AI provider is configured."
     else:
@@ -177,8 +195,35 @@ def ensure_agent_execution_allowed(request: Request) -> None:
     raise HTTPException(status_code=403, detail="AI agent execution is not available.")
 
 
+def should_use_demo_generation(request: Request) -> bool:
+    if deployment_mode() != "hosted":
+        return settings.demo_mode
+    if settings.demo_mode:
+        return True
+    if is_admin_request(request):
+        return False
+    if not settings.showcase_demo_agents_enabled:
+        return False
+    user = current_user(request)
+    if not user:
+        return False
+    real_access_available = bool(
+        user.can_run_agents
+        and user.ai_runs_used < user.ai_total_run_limit
+        and real_llm_provider_configured()
+    )
+    return not real_access_available
+
+
+def agent_execution_context(request: Request):
+    ensure_agent_execution_allowed(request)
+    return force_demo_generation(should_use_demo_generation(request))
+
+
 def record_successful_ai_run(request: Request) -> None:
     if deployment_mode() != "hosted" or is_admin_request(request):
+        return
+    if demo_generation_enabled():
         return
     user = current_user(request)
     if not user:
