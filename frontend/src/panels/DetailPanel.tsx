@@ -200,6 +200,8 @@ export function DetailPanel({
   node,
   agentTypes,
   showAiProviderInfo = true,
+  aiProviderLabel,
+  aiModelLabel,
   onSaveNode,
   onSaveAgent,
   onConnectRelated,
@@ -215,6 +217,8 @@ export function DetailPanel({
   node: Node<FlowNodeData> | null;
   agentTypes: AgentDefinition[];
   showAiProviderInfo?: boolean;
+  aiProviderLabel?: string;
+  aiModelLabel?: string;
   onSaveNode: (nodeId: string, nodeType: string, fields: Record<string, unknown>) => Promise<void>;
   onSaveAgent: (agentId: string, fields: { title?: string; prompt?: string; config?: Record<string, unknown> }) => Promise<void>;
   onConnectRelated: (agentId: string) => Promise<void>;
@@ -241,9 +245,9 @@ export function DetailPanel({
   }, [node]);
 
   useEffect(() => {
-    if (!showAiProviderInfo || node?.type !== "agentNode") return;
+    if (!showAiProviderInfo || aiProviderLabel || aiModelLabel || node?.type !== "agentNode") return;
     settingsApi.get().then(setLlmSettings).catch(() => setLlmSettings(null));
-  }, [node?.id, node?.type, showAiProviderInfo]);
+  }, [aiModelLabel, aiProviderLabel, node?.id, node?.type, showAiProviderInfo]);
 
   const agentDefinition = useMemo(
     () => agentTypes.find((definition) => definition.type === node?.data.agentType),
@@ -291,6 +295,7 @@ export function DetailPanel({
   const canDeleteNode = !["phaseNode", "fieldworkSectionNode", "auditNode"].includes(node.type || "") && !["report-main", "executive-summary"].includes(node.id);
   const canDeleteOutputs = !["phaseNode", "fieldworkSectionNode"].includes(node.type || "");
   const cardBulkTarget = node.type !== "phaseNode" ? bulkTargetForNode(node) : null;
+  const showAgentModelSummary = node.type === "agentNode" && (showAiProviderInfo || aiProviderLabel || aiModelLabel);
 
   async function confirmDeleteNode() {
     if (!node || !canDeleteNode) return;
@@ -344,12 +349,12 @@ export function DetailPanel({
             rows={4}
             placeholder="Optional context for the next run only. This is not saved on the agent card."
           />
-          {showAiProviderInfo ? (
+          {showAgentModelSummary ? (
             <dl className="agent-model-summary">
               <dt>Current AI provider</dt>
-              <dd>{currentProviderLabel(llmSettings)}</dd>
+              <dd>{aiProviderLabel || currentProviderLabel(llmSettings)}</dd>
               <dt>Current AI model</dt>
-              <dd>{currentModelLabel(llmSettings)}</dd>
+              <dd>{aiModelLabel || currentModelLabel(llmSettings)}</dd>
             </dl>
           ) : null}
           {node.data.agentType !== "report_draft_agent" ? (

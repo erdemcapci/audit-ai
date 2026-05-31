@@ -30,7 +30,7 @@ export function SettingsScreen({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const canManageLlm = runtime?.deploymentMode !== "hosted";
+  const canManageLlm = runtime ? runtime.deploymentMode !== "hosted" : false;
 
   useEffect(() => {
     if (!canManageLlm) return;
