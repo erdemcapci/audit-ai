@@ -65,7 +65,7 @@ export function HowToUsePage({ onBack }: { onBack: () => void }) {
                 "Tied to your current browser/session.",
                 "Not intended for important or confidential data.",
                 "May not be available permanently.",
-                "AI generation is disabled unless you sign in."
+                "Demo generation is available with sample-style outputs."
               ]}
             />
           </article>
@@ -132,7 +132,7 @@ export function HowToUsePage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Why are AI buttons disabled?">
-        <p>In the hosted demo, public visitors cannot run AI generation. Sign in to try demo generation with sample-style outputs.</p>
+        <p>In the hosted demo, public visitors can run demo generation with sample-style outputs in their own demo audits.</p>
         <p>Real AI access must be approved. Approved users get a limited number of real AI runs.</p>
         <p>If you want to try real AI generation in the hosted demo, sign in and contact the project owner to request temporary AI access.</p>
       </Section>

@@ -135,7 +135,7 @@ def runtime_settings(request: Request) -> RuntimeSettings:
     user_runs_remaining = max(0, user.ai_total_run_limit - user.ai_runs_used) if user else None
     user_can_run_agents = bool(user and user.can_run_agents and user_runs_remaining and user_runs_remaining > 0)
     real_provider_configured = real_llm_provider_configured()
-    hosted_demo_available = bool(mode == "hosted" and settings.showcase_demo_agents_enabled and user)
+    hosted_demo_available = bool(mode == "hosted" and settings.showcase_demo_agents_enabled)
     provider_configured = llm_provider_configured() or hosted_demo_available
     if mode == "local":
         execution_enabled = provider_configured
@@ -144,9 +144,9 @@ def runtime_settings(request: Request) -> RuntimeSettings:
     elif user:
         execution_enabled = hosted_demo_available or (real_provider_configured and user_can_run_agents)
     else:
-        execution_enabled = False
+        execution_enabled = hosted_demo_available
     if mode == "hosted" and not user and not is_admin:
-        access_message = "You can explore demo data. Sign in to run demo generation; real AI requires approved access."
+        access_message = "Demo generation is enabled. Sign in only if you want to save private demo audits."
     elif mode == "hosted" and user and not user.can_run_agents and hosted_demo_available:
         access_message = "Demo generation is enabled. Real AI access is limited and requires approval from the project owner."
     elif mode == "hosted" and user and not user.can_run_agents:
@@ -206,7 +206,7 @@ def should_use_demo_generation(request: Request) -> bool:
         return False
     user = current_user(request)
     if not user:
-        return False
+        return True
     real_access_available = bool(
         user.can_run_agents
         and user.ai_runs_used < user.ai_total_run_limit
