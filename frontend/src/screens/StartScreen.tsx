@@ -90,7 +90,9 @@ export function StartScreen({
         <div>
           <h1>Start a new audit</h1>
           <p className="hero-copy">
-            Create a local audit workspace, then generate objectives, risks, and tests when you are ready.
+            {runtime?.deploymentMode === "hosted"
+              ? "Create a demo audit workspace, then organize objectives, risks, tests, and findings visually."
+              : "Create a local audit workspace, then generate objectives, risks, and tests when you are ready."}
           </p>
         </div>
         <Card className="start-card">
