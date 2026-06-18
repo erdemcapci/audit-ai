@@ -241,6 +241,47 @@ export type AgentState = {
 
 export type AgentRunMode = "append" | "replace";
 
+export type ContextBlockMetadata = {
+  item_count: number;
+  truncated: boolean;
+  summary_mode: "compact" | "structured" | "detailed";
+  detail_mode: "selected_full_related_summary" | "all_summary" | "full_with_limits";
+  notes: string[];
+};
+
+export type ContextBlock = {
+  block_id: string;
+  title: string;
+  content: Record<string, unknown>;
+  metadata: ContextBlockMetadata;
+};
+
+export type ContextPack = {
+  agent_id: string;
+  agent_type: string;
+  recipe_id: string;
+  context_summary: {
+    audit_title: string;
+    phase: string;
+    selected_item_count: number;
+    related_item_count: number;
+    blocks: string[];
+    recipe_id: string;
+    fallback_recipe: boolean;
+  };
+  blocks: ContextBlock[];
+  limits: {
+    max_context_tokens: number;
+    estimated_tokens: number;
+    truncated: boolean;
+    max_items_per_type: number;
+    relationship_depth: number;
+    summary_mode: "compact" | "structured" | "detailed";
+    detail_mode: "selected_full_related_summary" | "all_summary" | "full_with_limits";
+  };
+  rendered_context: string;
+};
+
 export type AgentOutputItem = {
   id: string;
   type: string;

@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { Modal } from "../components/Modal";
 import { Select } from "../components/Select";
 import { TextArea } from "../components/TextArea";
 import { TextInput } from "../components/TextInput";
+import { agentsApi } from "../api/agentsApi";
 import { settingsApi, type LlmSettings } from "../api/settingsApi";
-import type { AgentDefinition, FlowNodeData } from "../types";
+import type { AgentDefinition, ContextPack, FlowNodeData } from "../types";
 
 type Draft = Record<string, string>;
 
@@ -196,6 +198,10 @@ function currentModelLabel(settings: LlmSettings | null): string {
   return settings.model;
 }
 
+function contextBlockLabel(blockId: string): string {
+  return blockId.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function DetailPanel({
   node,
   agentTypes,
@@ -228,6 +234,10 @@ export function DetailPanel({
   const [draft, setDraft] = useState<Draft>({});
   const [bulkDimension, setBulkDimension] = useState("");
   const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
+  const [contextPreview, setContextPreview] = useState<ContextPack | null>(null);
+  const [contextPreviewOpen, setContextPreviewOpen] = useState(false);
+  const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
+  const [contextPreviewError, setContextPreviewError] = useState("");
 
   useEffect(() => {
     if (!node) return;
@@ -236,6 +246,9 @@ export function DetailPanel({
       const phase = node.data.phase || "planning";
       setBulkDimension(phaseDimensionOptions[phase]?.[0]?.value || "");
     }
+    setContextPreview(null);
+    setContextPreviewOpen(false);
+    setContextPreviewError("");
   }, [node]);
 
   useEffect(() => {
@@ -283,6 +296,21 @@ export function DetailPanel({
       fields[field.key] = ["x", "y", "width", "height"].includes(field.key) ? Number(draft[field.key]) : draft[field.key];
     });
     await onSaveNode(node.id, node.type || "", fields);
+  }
+
+  async function previewContext() {
+    if (!node || node.type !== "agentNode" || !node.data.projectId) return;
+    setContextPreviewLoading(true);
+    setContextPreviewError("");
+    try {
+      const preview = await agentsApi.contextPreview(String(node.data.projectId), node.id);
+      setContextPreview(preview);
+      setContextPreviewOpen(true);
+    } catch (err) {
+      setContextPreviewError(err instanceof Error ? err.message : "Context preview failed.");
+    } finally {
+      setContextPreviewLoading(false);
+    }
   }
 
   const fields = fieldMap[node.type || ""] || [];
@@ -348,6 +376,38 @@ export function DetailPanel({
             <dt>Current AI model</dt>
             <dd>{currentModelLabel(llmSettings)}</dd>
           </dl>
+          <div className="agent-context-summary">
+            <h3>This agent will use:</h3>
+            {contextPreview ? (
+              <>
+                <ul>
+                  {contextPreview.context_summary.blocks.map((blockId) => (
+                    <li key={blockId}>{contextBlockLabel(blockId)}</li>
+                  ))}
+                </ul>
+                <dl>
+                  <dt>Selected items</dt>
+                  <dd>{contextPreview.context_summary.selected_item_count}</dd>
+                  <dt>Related items</dt>
+                  <dd>{contextPreview.context_summary.related_item_count}</dd>
+                  <dt>Context tokens</dt>
+                  <dd>{contextPreview.limits.estimated_tokens} / {contextPreview.limits.max_context_tokens}</dd>
+                  <dt>Truncated</dt>
+                  <dd>{contextPreview.limits.truncated ? "Yes" : "No"}</dd>
+                </dl>
+              </>
+            ) : (
+              <ul>
+                {((agentDefinition?.default_config.context_blocks as string[] | undefined) || ["audit_overview", "workflow_state", "selected_items", "traceability_chain", "connected_items", "existing_outputs"]).map((blockId) => (
+                  <li key={blockId}>{contextBlockLabel(blockId)}</li>
+                ))}
+              </ul>
+            )}
+            {contextPreviewError ? <p className="message-text">{contextPreviewError}</p> : null}
+            <Button variant="ghost" onClick={previewContext} disabled={contextPreviewLoading || !node.data.projectId}>
+              {contextPreviewLoading ? "Previewing..." : "Preview context"}
+            </Button>
+          </div>
           {node.data.agentType !== "report_draft_agent" ? (
             <div className="agent-connection-actions">
               <Button variant="ghost" onClick={() => onConnectRelated(node.id)}>Connect to related cards</Button>
@@ -457,6 +517,23 @@ export function DetailPanel({
           ) : null}
         </div>
       )}
+      {contextPreviewOpen && contextPreview ? (
+        <Modal title="Agent Context Preview" className="context-preview-modal" onClose={() => setContextPreviewOpen(false)}>
+          <div className="modal-body">
+            <dl className="context-preview-stats">
+              <dt>Recipe</dt>
+              <dd>{contextPreview.recipe_id}</dd>
+              <dt>Phase</dt>
+              <dd>{contextPreview.context_summary.phase || "Not set"}</dd>
+              <dt>Blocks</dt>
+              <dd>{contextPreview.context_summary.blocks.length}</dd>
+              <dt>Estimated tokens</dt>
+              <dd>{contextPreview.limits.estimated_tokens}</dd>
+            </dl>
+            <pre className="context-preview-rendered">{contextPreview.rendered_context}</pre>
+          </div>
+        </Modal>
+      ) : null}
     </aside>
   );
 }

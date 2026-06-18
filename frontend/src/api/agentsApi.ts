@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { AgentDefinition, AgentOutputCheckResponse, AgentRunMode, AgentState, AuditMapResponse } from "../types";
+import type { AgentDefinition, AgentOutputCheckResponse, AgentRunMode, AgentState, AuditMapResponse, ContextPack } from "../types";
 
 type AgentRunPayload = {
   input_node_ids?: string[];
@@ -28,6 +28,11 @@ export const agentsApi = {
     apiRequest<{ agent: AgentState; generated: Record<string, unknown>; map: AuditMapResponse }>(`/api/projects/${projectId}/agents/${agentId}/run`, {
       method: "POST",
       body: JSON.stringify({ agent_id: agentId, ...payload })
+    }),
+  contextPreview: (projectId: string, agentId: string, selectedItemIds?: string[]) =>
+    apiRequest<ContextPack>(`/api/projects/${projectId}/agents/${agentId}/context-preview`, {
+      method: "POST",
+      body: JSON.stringify({ selected_item_ids: selectedItemIds || [], context_options: {} })
     }),
   delete: (projectId: string, agentId: string) => apiRequest<{ message: string }>(`/api/projects/${projectId}/agents/${agentId}`, { method: "DELETE" })
 };

@@ -957,6 +957,71 @@ h3 {
   font-weight: 850;
 }
 
+.agent-context-summary {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.agent-context-summary h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.agent-context-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+}
+
+.agent-context-summary dl,
+.context-preview-stats {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.agent-context-summary dt,
+.context-preview-stats dt {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.agent-context-summary dd,
+.context-preview-stats dd {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.context-preview-modal {
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+.context-preview-rendered {
+  max-height: 62vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5edf8;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .action-stack,
 .finding-box,
 .planning-list,

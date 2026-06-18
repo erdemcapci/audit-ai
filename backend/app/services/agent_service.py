@@ -9,6 +9,8 @@ from app.agents.demo_data import demo_document_requests, demo_interviews, demo_o
 from app.config import settings
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
+from app.context.context_pack_builder import context_pack_builder
+from app.context.models import ContextPack, ContextPreviewRequest
 from app.llm.router import get_llm_provider
 from app.models import (
     AgentCreateRequest,
@@ -375,6 +377,12 @@ class AgentService:
         input_node_ids = request.input_node_ids or [edge.source for edge in map_state.edges if edge.target == agent.id]
         return AgentOutputCheckResponse(conflicts=self._output_conflicts(project_id, agent, input_node_ids))
 
+    def preview_context(self, project_id: str, agent_id: str, request: ContextPreviewRequest) -> ContextPack:
+        map_state = project_store.load_map_state(project_id)
+        agent = self._get_agent(map_state, agent_id)
+        selected_item_ids = request.selected_item_ids or [edge.source for edge in map_state.edges if edge.target == agent.id]
+        return context_pack_builder.build(project_id, agent, selected_item_ids, request.context_options.model_dump(exclude_none=True))
+
     async def run(self, project_id: str, agent_id: str, request: AgentRunRequest) -> AgentRunResponse:
         map_state = project_store.load_map_state(project_id)
         prune_deleted_or_orphan_agents(map_state)
@@ -403,7 +411,19 @@ class AgentService:
                 raise ValueError("This agent has no inputs yet. Connect it to related cards first.")
             if request.run_mode == "replace":
                 self._delete_agent_outputs(project_id, map_state, agent, input_node_ids)
-            generated = await self._run_agent(project_id, map_state, agent, input_node_ids, request)
+            context_pack = context_pack_builder.build(project_id, agent, input_node_ids, request.context_options)
+            generated = await self._run_agent(project_id, map_state, agent, input_node_ids, request, context_pack)
+            generated = {
+                **generated,
+                "context_metadata": {
+                    "context_recipe_id": context_pack.recipe_id,
+                    "context_blocks_used": context_pack.context_summary.blocks,
+                    "selected_item_ids": input_node_ids,
+                    "estimated_context_tokens": context_pack.limits.estimated_tokens,
+                    "context_truncated": context_pack.limits.truncated,
+                    "fallback_recipe": context_pack.context_summary.fallback_recipe,
+                },
+            }
             agent.prompt = saved_prompt
             agent.status = "completed"
             agent.last_run_at = utc_now()
@@ -876,18 +896,26 @@ class AgentService:
         ids.update(test.id for test in risk.tests)
         return ids
 
-    async def _run_agent(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], request: AgentRunRequest) -> dict:
+    async def _run_agent(
+        self,
+        project_id: str,
+        map_state: MapState,
+        agent: AgentState,
+        input_node_ids: list[str],
+        request: AgentRunRequest,
+        context_pack: ContextPack,
+    ) -> dict:
         if agent.type == "workstream_generator":
-            return await self._run_workstream_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_workstream_generator(project_id, map_state, agent, input_node_ids, context_pack)
 
         if agent.type == "objective_generator":
-            return await self._run_objective_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_objective_generator(project_id, map_state, agent, input_node_ids, context_pack)
 
         if agent.type == "risk_generator":
-            return await self._run_risk_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_risk_generator(project_id, map_state, agent, input_node_ids, context_pack)
 
         if agent.type == "test_generator":
-            return await self._run_test_generator(project_id, map_state, agent, input_node_ids)
+            return await self._run_test_generator(project_id, map_state, agent, input_node_ids, context_pack)
 
         if agent.type == "interview_plan_generator":
             planning = project_store.load_planning(project_id)
@@ -900,10 +928,10 @@ class AgentService:
                     agent,
                     "Generate interview roles and questions for the connected audit cards.",
                     {
-                        "planning": planning.model_dump(),
                         "connected_inputs": [self._node_context(project_id, input_id) for input_id in input_node_ids],
                         "max_roles": max_roles,
                         "questions_per_role": questions_per_role,
+                        "mapping_instruction": "Use item IDs from selected and related context when mapping questions to objectives, risks, or tests.",
                     },
                     {
                         "roles": [
@@ -922,6 +950,7 @@ class AgentService:
                             }
                         ]
                     },
+                    context_pack,
                 )
                 plan = InterviewPlan(
                     roles=[
@@ -973,6 +1002,7 @@ class AgentService:
                             }
                         ]
                     },
+                    context_pack,
                 )
                 generated = DocumentRequestState(
                     requests=[
@@ -1030,6 +1060,7 @@ class AgentService:
                         fieldwork_item_id=item.id,
                     ),
                     item,
+                    context_pack,
                 )
                 findings.findings.append(finding)
                 item.finding_ids.append(finding.id)
@@ -1051,16 +1082,13 @@ class AgentService:
             if settings.demo_mode:
                 report = demo_report()
             else:
-                planning = project_store.load_planning(project_id)
-                fieldwork = project_store.load_fieldwork(project_id)
-                findings = project_store.load_findings(project_id)
                 data = await self._agent_json(
                     agent,
                     "Generate substantive report content from the current audit materials. Do not return empty strings or empty arrays when audit materials are available.",
                     {
-                        "planning": planning.model_dump(),
-                        "fieldwork": fieldwork.model_dump(),
-                        "findings": findings.model_dump(),
+                        "report_style": agent.config.get("report_style", "executive"),
+                        "available_context_blocks": context_pack.context_summary.blocks,
+                        "report_instruction": "Use the audit context pack as the source of planning, fieldwork, findings, relationship gaps, and existing report content.",
                     },
                     {
                         "executive_summary": "Executive summary text",
@@ -1072,6 +1100,7 @@ class AgentService:
                         "ai_improved_version": "Improved report language",
                         "draft_markdown": "Optional full markdown report",
                     },
+                    context_pack,
                 )
                 report = self._report_from_agent_data(data)
             project_store.save_report(project_id, report)
@@ -1086,18 +1115,21 @@ class AgentService:
         next_config.pop("temperature", None)
         return next_config
 
-    async def _agent_json(self, agent: AgentState, task: str, context: dict, response_shape: dict) -> dict:
+    async def _agent_json(self, agent: AgentState, task: str, context: dict, response_shape: dict, context_pack: ContextPack | None = None) -> dict:
         system_prompt = (
             f"{agent.prompt.strip()}\n\n"
             "You are running as a configurable internal audit map agent. "
             "Follow the user's agent instructions exactly when they affect level of detail, tone, or output content. "
+            "Use the audit context pack to stay aligned with audit scope, existing relationships, and existing outputs. "
             "Return valid JSON only. Do not include markdown, comments, or explanatory prose."
         )
         user_prompt = json.dumps(
             {
                 "task": task,
                 "agent_config": agent.config,
-                "context": context,
+                "audit_context_pack": context_pack.rendered_context if context_pack else "",
+                "context_pack_summary": context_pack.context_summary.model_dump() if context_pack else {},
+                "task_context": context,
                 "return_json_shape": response_shape,
             },
             indent=2,
@@ -1231,7 +1263,7 @@ class AgentService:
 
         return {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}
 
-    async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
         audit = project_store.get_project(project_id)
         if audit.id not in input_node_ids:
             raise ValueError("Connect the Audit card before running this agent.")
@@ -1262,6 +1294,7 @@ class AgentService:
                         }
                     ]
                 },
+                context_pack,
             )
             workstreams = [
                 Workstream(
@@ -1283,7 +1316,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"workstreams": generated}
 
-    async def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("objectives_per_workstream", 2))
         generated = 0
@@ -1315,6 +1348,7 @@ class AgentService:
                             }
                         ]
                     },
+                    context_pack,
                 )
                 objectives = [
                     Objective(
@@ -1338,7 +1372,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"objectives": generated}
 
-    async def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("risks_per_objective", 2))
         generated = 0
@@ -1374,6 +1408,7 @@ class AgentService:
                                 }
                             ]
                         },
+                        context_pack,
                     )
                     risks = [
                         Risk(
@@ -1398,7 +1433,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"risks": generated}
 
-    async def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> dict:
+    async def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("tests_per_risk", 2))
         allowed_types = agent.config.get("allowed_test_types", ["Detailed Test"])
@@ -1439,6 +1474,7 @@ class AgentService:
                                     }
                                 ]
                             },
+                            context_pack,
                         )
                         tests = [
                             Test(

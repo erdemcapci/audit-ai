@@ -615,6 +615,7 @@ class AuditMapService:
                         agent.status.title(),
                         {
                             "agentType": agent.type,
+                            "projectId": audit.id,
                             "config": agent.config,
                             "lastRunAt": agent.last_run_at,
                             "lastError": agent.last_error,

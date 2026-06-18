@@ -350,6 +350,7 @@ class AgentRunRequest(BaseModel):
     config: dict[str, Any] | None = None
     prompt: str | None = None
     input_node_ids: list[str] = Field(default_factory=list)
+    context_options: dict[str, Any] = Field(default_factory=dict)
     rough_finding_text: str = ""
     temporary_content: str = ""
     run_mode: Literal["append", "replace"] = "append"

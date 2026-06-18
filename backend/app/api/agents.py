@@ -10,6 +10,7 @@ from app.models import (
     AgentUpdateRequest,
     MessageResponse,
 )
+from app.context.models import ContextPack, ContextPreviewRequest
 from app.runtime import ensure_agent_execution_allowed
 from app.services.agent_service import agent_service
 
@@ -36,6 +37,11 @@ def update_agent(project_id: str, agent_id: str, request: AgentUpdateRequest) ->
 @project_router.post("/{agent_id}/output-check", response_model=AgentOutputCheckResponse)
 def check_agent_outputs(project_id: str, agent_id: str, request: AgentRunRequest) -> AgentOutputCheckResponse:
     return agent_service.check_outputs(project_id, agent_id, request)
+
+
+@project_router.post("/{agent_id}/context-preview", response_model=ContextPack)
+def preview_agent_context(project_id: str, agent_id: str, payload: ContextPreviewRequest) -> ContextPack:
+    return agent_service.preview_context(project_id, agent_id, payload)
 
 
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
