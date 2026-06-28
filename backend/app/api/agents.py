@@ -11,7 +11,7 @@ from app.models import (
     MessageResponse,
 )
 from app.context.models import ContextPack, ContextPreviewRequest
-from app.runtime import ensure_agent_execution_allowed
+from app.runtime import actor_id_for_request, ensure_agent_execution_allowed
 from app.services.agent_service import agent_service
 
 
@@ -47,7 +47,7 @@ def preview_agent_context(project_id: str, agent_id: str, payload: ContextPrevie
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
 async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
     ensure_agent_execution_allowed(request)
-    return await agent_service.run(project_id, agent_id, payload)
+    return await agent_service.run(project_id, agent_id, payload, actor_id=actor_id_for_request(request))
 
 
 @project_router.delete("/{agent_id}", response_model=MessageResponse)

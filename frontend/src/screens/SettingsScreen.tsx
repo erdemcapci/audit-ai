@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { projectsApi } from "../api/projectsApi";
-import { settingsApi, type LlmSettings } from "../api/settingsApi";
+import { settingsApi, type AgentRunLoggingSettings, type LlmSettings, type RuntimeSettings } from "../api/settingsApi";
 import { CreatorLink, FeedbackLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -12,14 +12,19 @@ export function SettingsScreen({
   projectId,
   projectTitle,
   onDeleted,
-  onRuntimeChanged
+  onRuntimeChanged,
+  runtime,
+  onViewAgentRunLogs
 }: {
   projectId: string;
   projectTitle: string;
   onDeleted: () => void;
   onRuntimeChanged?: () => Promise<unknown>;
+  runtime: RuntimeSettings | null;
+  onViewAgentRunLogs: () => void;
 }) {
   const [settings, setSettings] = useState<LlmSettings | null>(null);
+  const [logSettings, setLogSettings] = useState<AgentRunLoggingSettings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [message, setMessage] = useState("");
@@ -29,6 +34,7 @@ export function SettingsScreen({
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load settings."));
+    settingsApi.agentRunLogs().then(setLogSettings).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load logging settings."));
   }, []);
 
   async function save() {
@@ -51,6 +57,22 @@ export function SettingsScreen({
     const result = await settingsApi.test();
     setMessage(result.message);
     await onRuntimeChanged?.();
+  }
+
+  async function saveLogSettings() {
+    if (!logSettings) return;
+    try {
+      const next = await settingsApi.updateAgentRunLogs({
+        enabled: logSettings.enabled,
+        full_io: logSettings.full_io,
+        raw_response: logSettings.raw_response,
+        retention_days: logSettings.retention_days
+      });
+      setLogSettings(next);
+      setMessage("Agent run logging settings updated for this backend session.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to update logging settings.");
+    }
   }
 
   async function deleteAudit() {
@@ -126,6 +148,60 @@ export function SettingsScreen({
         </div>
         {message ? <p className="message-text">{message}</p> : null}
       </Card>
+      {logSettings ? (
+        <Card className="settings-card">
+          <div>
+            <p className="eyebrow">Traceability</p>
+            <h2>Agent run logging</h2>
+          </div>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.enabled}
+              disabled={!logSettings.can_modify}
+              onChange={(event) => setLogSettings({ ...logSettings, enabled: event.target.checked })}
+            />
+            <span>Metadata logging enabled</span>
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.full_io}
+              disabled={!logSettings.can_modify || (runtime?.deploymentMode === "hosted" && !logSettings.hosted_full_logs_allowed)}
+              onChange={(event) => setLogSettings({ ...logSettings, full_io: event.target.checked })}
+            />
+            <span>Full prompt, context, and output logging</span>
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.raw_response}
+              disabled={!logSettings.can_modify || (runtime?.deploymentMode === "hosted" && !logSettings.hosted_full_logs_allowed)}
+              onChange={(event) => setLogSettings({ ...logSettings, raw_response: event.target.checked })}
+            />
+            <span>Raw LLM response logging</span>
+          </label>
+          <TextInput
+            label="Retention days"
+            type="number"
+            value={String(logSettings.retention_days)}
+            disabled={!logSettings.can_modify}
+            onChange={(event) => setLogSettings({ ...logSettings, retention_days: Math.max(1, Number(event.target.value) || 1) })}
+          />
+          <p className="muted">Log directory: {logSettings.log_directory}</p>
+          {runtime?.deploymentMode === "hosted" ? (
+            <p className="muted">Full prompt/context/output logging may store audit content. It is disabled by default for the hosted showcase.</p>
+          ) : (
+            <p className="muted">Full logging may store sensitive audit content locally.</p>
+          )}
+          <div className="button-row">
+            <Button onClick={saveLogSettings} disabled={!logSettings.can_modify}>Save Logging Settings</Button>
+            <Button variant="secondary" onClick={onViewAgentRunLogs} disabled={runtime?.deploymentMode === "hosted" && !runtime.isAdmin}>
+              View agent run logs
+            </Button>
+          </div>
+        </Card>
+      ) : null}
       <Card className="settings-card about-card">
         <div>
           <p className="eyebrow">About</p>

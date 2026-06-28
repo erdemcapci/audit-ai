@@ -1,6 +1,7 @@
 from copy import deepcopy
 import json
 import re
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -39,6 +40,7 @@ from app.models import (
     utc_now,
 )
 from app.services.audit_map_service import SECTION_PADDING, anchored_fieldwork_section_layouts, audit_map_service
+from app.services.agent_run_log_service import agent_run_log_service
 from app.store.project_store import project_store
 
 
@@ -383,7 +385,7 @@ class AgentService:
         selected_item_ids = request.selected_item_ids or [edge.source for edge in map_state.edges if edge.target == agent.id]
         return context_pack_builder.build(project_id, agent, selected_item_ids, request.context_options.model_dump(exclude_none=True))
 
-    async def run(self, project_id: str, agent_id: str, request: AgentRunRequest) -> AgentRunResponse:
+    async def run(self, project_id: str, agent_id: str, request: AgentRunRequest, actor_id: str = "local") -> AgentRunResponse:
         map_state = project_store.load_map_state(project_id)
         prune_deleted_or_orphan_agents(map_state)
         agent = self._get_agent(map_state, agent_id)
@@ -406,13 +408,33 @@ class AgentService:
                 f"{temporary_content}"
             )
 
+        run_id: str | None = None
+        capture: dict[str, Any] = {"exchanges": []}
         try:
+            context_pack = context_pack_builder.build(project_id, agent, input_node_ids, request.context_options)
+            expected_provider, expected_model = self._current_provider_and_model()
+            try:
+                run_id = agent_run_log_service.start_run(
+                    project_id=project_id,
+                    actor_id=actor_id,
+                    agent=agent,
+                    provider=expected_provider,
+                    model=expected_model,
+                    selected_item_ids=input_node_ids,
+                    context_recipe_id=context_pack.recipe_id,
+                    context_blocks_used=context_pack.context_summary.blocks,
+                    estimated_context_tokens=context_pack.limits.estimated_tokens,
+                    context_truncated=context_pack.limits.truncated,
+                    rendered_context=context_pack.rendered_context,
+                )
+            except Exception:
+                run_id = None
             if not input_node_ids and agent.type != "report_draft_agent":
                 raise ValueError("This agent has no inputs yet. Connect it to related cards first.")
             if request.run_mode == "replace":
                 self._delete_agent_outputs(project_id, map_state, agent, input_node_ids)
-            context_pack = context_pack_builder.build(project_id, agent, input_node_ids, request.context_options)
-            generated = await self._run_agent(project_id, map_state, agent, input_node_ids, request, context_pack)
+            output_ids_before = set(self._completed_output_ids(project_id, agent, input_node_ids))
+            generated = await self._run_agent(project_id, map_state, agent, input_node_ids, request, context_pack, capture)
             generated = {
                 **generated,
                 "context_metadata": {
@@ -428,10 +450,39 @@ class AgentService:
             agent.status = "completed"
             agent.last_run_at = utc_now()
             agent.last_output = generated
+            output_ids_after = set(self._completed_output_ids(project_id, agent, input_node_ids))
+            output_object_ids = sorted(output_ids_after - output_ids_before)
+            if agent.type == "report_draft_agent" and not output_object_ids:
+                output_object_ids = ["report-main"]
+            try:
+                agent_run_log_service.complete_run(
+                    project_id,
+                    run_id,
+                    provider=str(capture.get("provider") or expected_provider),
+                    model=str(capture.get("model") or expected_model),
+                    output_object_ids=output_object_ids,
+                    final_prompt=capture.get("exchanges", []),
+                    parsed_output=generated,
+                    raw_llm_response=capture.get("raw_responses", []),
+                )
+            except Exception:
+                pass
         except Exception as exc:
             agent.prompt = saved_prompt
             agent.status = "error"
             agent.last_error = str(exc)
+            try:
+                agent_run_log_service.fail_run(
+                    project_id,
+                    run_id,
+                    error_message=str(exc),
+                    provider=str(capture.get("provider", "")),
+                    model=str(capture.get("model", "")),
+                    final_prompt=capture.get("exchanges", []),
+                    raw_llm_response=capture.get("raw_responses", []),
+                )
+            except Exception:
+                pass
             project_store.save_map_state(project_id, map_state)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -904,18 +955,19 @@ class AgentService:
         input_node_ids: list[str],
         request: AgentRunRequest,
         context_pack: ContextPack,
+        capture: dict[str, Any],
     ) -> dict:
         if agent.type == "workstream_generator":
-            return await self._run_workstream_generator(project_id, map_state, agent, input_node_ids, context_pack)
+            return await self._run_workstream_generator(project_id, map_state, agent, input_node_ids, context_pack, capture)
 
         if agent.type == "objective_generator":
-            return await self._run_objective_generator(project_id, map_state, agent, input_node_ids, context_pack)
+            return await self._run_objective_generator(project_id, map_state, agent, input_node_ids, context_pack, capture)
 
         if agent.type == "risk_generator":
-            return await self._run_risk_generator(project_id, map_state, agent, input_node_ids, context_pack)
+            return await self._run_risk_generator(project_id, map_state, agent, input_node_ids, context_pack, capture)
 
         if agent.type == "test_generator":
-            return await self._run_test_generator(project_id, map_state, agent, input_node_ids, context_pack)
+            return await self._run_test_generator(project_id, map_state, agent, input_node_ids, context_pack, capture)
 
         if agent.type == "interview_plan_generator":
             planning = project_store.load_planning(project_id)
@@ -951,6 +1003,7 @@ class AgentService:
                         ]
                     },
                     context_pack,
+                    capture,
                 )
                 plan = InterviewPlan(
                     roles=[
@@ -1003,6 +1056,7 @@ class AgentService:
                         ]
                     },
                     context_pack,
+                    capture,
                 )
                 generated = DocumentRequestState(
                     requests=[
@@ -1061,6 +1115,7 @@ class AgentService:
                     ),
                     item,
                     context_pack,
+                    capture,
                 )
                 findings.findings.append(finding)
                 item.finding_ids.append(finding.id)
@@ -1101,6 +1156,7 @@ class AgentService:
                         "draft_markdown": "Optional full markdown report",
                     },
                     context_pack,
+                    capture,
                 )
                 report = self._report_from_agent_data(data)
             project_store.save_report(project_id, report)
@@ -1115,7 +1171,36 @@ class AgentService:
         next_config.pop("temperature", None)
         return next_config
 
-    async def _agent_json(self, agent: AgentState, task: str, context: dict, response_shape: dict, context_pack: ContextPack | None = None) -> dict:
+    def _current_provider_and_model(self) -> tuple[str, str]:
+        if settings.demo_mode:
+            return "demo", "deterministic"
+        if settings.llm_provider == "openai":
+            return "openai", settings.openai_model
+        if settings.llm_provider == "claude":
+            return "claude", settings.anthropic_model
+        return "ollama", settings.ollama_model
+
+    def _completed_output_ids(self, project_id: str, agent: AgentState, input_node_ids: list[str]) -> list[str]:
+        if agent.type == "report_draft_agent":
+            return ["report-main"]
+        output_ids: list[str] = []
+        for input_id in input_node_ids:
+            output_ids.extend(item["id"] for item in self._outputs_for_agent_input(project_id, agent, input_id))
+        if agent.type == "interview_plan_generator":
+            plan = project_store.load_interviews(project_id)
+            output_ids.extend(role.id for role in plan.roles)
+            output_ids.extend(question.id for role in plan.roles for question in role.questions)
+        return sorted(set(output_ids))
+
+    async def _agent_json(
+        self,
+        agent: AgentState,
+        task: str,
+        context: dict,
+        response_shape: dict,
+        context_pack: ContextPack | None = None,
+        capture: dict[str, Any] | None = None,
+    ) -> dict:
         system_prompt = (
             f"{agent.prompt.strip()}\n\n"
             "You are running as a configurable internal audit map agent. "
@@ -1140,6 +1225,11 @@ class AgentService:
             json_mode=True,
             temperature=0.2,
         )
+        if capture is not None:
+            capture["provider"] = response.provider
+            capture["model"] = response.model
+            capture.setdefault("exchanges", []).append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+            capture.setdefault("raw_responses", []).append(response.raw_response)
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)
@@ -1263,7 +1353,7 @@ class AgentService:
 
         return {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}
 
-    async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
+    async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack, capture: dict[str, Any]) -> dict:
         audit = project_store.get_project(project_id)
         if audit.id not in input_node_ids:
             raise ValueError("Connect the Audit card before running this agent.")
@@ -1295,6 +1385,7 @@ class AgentService:
                     ]
                 },
                 context_pack,
+                capture,
             )
             workstreams = [
                 Workstream(
@@ -1316,7 +1407,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"workstreams": generated}
 
-    async def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
+    async def _run_objective_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack, capture: dict[str, Any]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("objectives_per_workstream", 2))
         generated = 0
@@ -1349,6 +1440,7 @@ class AgentService:
                         ]
                     },
                     context_pack,
+                    capture,
                 )
                 objectives = [
                     Objective(
@@ -1372,7 +1464,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"objectives": generated}
 
-    async def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
+    async def _run_risk_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack, capture: dict[str, Any]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("risks_per_objective", 2))
         generated = 0
@@ -1409,6 +1501,7 @@ class AgentService:
                             ]
                         },
                         context_pack,
+                        capture,
                     )
                     risks = [
                         Risk(
@@ -1433,7 +1526,7 @@ class AgentService:
         project_store.save_planning(project_id, planning)
         return {"risks": generated}
 
-    async def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack) -> dict:
+    async def _run_test_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack, capture: dict[str, Any]) -> dict:
         planning = project_store.load_planning(project_id)
         count = int(agent.config.get("tests_per_risk", 2))
         allowed_types = agent.config.get("allowed_test_types", ["Detailed Test"])
@@ -1475,6 +1568,7 @@ class AgentService:
                                 ]
                             },
                             context_pack,
+                            capture,
                         )
                         tests = [
                             Test(

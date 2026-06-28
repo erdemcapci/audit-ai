@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.config import settings
 from app.llm.base import LLMProviderError
 from app.llm.router import get_llm_provider
-from app.models import LLMSettings, LLMSettingsUpdate, RuntimeSettings
-from app.runtime import ensure_agent_execution_allowed, runtime_settings
+from app.models import AgentRunLoggingSettings, AgentRunLoggingSettingsUpdate, LLMSettings, LLMSettingsUpdate, RuntimeSettings
+from app.runtime import deployment_mode, ensure_agent_execution_allowed, ensure_agent_log_access, is_admin_request, runtime_settings
+from app.services.agent_run_log_service import agent_run_log_service
 
 
 router = APIRouter(prefix="/api/settings/llm", tags=["settings"])
@@ -54,6 +55,21 @@ def update_llm_settings(update: LLMSettingsUpdate) -> LLMSettings:
 @runtime_router.get("/runtime", response_model=RuntimeSettings)
 def get_runtime_settings(request: Request) -> RuntimeSettings:
     return runtime_settings(request)
+
+
+@runtime_router.get("/agent-run-logs", response_model=AgentRunLoggingSettings)
+def get_agent_run_logging_settings(request: Request) -> AgentRunLoggingSettings:
+    can_modify = deployment_mode() == "local" or is_admin_request(request)
+    return agent_run_log_service.current_settings(can_modify=can_modify)
+
+
+@runtime_router.put("/agent-run-logs", response_model=AgentRunLoggingSettings)
+def update_agent_run_logging_settings(request: Request, update: AgentRunLoggingSettingsUpdate) -> AgentRunLoggingSettings:
+    ensure_agent_log_access(request, modify=True)
+    try:
+        return agent_run_log_service.update_settings(update)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/test")

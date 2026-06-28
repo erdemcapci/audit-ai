@@ -90,6 +90,20 @@ def ensure_agent_execution_allowed(request: Request) -> None:
     raise HTTPException(status_code=403, detail="AI agent execution is not available.")
 
 
+def ensure_agent_log_access(request: Request, *, modify: bool = False) -> None:
+    if deployment_mode() == "local":
+        return
+    if not is_admin_request(request):
+        action = "modify agent run logging settings" if modify else "view agent run logs"
+        raise HTTPException(status_code=403, detail=f"Admin login is required to {action} in hosted mode.")
+
+
+def actor_id_for_request(request: Request) -> str:
+    if deployment_mode() == "local":
+        return "local"
+    return "admin" if is_admin_request(request) else "anonymous"
+
+
 def set_admin_cookie(response: Response) -> None:
     response.set_cookie(
         ADMIN_COOKIE,

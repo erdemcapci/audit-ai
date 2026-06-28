@@ -10,7 +10,14 @@ from app.models import AuditProject, FieldworkItem, Finding, FindingDraftRequest
 
 
 class FindingAgent:
-    async def run(self, audit: AuditProject, request: FindingDraftRequest, fieldwork_item: FieldworkItem | None, context_pack: ContextPack | None = None) -> Finding:
+    async def run(
+        self,
+        audit: AuditProject,
+        request: FindingDraftRequest,
+        fieldwork_item: FieldworkItem | None,
+        context_pack: ContextPack | None = None,
+        capture: dict | None = None,
+    ) -> Finding:
         if settings.demo_mode:
             return demo_finding(request.raw_description, fieldwork_item)
         context = json.dumps(
@@ -24,6 +31,11 @@ class FindingAgent:
             indent=2,
         )
         response = await get_llm_provider().generate(SYSTEM_PROMPT, FINDING_PROMPT.format(finding_context=context))
+        if capture is not None:
+            capture["provider"] = response.provider
+            capture["model"] = response.model
+            capture.setdefault("exchanges", []).append({"system_prompt": SYSTEM_PROMPT, "user_prompt": FINDING_PROMPT.format(finding_context=context)})
+            capture.setdefault("raw_responses", []).append(response.raw_response)
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)

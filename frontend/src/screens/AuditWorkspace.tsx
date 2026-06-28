@@ -40,6 +40,7 @@ import { InterviewsScreen } from "./InterviewsScreen";
 import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
+import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 import { deriveAuditChecklistState } from "../utils/auditChecklist";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
@@ -707,8 +708,16 @@ export function AuditWorkspace({
         />
       ) : null}
       {activeScreen === "Settings" && project ? (
-        <SettingsScreen projectId={projectId} projectTitle={project.title} onDeleted={onReset} onRuntimeChanged={onRuntimeChanged} />
+        <SettingsScreen
+          projectId={projectId}
+          projectTitle={project.title}
+          onDeleted={onReset}
+          onRuntimeChanged={onRuntimeChanged}
+          runtime={runtime}
+          onViewAgentRunLogs={() => setActiveScreen("Agent Logs")}
+        />
       ) : null}
+      {activeScreen === "Agent Logs" && project ? <AgentRunLogsScreen projectId={projectId} projectTitle={project.title} /> : null}
 
       {pendingAgentRun ? (
         <Modal title="Existing outputs found" onClose={() => setPendingAgentRun(null)}>
