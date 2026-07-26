@@ -1067,6 +1067,54 @@ h3 {
   min-height: 680px;
 }
 
+.canvas-workspace {
+  min-width: 0;
+  position: relative;
+}
+
+.workspace-grid-map .canvas-workspace:last-child {
+  grid-column: 1 / -1;
+}
+
+.canvas-overlay-inspector {
+  position: absolute;
+  z-index: 10;
+  top: 16px;
+  right: 34px;
+  width: min(400px, calc(100% - 64px));
+  max-height: calc(100% - 48px);
+  overflow: auto;
+  border-radius: 10px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.22);
+}
+
+.canvas-overlay-inspector .detail-panel,
+.canvas-overlay-inspector .auto-layout-panel {
+  box-shadow: none;
+}
+
+.canvas-overlay-close {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.canvas-overlay-close:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
 .right-rail {
   display: grid;
   gap: 16px;
@@ -1601,6 +1649,13 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  .canvas-overlay-inspector {
+    top: 12px;
+    right: 28px;
+    width: calc(100% - 44px);
+    max-height: calc(100% - 40px);
+  }
+
   .workspace {
     padding: 12px;
   }

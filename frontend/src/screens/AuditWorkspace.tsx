@@ -637,50 +637,68 @@ export function AuditWorkspace({
             </div>
           </div>
         </div>
-        <section className="workspace-grid">
-          <AuditMapCanvas
-            map={map}
-            selectedNodeId={selectedNode?.id || null}
-            agentTypes={agentTypes}
-            onSelectNode={setSelectedNode}
-            onSaveMap={saveMapState}
-            onRunAgent={runAgent}
-            onAutoLayout={async () => setShowAutoLayoutConfig(true)}
-            onError={setError}
-            phaseFilter={phaseFilter}
-            agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-            agentExecutionMessage={runtime?.aiAccessMessage || (runtime?.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured.")}
-            actionBusy={busy}
-            hierarchyFilters={{
-              ...mapFilters,
-              nodeIds: []
-            }}
-          />
-          <div className="right-rail">
-            {showAutoLayoutConfig ? (
-              <AutoLayoutPanel onApply={applyAutoLayout} onCancel={() => setShowAutoLayoutConfig(false)} />
-            ) : selectedNode ? (
-              <DetailPanel
-                node={selectedNode}
-                agentTypes={agentTypes}
-                showAiProviderInfo={runtime?.deploymentMode !== "hosted"}
-                aiProviderLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiProviderLabel : undefined}
-                aiModelLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiModelLabel : undefined}
-                onSaveNode={saveNode}
-                onSaveAgent={saveAgent}
-                onConnectRelated={connectRelated}
-                onDisconnectRelated={disconnectRelated}
-                onPreviewNode={previewNode}
-                onDeleteNode={deleteNode}
-                onDeleteOutputs={deleteOutputs}
-                onDeleteDimension={deleteDimension}
-                onOpenReport={openReportAttachment}
-                temporaryRunContent={selectedNode.type === "agentNode" ? temporaryAgentContentById[selectedNode.id] || "" : ""}
-                onTemporaryRunContentChange={(agentId, value) =>
-                  setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
-                }
-              />
-            ) : (
+        <section className="workspace-grid workspace-grid-map">
+          <div className="canvas-workspace">
+            <AuditMapCanvas
+              map={map}
+              selectedNodeId={selectedNode?.id || null}
+              agentTypes={agentTypes}
+              onSelectNode={setSelectedNode}
+              onSaveMap={saveMapState}
+              onRunAgent={runAgent}
+              onAutoLayout={async () => setShowAutoLayoutConfig(true)}
+              onError={setError}
+              phaseFilter={phaseFilter}
+              agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
+              agentExecutionMessage={runtime?.aiAccessMessage || (runtime?.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured.")}
+              actionBusy={busy}
+              hierarchyFilters={{
+                ...mapFilters,
+                nodeIds: []
+              }}
+            />
+            {showAutoLayoutConfig || selectedNode ? (
+              <aside className="canvas-overlay-inspector" aria-label="Canvas inspector">
+                <button
+                  type="button"
+                  className="canvas-overlay-close"
+                  aria-label="Close canvas inspector"
+                  onClick={() => {
+                    setShowAutoLayoutConfig(false);
+                    setSelectedNode(null);
+                  }}
+                >
+                  ×
+                </button>
+                {showAutoLayoutConfig ? (
+                  <AutoLayoutPanel onApply={applyAutoLayout} onCancel={() => setShowAutoLayoutConfig(false)} />
+                ) : selectedNode ? (
+                  <DetailPanel
+                    node={selectedNode}
+                    agentTypes={agentTypes}
+                    showAiProviderInfo={runtime?.deploymentMode !== "hosted"}
+                    aiProviderLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiProviderLabel : undefined}
+                    aiModelLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiModelLabel : undefined}
+                    onSaveNode={saveNode}
+                    onSaveAgent={saveAgent}
+                    onConnectRelated={connectRelated}
+                    onDisconnectRelated={disconnectRelated}
+                    onPreviewNode={previewNode}
+                    onDeleteNode={deleteNode}
+                    onDeleteOutputs={deleteOutputs}
+                    onDeleteDimension={deleteDimension}
+                    onOpenReport={openReportAttachment}
+                    temporaryRunContent={selectedNode.type === "agentNode" ? temporaryAgentContentById[selectedNode.id] || "" : ""}
+                    onTemporaryRunContentChange={(agentId, value) =>
+                      setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
+                    }
+                  />
+                ) : null}
+              </aside>
+            ) : null}
+          </div>
+          {!showAutoLayoutConfig && !selectedNode ? (
+            <div className="right-rail">
               <AiAssistantPanel
                 planning={planning}
                 project={project}
@@ -690,8 +708,8 @@ export function AuditWorkspace({
                 report={report}
                 busy={busy}
               />
-            )}
-          </div>
+            </div>
+          ) : null}
         </section>
         </>
       ) : null}
