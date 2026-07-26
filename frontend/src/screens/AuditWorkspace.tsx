@@ -17,7 +17,6 @@ import { Select } from "../components/Select";
 import { TextArea } from "../components/TextArea";
 import { AuditMapCanvas, type MapHierarchyFilters } from "../flow/AuditMapCanvas";
 import { calculateRequiredNodeSize } from "../flow/layoutAuditMap";
-import { AiAssistantPanel } from "../panels/AiAssistantPanel";
 import { AutoLayoutPanel } from "../panels/AutoLayoutPanel";
 import { DetailPanel } from "../panels/DetailPanel";
 import type {
@@ -41,7 +40,6 @@ import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
-import { deriveAuditChecklistState } from "../utils/auditChecklist";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FieldworkCreateMode = "keep" | "missing" | "replace";
@@ -525,7 +523,6 @@ export function AuditWorkspace({
     }
   }
 
-  const checklist = deriveAuditChecklistState({ project, planning, interviews, fieldwork, findings, report });
   const hasFieldworkItems = Boolean(fieldwork?.items.length);
 
   return (
@@ -542,16 +539,6 @@ export function AuditWorkspace({
           {busy ? <LoadingState label="Action running" /> : null}
         </div>
       </header>
-
-      <div className="audit-progress-header">
-        <div>
-          <strong>{checklist.progressPercent}% complete</strong>
-          <span>{checklist.completedCount} of {checklist.totalCount} checklist actions</span>
-        </div>
-        <div className="checklist-progress top-progress">
-          <span style={{ width: `${checklist.progressPercent}%` }} />
-        </div>
-      </div>
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
@@ -610,7 +597,7 @@ export function AuditWorkspace({
             </div>
           </div>
         </div>
-        <section className="workspace-grid">
+        <section className="map-workspace">
           <AuditMapCanvas
             map={map}
             selectedNodeId={selectedNode?.id || null}
@@ -618,7 +605,10 @@ export function AuditWorkspace({
             onSelectNode={setSelectedNode}
             onSaveMap={saveMapState}
             onRunAgent={runAgent}
-            onAutoLayout={async () => setShowAutoLayoutConfig(true)}
+            onAutoLayout={async () => {
+              setSelectedNode(null);
+              setShowAutoLayoutConfig(true);
+            }}
             onError={setError}
             phaseFilter={phaseFilter}
             agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
@@ -629,12 +619,16 @@ export function AuditWorkspace({
               nodeIds: []
             }}
           />
-          <div className="right-rail">
-            {showAutoLayoutConfig ? (
+          {showAutoLayoutConfig ? (
+            <div className="map-overlay-panel map-layout-overlay">
               <AutoLayoutPanel onApply={applyAutoLayout} onCancel={() => setShowAutoLayoutConfig(false)} />
-            ) : selectedNode ? (
+            </div>
+          ) : null}
+          {selectedNode && !showAutoLayoutConfig ? (
+            <div className="map-overlay-panel inspector-overlay">
               <DetailPanel
                 node={selectedNode}
+                onClose={() => setSelectedNode(null)}
                 agentTypes={agentTypes}
                 onSaveNode={saveNode}
                 onSaveAgent={saveAgent}
@@ -650,18 +644,8 @@ export function AuditWorkspace({
                   setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
                 }
               />
-            ) : (
-              <AiAssistantPanel
-                planning={planning}
-                project={project}
-                interviews={interviews}
-                fieldwork={fieldwork}
-                findings={findings}
-                report={report}
-                busy={busy}
-              />
-            )}
-          </div>
+            </div>
+          ) : null}
         </section>
         </>
       ) : null}

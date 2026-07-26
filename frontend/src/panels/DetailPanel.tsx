@@ -204,6 +204,7 @@ function contextBlockLabel(blockId: string): string {
 
 export function DetailPanel({
   node,
+  onClose,
   agentTypes,
   onSaveNode,
   onSaveAgent,
@@ -218,6 +219,7 @@ export function DetailPanel({
   onTemporaryRunContentChange
 }: {
   node: Node<FlowNodeData> | null;
+  onClose: () => void;
   agentTypes: AgentDefinition[];
   onSaveNode: (nodeId: string, nodeType: string, fields: Record<string, unknown>) => Promise<void>;
   onSaveAgent: (agentId: string, fields: { title?: string; prompt?: string; config?: Record<string, unknown> }) => Promise<void>;
@@ -255,6 +257,14 @@ export function DetailPanel({
     if (node?.type !== "agentNode") return;
     settingsApi.get().then(setLlmSettings).catch(() => setLlmSettings(null));
   }, [node?.id, node?.type]);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
 
   const agentDefinition = useMemo(
     () => agentTypes.find((definition) => definition.type === node?.data.agentType),
@@ -354,9 +364,14 @@ export function DetailPanel({
   const selectedBulkOption = bulkOptions.find((item) => item.value === bulkDimension);
 
   return (
-    <aside className="detail-panel">
-      <div className="detail-kicker">{node.type}</div>
-      <h2>{node.data.title}</h2>
+    <aside className="detail-panel" aria-label="Canvas inspector">
+      <div className="detail-panel-header">
+        <div>
+          <div className="detail-kicker">{node.type}</div>
+          <h2>{node.data.title}</h2>
+        </div>
+        <button className="inspector-close" type="button" onClick={onClose} aria-label="Close inspector">×</button>
+      </div>
       {node.type !== "agentNode" ? <Badge>{String(node.data.status)}</Badge> : null}
 
       {node.type === "agentNode" ? (
