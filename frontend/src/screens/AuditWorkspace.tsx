@@ -18,9 +18,9 @@ import { Select } from "../components/Select";
 import { TextArea } from "../components/TextArea";
 import { AuditMapCanvas, type MapHierarchyFilters } from "../flow/AuditMapCanvas";
 import { calculateRequiredNodeSize } from "../flow/layoutAuditMap";
-import { AiAssistantPanel } from "../panels/AiAssistantPanel";
 import { AutoLayoutPanel } from "../panels/AutoLayoutPanel";
 import { DetailPanel } from "../panels/DetailPanel";
+import { workspaceRuntimePolicy } from "../runtime/workspacePolicy";
 import type {
   AgentDefinition,
   AgentOutputConflict,
@@ -41,7 +41,6 @@ import { InterviewsScreen } from "./InterviewsScreen";
 import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
-import { deriveAuditChecklistState } from "../utils/auditChecklist";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FieldworkCreateMode = "keep" | "missing" | "replace";
@@ -225,7 +224,7 @@ export function AuditWorkspace({
 
   async function runAgent(agentId: string, localInputNodeIds?: string[]) {
     if (runtime && !runtime.agentExecutionEnabled) {
-      setError(runtime.aiAccessMessage || (runtime.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured for agent execution."));
+      setError(runtimePolicy.agentExecutionMessage);
       return;
     }
     const inputNodeIds = localInputNodeIds || map?.edges.filter((edge) => edge.target === agentId).map((edge) => edge.source) || [];
@@ -544,8 +543,8 @@ export function AuditWorkspace({
     }
   }
 
-  const checklist = deriveAuditChecklistState({ project, planning, interviews, fieldwork, findings, report });
   const hasFieldworkItems = Boolean(fieldwork?.items.length);
+  const runtimePolicy = workspaceRuntimePolicy(runtime, project, Boolean(user?.isAuthenticated));
 
   return (
     <main className="workspace">
@@ -559,7 +558,7 @@ export function AuditWorkspace({
           {user?.isAuthenticated ? <span className="session-pill">{user.username}</span> : null}
           <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
           <Button variant="ghost" onClick={onHowToUse}>How to use</Button>
-          {runtime?.deploymentMode === "hosted" && !user?.isAuthenticated ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
+          {runtimePolicy.showSignIn ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
           {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
           <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
           <Button variant="ghost" onClick={onReset}>New audit</Button>
@@ -567,24 +566,9 @@ export function AuditWorkspace({
         </div>
       </header>
 
-      <div className="audit-progress-header">
-        <div>
-          <strong>{checklist.progressPercent}% complete</strong>
-          <span>{checklist.completedCount} of {checklist.totalCount} checklist actions</span>
-        </div>
-        <div className="checklist-progress top-progress">
-          <span style={{ width: `${checklist.progressPercent}%` }} />
-        </div>
-      </div>
-
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
-      {runtime?.deploymentMode === "hosted" && project?.visibility === "anonymous_temp" ? (
-        <div className="message-text">Temporary demo audit — changes are only available in this browser/session. Sign in to save your audit.</div>
-      ) : null}
-      {runtime?.deploymentMode === "hosted" && project?.visibility === "public_sample" ? (
-        <div className="message-text">Public sample audit - this demo data is read-only for visitors.</div>
-      ) : null}
+      {runtimePolicy.projectAccessMessage ? <div className="message-text">{runtimePolicy.projectAccessMessage}</div> : null}
 
       <nav className="workspace-tabs">
         {["Map", "Planning", "Interviews", "Fieldwork", "Reporting"].map((tab) => (
@@ -650,7 +634,7 @@ export function AuditWorkspace({
               onError={setError}
               phaseFilter={phaseFilter}
               agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-              agentExecutionMessage={runtime?.aiAccessMessage || (runtime?.deploymentMode === "hosted" ? "AI generation requires approved access." : "No AI provider is configured.")}
+              agentExecutionMessage={runtimePolicy.agentExecutionMessage}
               actionBusy={busy}
               hierarchyFilters={{
                 ...mapFilters,
@@ -676,9 +660,9 @@ export function AuditWorkspace({
                   <DetailPanel
                     node={selectedNode}
                     agentTypes={agentTypes}
-                    showAiProviderInfo={runtime?.deploymentMode !== "hosted"}
-                    aiProviderLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiProviderLabel : undefined}
-                    aiModelLabel={runtime?.deploymentMode === "hosted" ? runtime.activeAiModelLabel : undefined}
+                    showAiProviderInfo={runtimePolicy.showAiProviderInfo}
+                    aiProviderLabel={runtimePolicy.aiProviderLabel}
+                    aiModelLabel={runtimePolicy.aiModelLabel}
                     onSaveNode={saveNode}
                     onSaveAgent={saveAgent}
                     onConnectRelated={connectRelated}
@@ -697,19 +681,6 @@ export function AuditWorkspace({
               </aside>
             ) : null}
           </div>
-          {!showAutoLayoutConfig && !selectedNode ? (
-            <div className="right-rail">
-              <AiAssistantPanel
-                planning={planning}
-                project={project}
-                interviews={interviews}
-                fieldwork={fieldwork}
-                findings={findings}
-                report={report}
-                busy={busy}
-              />
-            </div>
-          ) : null}
         </section>
         </>
       ) : null}
