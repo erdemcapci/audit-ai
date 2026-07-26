@@ -237,6 +237,64 @@ class RuntimeSettings(BaseModel):
     allowedAiModels: list[str] = Field(default_factory=list)
 
 
+class AgentRunLoggingSettings(BaseModel):
+    enabled: bool
+    full_io: bool
+    raw_response: bool
+    retention_days: int
+    log_directory: str
+    hosted_full_logs_allowed: bool
+    can_modify: bool
+
+
+class AgentRunLoggingSettingsUpdate(BaseModel):
+    enabled: bool
+    full_io: bool
+    raw_response: bool
+    retention_days: int = Field(ge=1, le=3650)
+
+
+class AgentRunLog(BaseModel):
+    run_id: str
+    project_id: str
+    actor_id: str = ""
+    agent_id: str
+    agent_name: str
+    status: Literal["started", "success", "error"]
+    started_at: str
+    completed_at: str | None = None
+    provider: str = ""
+    model: str = ""
+    selected_item_ids: list[str] = Field(default_factory=list)
+    context_recipe_id: str = ""
+    context_blocks_used: list[str] = Field(default_factory=list)
+    estimated_context_tokens: int = 0
+    context_truncated: bool = False
+    output_object_ids: list[str] = Field(default_factory=list)
+    error_message: str = ""
+    full_io_logged: bool = False
+    raw_response_logged: bool = False
+    rendered_context: str | None = None
+    final_prompt: Any = None
+    parsed_output: Any = None
+    raw_llm_response: Any = None
+
+
+class AuditContextSnapshot(BaseModel):
+    project_id: str
+    generated_at: str = Field(default_factory=utc_now)
+    source_updated_at: str = ""
+    source_fingerprint: str = ""
+    stale: bool = False
+    summary_text: str = ""
+    structured_summary: dict[str, Any] = Field(default_factory=dict)
+    item_counts: dict[str, int] = Field(default_factory=dict)
+    relationship_gap_count: int = 0
+    source_sections_used: list[str] = Field(default_factory=list)
+    generation_mode: Literal["deterministic", "llm"] = "deterministic"
+    truncated: bool = False
+
+
 class AdminLoginRequest(BaseModel):
     secret: str
 
@@ -409,6 +467,7 @@ class AgentRunRequest(BaseModel):
     config: dict[str, Any] | None = None
     prompt: str | None = None
     input_node_ids: list[str] = Field(default_factory=list)
+    context_options: dict[str, Any] = Field(default_factory=dict)
     rough_finding_text: str = ""
     temporary_content: str = ""
     run_mode: Literal["append", "replace"] = "append"

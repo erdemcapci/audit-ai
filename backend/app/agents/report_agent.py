@@ -1,6 +1,7 @@
 import json
 
 from app.agents.demo_data import demo_report
+from app.agents.context_utils import compact_fieldwork, compact_findings, compact_planning
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import REPORT_PROMPT, SYSTEM_PROMPT
 from app.demo_generation import current_ai_model, demo_generation_enabled
@@ -44,7 +45,11 @@ class ReportAgent:
                 report.draft_markdown = report_to_markdown(report)
             return report
         context = json.dumps(
-            {"planning": planning.model_dump(), "fieldwork": fieldwork.model_dump(), "findings": findings.model_dump()},
+            {
+                "planning": compact_planning(planning),
+                "fieldwork": compact_fieldwork(fieldwork),
+                "findings": compact_findings(findings),
+            },
             indent=2,
         )
         response = await get_llm_provider().generate(SYSTEM_PROMPT, REPORT_PROMPT.format(report_context=context), model=current_ai_model())

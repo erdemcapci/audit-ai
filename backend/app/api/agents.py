@@ -10,8 +10,9 @@ from app.models import (
     AgentUpdateRequest,
     MessageResponse,
 )
+from app.context.models import ContextPack, ContextPreviewRequest
+from app.runtime import actor_id_for_request, agent_execution_context, record_successful_ai_run
 from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import agent_execution_context, record_successful_ai_run
 from app.services.agent_service import agent_service
 
 
@@ -42,11 +43,17 @@ def check_agent_outputs(project_id: str, agent_id: str, payload: AgentRunRequest
     return agent_service.check_outputs(project_id, agent_id, payload)
 
 
+@project_router.post("/{agent_id}/context-preview", response_model=ContextPack)
+def preview_agent_context(project_id: str, agent_id: str, payload: ContextPreviewRequest, request: Request) -> ContextPack:
+    require_project_read(request, project_id)
+    return agent_service.preview_context(project_id, agent_id, payload)
+
+
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
 async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
     require_project_write(request, project_id)
     with agent_execution_context(request):
-        result = await agent_service.run(project_id, agent_id, payload)
+        result = await agent_service.run(project_id, agent_id, payload, actor_id=actor_id_for_request(request))
         record_successful_ai_run(request)
     return result
 

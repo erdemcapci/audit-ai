@@ -25,9 +25,19 @@ def parse_csv(value: str) -> list[str]:
 DEFAULT_OPENAI_MODELS = ["gpt-4.1-mini", "gpt-5.4-mini", "gpt-5-mini"]
 
 
+def parse_bool(value: str, default: bool = False) -> bool:
+    if not value:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def deployment_mode_env() -> str:
+    return os.getenv("DEPLOYMENT_MODE", "local").lower()
+
+
 class Settings(BaseModel):
     app_env: str = os.getenv("APP_ENV", "local")
-    deployment_mode: str = os.getenv("DEPLOYMENT_MODE", "local").lower()
+    deployment_mode: str = deployment_mode_env()
     admin_secret: str = os.getenv("ADMIN_SECRET", "")
     session_secret: str = os.getenv("SESSION_SECRET", os.getenv("ADMIN_SECRET", "local-development-session-secret"))
     ai_default_total_limit: int = int(os.getenv("AI_DEFAULT_TOTAL_LIMIT", "50"))
@@ -39,11 +49,11 @@ class Settings(BaseModel):
     max_user_projects: int = int(os.getenv("MAX_USER_PROJECTS", "20"))
     showcase_demo_agents_enabled: bool = os.getenv("SHOWCASE_DEMO_AGENTS_ENABLED", "true").lower() == "true"
     projects_dir: Path = resolve_projects_dir(os.getenv("PROJECTS_DIR", "./projects"))
-    demo_mode: bool = os.getenv("DEMO_MODE", "false" if os.getenv("DEPLOYMENT_MODE", "local").lower() == "hosted" else "true").lower() == "true"
+    demo_mode: bool = os.getenv("DEMO_MODE", "false" if deployment_mode_env() == "hosted" else "true").lower() == "true"
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "openai")
 
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "" if deployment_mode_env() == "hosted" else "http://localhost:11434")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -53,10 +63,17 @@ class Settings(BaseModel):
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 
+    agent_run_logs_enabled: bool = parse_bool(os.getenv("AGENT_RUN_LOGS_ENABLED", "true"), True)
+    agent_run_log_full_io: bool = parse_bool(os.getenv("AGENT_RUN_LOG_FULL_IO", "false"))
+    agent_run_log_raw_response: bool = parse_bool(os.getenv("AGENT_RUN_LOG_RAW_RESPONSE", "false"))
+    agent_run_log_retention_days: int = max(1, int(os.getenv("AGENT_RUN_LOG_RETENTION_DAYS", "30")))
+    agent_run_log_dir: str = os.getenv("AGENT_RUN_LOG_DIR", "agent_runs").strip() or "agent_runs"
+    allow_hosted_full_agent_logs: bool = parse_bool(os.getenv("ALLOW_HOSTED_FULL_AGENT_LOGS", "false"))
+
     cors_origins: list[str] = parse_csv(
         os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+            "" if deployment_mode_env() == "hosted" else "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
         )
     )
     cors_origin_regex: str | None = os.getenv("CORS_ORIGIN_REGEX", "").strip() or None

@@ -13,7 +13,7 @@ from app.config import log_projects_dir, settings
 
 log_projects_dir()
 
-from app.api import admin, agents, audit_map, auth, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
+from app.api import admin, agent_runs, agents, audit_map, auth, context_snapshot, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
 from app.showcase.sample_audit import bootstrap_hosted_showcase
 
 
@@ -58,7 +58,10 @@ app.include_router(reports.router)
 app.include_router(settings_api.router)
 app.include_router(settings_api.runtime_router)
 app.include_router(audit_map.router)
+app.include_router(context_snapshot.router)
 app.include_router(agents.types_router)
 app.include_router(agents.project_router)
+app.include_router(agent_runs.project_router)
+app.include_router(agent_runs.admin_router)
 app.include_router(admin.router)
 app.include_router(auth.router)

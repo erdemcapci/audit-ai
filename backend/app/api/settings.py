@@ -4,8 +4,9 @@ from app.config import default_openai_model, settings, validate_openai_model
 from app.demo_generation import demo_generation_enabled
 from app.llm.base import LLMProviderError
 from app.llm.router import get_llm_provider
-from app.models import LLMSettings, LLMSettingsUpdate, RuntimeSettings
-from app.runtime import agent_execution_context, deployment_mode, is_admin_request, record_successful_ai_run, runtime_settings
+from app.models import AgentRunLoggingSettings, AgentRunLoggingSettingsUpdate, LLMSettings, LLMSettingsUpdate, RuntimeSettings
+from app.runtime import agent_execution_context, deployment_mode, ensure_agent_log_access, is_admin_request, record_successful_ai_run, runtime_settings
+from app.services.agent_run_log_service import agent_run_log_service
 
 
 router = APIRouter(prefix="/api/settings/llm", tags=["settings"])
@@ -59,6 +60,21 @@ def update_llm_settings(request: Request, update: LLMSettingsUpdate) -> LLMSetti
 @runtime_router.get("/runtime", response_model=RuntimeSettings)
 def get_runtime_settings(request: Request) -> RuntimeSettings:
     return runtime_settings(request)
+
+
+@runtime_router.get("/agent-run-logs", response_model=AgentRunLoggingSettings)
+def get_agent_run_logging_settings(request: Request) -> AgentRunLoggingSettings:
+    can_modify = deployment_mode() == "local" or is_admin_request(request)
+    return agent_run_log_service.current_settings(can_modify=can_modify)
+
+
+@runtime_router.put("/agent-run-logs", response_model=AgentRunLoggingSettings)
+def update_agent_run_logging_settings(request: Request, update: AgentRunLoggingSettingsUpdate) -> AgentRunLoggingSettings:
+    ensure_agent_log_access(request, modify=True)
+    try:
+        return agent_run_log_service.update_settings(update)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/test")
