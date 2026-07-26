@@ -7,7 +7,7 @@ function parsePort(value: string | undefined, fallback: number): number {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, ".", "");
   const host = env.VITE_DEV_HOST || "127.0.0.1";
   const port = parsePort(env.FRONTEND_PORT, 3000);
 
@@ -23,6 +23,8 @@ export default defineConfig(({ mode }) => {
       allowedHosts: [
         "www.auditcopilot.ai",
         "auditcopilot.ai",
+        "www.assurancegraph.com",
+        "assurancegraph.com",
         ".up.railway.app"
       ]
     }

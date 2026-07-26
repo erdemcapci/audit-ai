@@ -146,11 +146,12 @@ class ContextPackBuilder:
     def _instructions_section(self) -> str:
         return "\n".join(
             [
-                "## Instructions for Context Use",
+                "## Instructions",
                 "",
-                "Use this context to stay aligned with the audit scope.",
-                "Respect existing relationships between objectives, risks, tests, fieldwork items, findings, and report sections.",
-                "Avoid duplicating existing outputs.",
+                "Use Global Audit Knowledge for broad audit awareness.",
+                "Use Current Task as the source of focus.",
+                "Avoid duplicates across the whole audit.",
+                "Respect existing hierarchy and relationships.",
                 "If context is incomplete, say what is missing instead of inventing relationships.",
             ]
         )
@@ -158,6 +159,10 @@ class ContextPackBuilder:
     def _phase_from_blocks(self, blocks: list[ContextBlock]) -> str:
         for block in blocks:
             if block.block_id == "workflow_state":
+                phase = block.content.get("current_phase")
+                if isinstance(phase, str):
+                    return phase
+            if block.block_id in {"global_audit_knowledge", "audit_context_snapshot"}:
                 phase = block.content.get("current_phase")
                 if isinstance(phase, str):
                     return phase

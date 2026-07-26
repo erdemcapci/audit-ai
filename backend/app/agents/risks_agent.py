@@ -1,6 +1,7 @@
 import json
 
 from app.agents.demo_data import demo_risks
+from app.agents.context_utils import compact_audit, compact_planning
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import RISKS_PROMPT, SYSTEM_PROMPT
 from app.config import settings
@@ -12,7 +13,7 @@ class RisksAgent:
     async def run(self, audit: AuditProject, planning: PlanningState) -> PlanningState:
         if settings.demo_mode:
             return demo_risks(planning)
-        context = json.dumps({"audit": audit.model_dump(), "planning": planning.model_dump()}, indent=2)
+        context = json.dumps({"audit": compact_audit(audit), "planning": compact_planning(planning)}, indent=2)
         response = await get_llm_provider().generate(SYSTEM_PROMPT, RISKS_PROMPT.format(planning_context=context))
         data, warning = parse_or_warn(response.content)
         if not data:

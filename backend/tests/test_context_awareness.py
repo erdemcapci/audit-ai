@@ -31,6 +31,7 @@ from app.models import (
     Workstream,
 )
 from app.services.audit_graph_service import audit_graph_service
+from app.services.agent_service import agent_service
 from app.store.file_store import FileStore
 from app.store.project_store import project_store
 
@@ -202,10 +203,27 @@ class ContextAwarenessTests(unittest.TestCase):
 
         self.assertEqual(pack.recipe_id, "risk_generator_default")
         self.assertEqual(pack.context_summary.selected_item_count, 1)
-        self.assertIn("selected_items", pack.context_summary.blocks)
-        self.assertIn("connected_items", pack.context_summary.blocks)
+        self.assertEqual(pack.context_summary.blocks, ["global_audit_knowledge", "current_task"])
+        self.assertNotIn("connected_items", pack.context_summary.blocks)
+        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        current_task = next(block for block in pack.blocks if block.block_id == "current_task")
+        objective_items = global_knowledge.content["planning"]["objective"]["items"]
+        self.assertIn(self.objective.id, {item["id"] for item in objective_items})
+        self.assertEqual(current_task.content["focus_items"][0]["item"]["id"], self.objective.id)
         self.assertIn("# Audit Context Pack", pack.rendered_context)
-        self.assertIn("## Instructions for Context Use", pack.rendered_context)
+        self.assertIn("## Global Audit Knowledge", pack.rendered_context)
+        self.assertIn("## Current Task", pack.rendered_context)
+        self.assertIn("## Instructions", pack.rendered_context)
+
+    def test_agent_input_resolution_falls_back_to_saved_connections(self) -> None:
+        resolved = agent_service._resolve_agent_input_node_ids(
+            self.project.id,
+            project_store.load_map_state(self.project.id),
+            self.agent,
+            ["stale_node_id"],
+        )
+
+        self.assertEqual(resolved, [self.objective.id])
 
     def test_traceability_chain_block_and_existing_outputs(self) -> None:
         test_agent = AgentState(
@@ -216,11 +234,14 @@ class ContextAwarenessTests(unittest.TestCase):
         )
         pack = context_pack_builder.build(self.project.id, test_agent, [self.risk.id])
         block_ids = [block.block_id for block in pack.blocks]
-        existing_outputs = next(block for block in pack.blocks if block.block_id == "existing_outputs")
+        current_task = next(block for block in pack.blocks if block.block_id == "current_task")
 
-        self.assertIn("traceability_chain", block_ids)
-        self.assertIn(self.risk.id, existing_outputs.content["outputs_by_source"])
-        self.assertEqual(existing_outputs.content["outputs_by_source"][self.risk.id][0]["id"], self.test.id)
+        self.assertNotIn("traceability_chain", block_ids)
+        self.assertNotIn("connected_items", block_ids)
+        self.assertNotIn("workflow_state", block_ids)
+        self.assertIn(self.risk.id, current_task.content["existing_outputs_to_avoid"])
+        self.assertEqual(current_task.content["existing_outputs_to_avoid"][self.risk.id][0]["id"], self.test.id)
+        self.assertEqual(current_task.content["focus_items"][0]["parent_hierarchy"][0]["id"], self.project.id)
 
     def test_relationship_gaps_include_supported_issues(self) -> None:
         graph = audit_graph_service.build_graph(self.project.id)
@@ -250,7 +271,7 @@ class ContextAwarenessTests(unittest.TestCase):
         self.assertTrue(pack.context_summary.fallback_recipe)
         self.assertEqual(pack.recipe_id, "future_quality_reviewer_fallback")
         self.assertTrue(pack.limits.truncated)
-        self.assertIn("## Instructions for Context Use", pack.rendered_context)
+        self.assertIn("## Instructions", pack.rendered_context)
 
 
 if __name__ == "__main__":

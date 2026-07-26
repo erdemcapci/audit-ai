@@ -265,6 +265,21 @@ class AgentRunLog(BaseModel):
     raw_llm_response: Any = None
 
 
+class AuditContextSnapshot(BaseModel):
+    project_id: str
+    generated_at: str = Field(default_factory=utc_now)
+    source_updated_at: str = ""
+    source_fingerprint: str = ""
+    stale: bool = False
+    summary_text: str = ""
+    structured_summary: dict[str, Any] = Field(default_factory=dict)
+    item_counts: dict[str, int] = Field(default_factory=dict)
+    relationship_gap_count: int = 0
+    source_sections_used: list[str] = Field(default_factory=list)
+    generation_mode: Literal["deterministic", "llm"] = "deterministic"
+    truncated: bool = False
+
+
 class AdminLoginRequest(BaseModel):
     secret: str
 

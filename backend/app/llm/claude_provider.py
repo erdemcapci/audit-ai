@@ -4,6 +4,13 @@ from app.config import settings
 from app.llm.base import LLMProvider, LLMProviderError, LLMResponse
 
 
+def error_detail(exc: httpx.HTTPError) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        return "request timed out after 90 seconds"
+    detail = str(exc).strip()
+    return detail or exc.__class__.__name__
+
+
 class ClaudeProvider(LLMProvider):
     async def generate(
         self,
@@ -31,7 +38,7 @@ class ClaudeProvider(LLMProvider):
                 response = await client.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
                 response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMProviderError(f"Claude request failed: {exc}") from exc
+            raise LLMProviderError(f"Claude request failed: {error_detail(exc)}") from exc
         data = response.json()
         text = "".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
         return LLMResponse(content=text, provider="claude", model=settings.anthropic_model, raw_response=data)

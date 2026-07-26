@@ -6,7 +6,7 @@ from app.context.models import ContextOptions, ContextRecipe
 GENERIC_RECIPE = ContextRecipe(
     recipe_id="generic_default",
     agent_id="generic",
-    blocks=["audit_overview", "workflow_state", "selected_items", "traceability_chain", "connected_items", "existing_outputs"],
+    blocks=["global_audit_knowledge", "current_task"],
     relationship_depth=1,
     direction="both",
     max_items_per_type=20,
@@ -20,7 +20,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "workstream_generator": ContextRecipe(
         recipe_id="workstream_generator_default",
         agent_id="workstream_generator",
-        blocks=["audit_overview", "workflow_state", "selected_items", "existing_outputs", "relationship_gaps"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="downstream",
         max_items_per_type=20,
@@ -28,7 +28,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "objective_generator": ContextRecipe(
         recipe_id="objective_generator_default",
         agent_id="objective_generator",
-        blocks=["audit_overview", "workflow_state", "selected_items", "downstream_items", "existing_outputs"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="downstream",
         max_items_per_type=20,
@@ -36,23 +36,23 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "risk_generator": ContextRecipe(
         recipe_id="risk_generator_default",
         agent_id="risk_generator",
-        blocks=["audit_overview", "workflow_state", "selected_items", "connected_items", "existing_outputs"],
-        relationship_depth=2,
-        direction="both",
+        blocks=["global_audit_knowledge", "current_task"],
+        relationship_depth=1,
+        direction="downstream",
         max_items_per_type=20,
     ),
     "test_generator": ContextRecipe(
         recipe_id="test_generator_default",
         agent_id="test_generator",
-        blocks=["audit_overview", "workflow_state", "selected_items", "traceability_chain", "connected_items", "existing_outputs"],
-        relationship_depth=2,
-        direction="both",
+        blocks=["global_audit_knowledge", "current_task"],
+        relationship_depth=1,
+        direction="upstream",
         max_items_per_type=20,
     ),
     "interview_plan_generator": ContextRecipe(
         recipe_id="interview_plan_generator_default",
         agent_id="interview_plan_generator",
-        blocks=["audit_overview", "selected_items", "traceability_chain", "existing_outputs"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=2,
         direction="both",
         max_items_per_type=24,
@@ -60,7 +60,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "document_request_generator": ContextRecipe(
         recipe_id="document_request_generator_default",
         agent_id="document_request_generator",
-        blocks=["audit_overview", "selected_items", "traceability_chain", "existing_outputs"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=2,
         direction="both",
         max_items_per_type=20,
@@ -68,7 +68,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "finding_draft_agent": ContextRecipe(
         recipe_id="finding_draft_agent_default",
         agent_id="finding_draft_agent",
-        blocks=["audit_overview", "selected_items", "traceability_chain", "upstream_items", "existing_outputs"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=3,
         direction="both",
         max_items_per_type=20,
@@ -77,7 +77,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "report_draft_agent": ContextRecipe(
         recipe_id="report_draft_agent_default",
         agent_id="report_draft_agent",
-        blocks=["audit_overview", "workflow_state", "findings_summary", "reporting_summary", "relationship_gaps", "traceability_chain", "existing_outputs"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=3,
         direction="both",
         max_items_per_type=40,
@@ -88,7 +88,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "audit_quality_reviewer": ContextRecipe(
         recipe_id="audit_quality_reviewer_default",
         agent_id="audit_quality_reviewer",
-        blocks=["audit_overview", "workflow_state", "planning_summary", "fieldwork_summary", "findings_summary", "reporting_summary", "relationship_gaps", "traceability_chain"],
+        blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=3,
         direction="both",
         max_items_per_type=40,

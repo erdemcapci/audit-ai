@@ -522,8 +522,11 @@ class AuditGraphService:
         key_fields = self._key_fields(item_dict.get("type", ""), data)
         if key_fields:
             compact["key_fields"] = key_fields
+        child_counts = self._child_counts(item_dict.get("type", ""), data)
+        if child_counts:
+            compact["child_counts"] = child_counts
         if include_data or summary_mode == "detailed":
-            compact["data"] = data
+            compact["data"] = self._strip_nested_children(data)
         return compact
 
     def _ensure_graph(self, project: str | AuditGraph) -> AuditGraph:
@@ -651,6 +654,39 @@ class AuditGraphService:
             "agent": ["type", "status", "last_run_at"],
         }
         return {key: data.get(key) for key in keys_by_type.get(item_type, []) if data.get(key) not in [None, "", []]}
+
+    def _child_counts(self, item_type: str, data: dict[str, Any]) -> dict[str, int]:
+        child_keys_by_type = {
+            "workstream": ["objectives"],
+            "objective": ["risks"],
+            "risk": ["tests"],
+            "interview_role": ["questions"],
+            "fieldwork_item": ["finding_ids"],
+            "finding": ["evidence_needed", "validation_questions"],
+            "report": ["key_themes", "management_attention_points", "draft_report_structure"],
+        }
+        counts: dict[str, int] = {}
+        for key in child_keys_by_type.get(item_type, []):
+            value = data.get(key)
+            if isinstance(value, list):
+                counts[f"{key}_count"] = len(value)
+        return counts
+
+    def _strip_nested_children(self, data: dict[str, Any]) -> dict[str, Any]:
+        nested_keys = {
+            "workstreams",
+            "objectives",
+            "risks",
+            "tests",
+            "questions",
+            "roles",
+            "items",
+            "requests",
+            "findings",
+            "finding_ids",
+            "draft_report_structure",
+        }
+        return {key: value for key, value in data.items() if key not in nested_keys}
 
     def _shorten(self, value: Any, limit: int) -> str:
         text = str(value or "").strip()

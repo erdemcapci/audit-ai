@@ -1,6 +1,7 @@
 import json
 
 from app.agents.demo_data import demo_finding
+from app.agents.context_utils import compact_audit
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import FINDING_PROMPT, SYSTEM_PROMPT
 from app.config import settings
@@ -20,15 +21,35 @@ class FindingAgent:
     ) -> Finding:
         if settings.demo_mode:
             return demo_finding(request.raw_description, fieldwork_item)
-        context = json.dumps(
-            {
-                "audit": audit.model_dump(),
-                "audit_context_pack": context_pack.rendered_context if context_pack else "",
-                "context_pack_summary": context_pack.context_summary.model_dump() if context_pack else {},
-                "raw_description": request.raw_description,
-                "fieldwork_item": fieldwork_item.model_dump() if fieldwork_item else None,
-            },
-            indent=2,
+        task_parameters = {
+            "raw_description": request.raw_description,
+            "fieldwork_item": {
+                "id": fieldwork_item.id,
+                "type": "fieldwork_item",
+                "title": fieldwork_item.title,
+                "status": fieldwork_item.status,
+            }
+            if fieldwork_item
+            else None,
+        }
+        context = "\n".join(
+            [
+                context_pack.rendered_context
+                if context_pack
+                else "# Audit Context Pack\n\n## Global Audit Knowledge\n\n```json\n"
+                + json.dumps({"audit": compact_audit(audit)}, indent=2)
+                + "\n```",
+                "",
+                "## Task Instruction",
+                "",
+                "Draft a structured internal audit finding from the rough description.",
+                "",
+                "## Task Parameters",
+                "",
+                "```json",
+                json.dumps(task_parameters, indent=2),
+                "```",
+            ]
         )
         response = await get_llm_provider().generate(SYSTEM_PROMPT, FINDING_PROMPT.format(finding_context=context))
         if capture is not None:

@@ -1,6 +1,7 @@
 import json
 
 from app.agents.demo_data import demo_objectives
+from app.agents.context_utils import compact_audit
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import OBJECTIVES_PROMPT, SYSTEM_PROMPT
 from app.config import settings
@@ -12,7 +13,7 @@ class ObjectivesAgent:
     async def run(self, audit: AuditProject) -> PlanningState:
         if settings.demo_mode:
             return demo_objectives(audit.title, audit.description)
-        context = json.dumps(audit.model_dump(), indent=2)
+        context = json.dumps(compact_audit(audit), indent=2)
         response = await get_llm_provider().generate(SYSTEM_PROMPT, OBJECTIVES_PROMPT.format(audit_context=context))
         data, warning = parse_or_warn(response.content)
         if not data:

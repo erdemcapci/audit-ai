@@ -4,6 +4,13 @@ from app.config import settings
 from app.llm.base import LLMProvider, LLMProviderError, LLMResponse
 
 
+def error_detail(exc: httpx.HTTPError) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        return "request timed out after 90 seconds"
+    detail = str(exc).strip()
+    return detail or exc.__class__.__name__
+
+
 class OpenAIProvider(LLMProvider):
     async def generate(
         self,
@@ -30,7 +37,7 @@ class OpenAIProvider(LLMProvider):
                 response = await client.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
                 response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMProviderError(f"OpenAI request failed: {exc}") from exc
+            raise LLMProviderError(f"OpenAI request failed: {error_detail(exc)}") from exc
         data = response.json()
         return LLMResponse(
             content=data.get("choices", [{}])[0].get("message", {}).get("content", ""),
