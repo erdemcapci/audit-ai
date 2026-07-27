@@ -78,29 +78,6 @@ export type PlanningState = {
   open_questions: string[];
 };
 
-export type InterviewQuestion = {
-  id: string;
-  question_text: string;
-  mapped_objective_id: string | null;
-  mapped_risk_id: string | null;
-  mapped_test_id: string | null;
-  status: StatusBadge;
-};
-
-export type InterviewRole = {
-  id: string;
-  role_title: string;
-  rationale: string;
-  expected_information: string;
-  notes: string;
-  questions: InterviewQuestion[];
-  status: StatusBadge;
-};
-
-export type InterviewPlan = {
-  roles: InterviewRole[];
-};
-
 export type FieldworkItem = {
   id: string;
   test_id: string;

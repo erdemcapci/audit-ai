@@ -7,12 +7,13 @@ function parsePort(value: string | undefined, fallback: number): number {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, ".", "");
+  const env = loadEnv(mode, "..", "");
   const host = env.VITE_DEV_HOST || "127.0.0.1";
   const port = parsePort(env.FRONTEND_PORT, 3000);
 
   return {
     plugins: [react()],
+    envDir: "..",
     server: {
       port,
       host

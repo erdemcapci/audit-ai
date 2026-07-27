@@ -18,7 +18,6 @@ It helps with:
 
 - Planning an audit from a title and description
 - Generating objectives, risks, and tests
-- Creating interview plans
 - Organizing fieldwork and findings
 - Drafting executive summaries and reports
 - Keeping audit project data in local files
@@ -153,7 +152,6 @@ projects/
   {project_slug}/
     audit.json
     planning.json
-    interview_plan.json
     fieldwork.json
     findings.json
     report.json

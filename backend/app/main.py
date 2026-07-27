@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, agent_runs, agents, audit_map, context_snapshot, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
+from app.api import admin, agent_runs, agents, audit_map, context_snapshot, fieldwork, findings, planning, projects, reports, settings as settings_api
 from app.config import settings
 
 
@@ -42,7 +42,6 @@ def health() -> dict[str, str]:
 
 app.include_router(projects.router)
 app.include_router(planning.router)
-app.include_router(interviews.router)
 app.include_router(fieldwork.router)
 app.include_router(findings.router)
 app.include_router(reports.router)

@@ -1,8 +1,6 @@
 const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").trim();
 export const API_BASE_URL = configuredApiBaseUrl ? configuredApiBaseUrl.replace(/\/$/, "") : "";
 
-console.log("API =", API_BASE_URL);
-
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
@@ -15,11 +13,12 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
   if (!response.ok) {
     let message = response.statusText;
+    const rawBody = await response.text();
     try {
-      const body = await response.json();
+      const body = JSON.parse(rawBody);
       message = body.detail || message;
     } catch {
-      message = await response.text();
+      message = rawBody || message;
     }
     throw new Error(message);
   }

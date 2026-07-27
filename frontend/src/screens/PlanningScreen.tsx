@@ -75,7 +75,7 @@ export function PlanningScreen({
       <header className="screen-header">
         <div>
           <p className="eyebrow">Planning</p>
-          <h2>Workstreams, objectives, risks, and tests</h2>
+          <h2>Audit Plan</h2>
         </div>
         <div className="button-row">
           <Button onClick={() => onChange(draft)}>Save Planning Edits</Button>
@@ -167,7 +167,6 @@ export function PlanningScreen({
                                     <option value="Test of Operating Effectiveness">Test of Operating Effectiveness</option>
                                     <option value="Detailed Test">Detailed Test</option>
                                     <option value="Analytical Review">Analytical Review</option>
-                                    <option value="Inquiry / Interview">Inquiry / Interview</option>
                                   </Select>
                                   <TextArea
                                     label="Test objective"

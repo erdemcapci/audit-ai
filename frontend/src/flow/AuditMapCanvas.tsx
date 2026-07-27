@@ -28,9 +28,6 @@ import { AuditNode } from "./nodes/AuditNode";
 import { FieldworkItemNode } from "./nodes/FieldworkItemNode";
 import { FieldworkSectionNode } from "./nodes/FieldworkSectionNode";
 import { FindingNode } from "./nodes/FindingNode";
-import { DocumentRequestNode } from "./nodes/DocumentRequestNode";
-import { InterviewQuestionNode } from "./nodes/InterviewQuestionNode";
-import { InterviewRoleNode } from "./nodes/InterviewRoleNode";
 import { ObjectiveNode } from "./nodes/ObjectiveNode";
 import { PhaseNode } from "./nodes/PhaseNode";
 import { ReportNode } from "./nodes/ReportNode";
@@ -46,8 +43,6 @@ type RoutedEdge = Edge & {
 
 export type MapHierarchyFilters = {
   nodeIds: string[];
-  showInterviews: boolean;
-  showDocumentRequests: boolean;
 };
 
 const nodeTypes: NodeTypes = {
@@ -57,9 +52,6 @@ const nodeTypes: NodeTypes = {
   objectiveNode: ObjectiveNode,
   riskNode: RiskNode,
   testNode: TestNode,
-  interviewRoleNode: InterviewRoleNode,
-  interviewQuestionNode: InterviewQuestionNode,
-  documentRequestNode: DocumentRequestNode,
   fieldworkItemNode: FieldworkItemNode,
   fieldworkSectionNode: FieldworkSectionNode,
   findingNode: FindingNode,
@@ -88,7 +80,7 @@ function routedEdge(edge: Edge, ordinal = 0): Edge {
 }
 
 function isHierarchyBridgeNode(nodeType: string): boolean {
-  return ["auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "fieldworkItemNode", "documentRequestNode", "interviewRoleNode", "interviewQuestionNode", "findingNode", "reportNode"].includes(nodeType);
+  return ["auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "fieldworkItemNode", "findingNode", "reportNode"].includes(nodeType);
 }
 
 function phaseFromNode(node: Node<FlowNodeData>): string | null {
@@ -98,12 +90,12 @@ function phaseFromNode(node: Node<FlowNodeData>): string | null {
 
 function nodePhase(node: Node<FlowNodeData>, allNodes: Node<FlowNodeData>[]): PhaseFilter | null {
   if (node.type === "phaseNode") return (node.data.phase as PhaseFilter) || null;
-  if (node.type === "fieldworkSectionNode") return "fieldwork";
+  if (node.type === "fieldworkSectionNode") return node.data.phase === "planning" ? "planning" : "fieldwork";
   if (["auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode"].includes(node.type || "")) return "planning";
-  if (["interviewRoleNode", "interviewQuestionNode", "fieldworkItemNode", "documentRequestNode", "findingNode"].includes(node.type || "")) return "fieldwork";
+  if (["fieldworkItemNode", "findingNode"].includes(node.type || "")) return "fieldwork";
   if (node.type === "reportNode") return "reporting";
   if (node.type === "agentNode") {
-    if (["interview_plan_generator", "document_request_generator", "finding_draft_agent"].includes(String(node.data.agentType || ""))) return "fieldwork";
+    if (node.data.agentType === "finding_draft_agent") return "fieldwork";
     if (node.data.agentType === "report_draft_agent") return "reporting";
     const phases = allNodes.filter((item) => item.type === "phaseNode");
     const reporting = phases.find((item) => item.data.phase === "reporting");
@@ -113,20 +105,6 @@ function nodePhase(node: Node<FlowNodeData>, allNodes: Node<FlowNodeData>[]): Ph
     return "planning";
   }
   return null;
-}
-
-function isHiddenFieldworkSectionNode(node: Node<FlowNodeData>, filters: MapHierarchyFilters): boolean {
-  if (!filters.showInterviews) {
-    if (node.type === "fieldworkSectionNode" && node.data.fieldworkSection === "interviews") return true;
-    if (node.type === "interviewRoleNode" || node.type === "interviewQuestionNode") return true;
-    if (node.type === "agentNode" && node.data.agentType === "interview_plan_generator") return true;
-  }
-  if (!filters.showDocumentRequests) {
-    if (node.type === "fieldworkSectionNode" && node.data.fieldworkSection === "documents") return true;
-    if (node.type === "documentRequestNode") return true;
-    if (node.type === "agentNode" && node.data.agentType === "document_request_generator") return true;
-  }
-  return false;
 }
 
 function toMapState(nodes: Node<FlowNodeData>[], edges: Edge[]): MapStateUpdate {
@@ -436,7 +414,6 @@ function InnerCanvas({
   const visibleNodes = useMemo(
     () =>
       decoratedNodes.filter((node) => {
-        if (isHiddenFieldworkSectionNode(node, hierarchyFilters)) return false;
         if (hierarchyVisibleIds && !hierarchyVisibleIds.has(node.id)) return false;
         if (phaseFilter === "all") return true;
         const phase = nodePhase(node, decoratedNodes);
@@ -465,11 +442,9 @@ function InnerCanvas({
   const hierarchyFilterKey = useMemo(
     () =>
       JSON.stringify({
-        nodeIds: [...hierarchyFilters.nodeIds].sort(),
-        showInterviews: hierarchyFilters.showInterviews,
-        showDocumentRequests: hierarchyFilters.showDocumentRequests
+        nodeIds: [...hierarchyFilters.nodeIds].sort()
       }),
-    [hierarchyFilters.nodeIds, hierarchyFilters.showDocumentRequests, hierarchyFilters.showInterviews]
+    [hierarchyFilters.nodeIds]
   );
   const scrollMetrics = useMemo(() => {
     const padding = 80;

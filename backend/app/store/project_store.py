@@ -5,10 +5,8 @@ from app.config import settings
 from app.models import (
     AuditCreate,
     AuditProject,
-    DocumentRequestState,
     FieldworkState,
     FindingsState,
-    InterviewPlan,
     MapState,
     PlanningState,
     ReportState,
@@ -50,8 +48,6 @@ class ProjectStore:
         (project_dir / "documents").mkdir(parents=True, exist_ok=True)
         self.file_store.write_json(project_dir / "audit.json", audit.model_dump())
         self.save_planning(audit.id, PlanningState())
-        self.save_interviews(audit.id, InterviewPlan())
-        self.save_document_requests(audit.id, DocumentRequestState())
         self.save_fieldwork(audit.id, FieldworkState())
         self.save_findings(audit.id, FindingsState())
         self.save_report(audit.id, ReportState())
@@ -90,20 +86,6 @@ class ProjectStore:
     def save_planning(self, project_id: str, planning: PlanningState) -> PlanningState:
         self.file_store.write_json(self.project_dir(project_id) / "planning.json", planning.model_dump())
         return planning
-
-    def load_interviews(self, project_id: str) -> InterviewPlan:
-        return InterviewPlan.model_validate(self.file_store.read_json(self.project_dir(project_id) / "interview_plan.json", {}))
-
-    def save_interviews(self, project_id: str, plan: InterviewPlan) -> InterviewPlan:
-        self.file_store.write_json(self.project_dir(project_id) / "interview_plan.json", plan.model_dump())
-        return plan
-
-    def load_document_requests(self, project_id: str) -> DocumentRequestState:
-        return DocumentRequestState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "document_requests.json", {}))
-
-    def save_document_requests(self, project_id: str, requests: DocumentRequestState) -> DocumentRequestState:
-        self.file_store.write_json(self.project_dir(project_id) / "document_requests.json", requests.model_dump())
-        return requests
 
     def load_fieldwork(self, project_id: str) -> FieldworkState:
         return FieldworkState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "fieldwork.json", {}))

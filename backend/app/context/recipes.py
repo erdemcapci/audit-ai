@@ -49,22 +49,6 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
         direction="upstream",
         max_items_per_type=20,
     ),
-    "interview_plan_generator": ContextRecipe(
-        recipe_id="interview_plan_generator_default",
-        agent_id="interview_plan_generator",
-        blocks=["global_audit_knowledge", "current_task"],
-        relationship_depth=2,
-        direction="both",
-        max_items_per_type=24,
-    ),
-    "document_request_generator": ContextRecipe(
-        recipe_id="document_request_generator_default",
-        agent_id="document_request_generator",
-        blocks=["global_audit_knowledge", "current_task"],
-        relationship_depth=2,
-        direction="both",
-        max_items_per_type=20,
-    ),
     "finding_draft_agent": ContextRecipe(
         recipe_id="finding_draft_agent_default",
         agent_id="finding_draft_agent",

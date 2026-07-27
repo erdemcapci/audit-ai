@@ -42,7 +42,6 @@ You can use it to:
 - Generate audit objectives
 - Generate risks
 - Generate audit tests
-- Generate interview plans
 - Track fieldwork items
 - Draft findings
 - Generate executive summaries and draft reports
@@ -328,7 +327,6 @@ Cards represent audit objects such as:
 - Objectives
 - Risks
 - Tests
-- Interview roles/questions
 - Fieldwork items
 - Findings
 - Report sections
@@ -364,7 +362,7 @@ To select several cards, left-click and drag on empty map space.
 
 Click a card.
 
-The right panel shows editable fields for that card.
+The inspector overlay shows editable fields for that card.
 
 You can edit titles, descriptions, risk severity, test details, finding fields, and other card-specific information.
 
@@ -378,7 +376,6 @@ Agent cards can generate outputs such as:
 
 - Risks
 - Tests
-- Interview plans
 - Findings
 - Report drafts
 
@@ -386,7 +383,7 @@ Typical use:
 
 1. Add an agent card from the `Add Agent` control.
 2. Connect it to related cards.
-3. Configure the agent in the right panel.
+3. Configure the agent in the inspector overlay.
 4. Run the agent from the agent card on the map.
 
 If the connected cards already have outputs, AuditCopilot asks whether you want to:
@@ -395,21 +392,15 @@ If the connected cards already have outputs, AuditCopilot asks whether you want 
 - Delete old outputs and create new ones
 - Keep old outputs and add new ones
 
-### 7. Follow the Guided Checklist
+### 7. Use Planning Views
 
-When no card is selected, the right panel shows the guided checklist.
+The Planning area contains the audit plan.
 
-The checklist is grouped by phase:
+Use the Planning tabs and map controls to work with:
 
-- Planning
-- Interviews
-- Fieldwork
-- Findings
-- Reporting
+- Audit plan cards
 
-Click a phase heading to expand or collapse it.
-
-The checklist shows major actions only. Editing and review happen directly inside the map cards.
+Editing and review happen directly inside the map cards and inspector overlay.
 
 ### 8. Planning Workflow
 
@@ -425,20 +416,7 @@ A typical planning flow is:
 
 The goal is not to accept AI output blindly. Treat generated content as a draft.
 
-### 9. Interviews
-
-Generate an interview plan after planning exists.
-
-Interview cards can include:
-
-- Interviewee roles
-- Rationale
-- Expected information
-- Questions
-
-Edit the cards as needed.
-
-### 10. Fieldwork
+### 9. Fieldwork
 
 Create fieldwork items from approved planning.
 
@@ -486,7 +464,7 @@ Markdown files can be opened in many editors and converted later to other format
 
 ## Deleting Cards
 
-When you select a card, the right panel can show cleanup actions.
+When you select a card, the inspector overlay can show cleanup actions.
 
 You may see:
 
@@ -515,7 +493,6 @@ Each project has JSON files such as:
 ```text
 audit.json
 planning.json
-interview_plan.json
 fieldwork.json
 findings.json
 report.json

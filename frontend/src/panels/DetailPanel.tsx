@@ -23,12 +23,9 @@ const phaseDimensionOptions: Record<string, Array<{ value: string; label: string
     { value: "agentNode", label: "Agent cards", warning: "Delete all agent cards currently in Planning." }
   ],
   fieldwork: [
-    { value: "interviewQuestionNode", label: "Interview questions", warning: "Delete all interview question cards in Fieldwork." },
-    { value: "interviewRoleNode", label: "Interview roles and questions", warning: "Delete all interview role cards and their questions." },
     { value: "fieldworkItemNode", label: "Fieldwork items", warning: "Delete all fieldwork item cards." },
-    { value: "documentRequestNode", label: "Document requests", warning: "Delete all document request cards." },
     { value: "findingNode", label: "Findings", warning: "Delete all finding cards." },
-    { value: "fieldwork_all", label: "All fieldwork cards", warning: "Delete interviews, fieldwork items, document requests, and findings." },
+    { value: "fieldwork_all", label: "All fieldwork cards", warning: "Delete fieldwork items and findings." },
     { value: "agentNode", label: "Agent cards", warning: "Delete all agent cards currently in Fieldwork." }
   ],
   reporting: [
@@ -62,7 +59,7 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
   ],
   testNode: [
     { key: "title", label: "Test title" },
-    { key: "test_type", label: "Test type", kind: "select", options: ["Test of Design", "Test of Operating Effectiveness", "Detailed Test", "Analytical Review", "Inquiry / Interview"] },
+    { key: "test_type", label: "Test type", kind: "select", options: ["Test of Design", "Test of Operating Effectiveness", "Detailed Test", "Analytical Review"] },
     { key: "test_objective", label: "Test objective", kind: "textarea" },
     { key: "description", label: "Description", kind: "textarea" },
     { key: "expected_evidence", label: "Expected evidence", kind: "textarea" },
@@ -75,13 +72,6 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
     { key: "expected_evidence", label: "Expected evidence", kind: "textarea" },
     { key: "notes", label: "Notes", kind: "textarea" }
   ],
-  documentRequestNode: [
-    { key: "title", label: "Request title" },
-    { key: "description", label: "Description", kind: "textarea" },
-    { key: "requested_from", label: "Requested from" },
-    { key: "expected_document", label: "Expected document", kind: "textarea" },
-    { key: "rationale", label: "Rationale", kind: "textarea" }
-  ],
   findingNode: [
     { key: "title", label: "Finding title" },
     { key: "issue", label: "Issue / condition", kind: "textarea" },
@@ -91,13 +81,6 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
     { key: "recommendation", label: "Recommendation", kind: "textarea" },
     { key: "severity", label: "Severity", kind: "select", options: ["Low", "Medium", "High"] }
   ],
-  interviewRoleNode: [
-    { key: "title", label: "Role title" },
-    { key: "expected_information", label: "Expected information", kind: "textarea" },
-    { key: "rationale", label: "Rationale", kind: "textarea" },
-    { key: "notes", label: "Interview notes", kind: "textarea" }
-  ],
-  interviewQuestionNode: [{ key: "question_text", label: "Question", kind: "textarea" }]
 };
 
 function bulkTargetForNode(node: Node<FlowNodeData>): { phase: "planning" | "fieldwork" | "reporting"; dimension: string; label: string; warning: string } | null {
@@ -110,14 +93,8 @@ function bulkTargetForNode(node: Node<FlowNodeData>): { phase: "planning" | "fie
       return { phase: "planning", dimension: "riskNode", label: "Risks and tests", warning: "Delete all risk cards and their tests in Planning." };
     case "testNode":
       return { phase: "planning", dimension: "testNode", label: "Tests", warning: "Delete all test cards in Planning." };
-    case "interviewRoleNode":
-      return { phase: "fieldwork", dimension: "interviewRoleNode", label: "Interview roles and questions", warning: "Delete all interview roles and their questions." };
-    case "interviewQuestionNode":
-      return { phase: "fieldwork", dimension: "interviewQuestionNode", label: "Interview questions", warning: "Delete all interview question cards." };
     case "fieldworkItemNode":
       return { phase: "fieldwork", dimension: "fieldworkItemNode", label: "Fieldwork items", warning: "Delete all fieldwork item cards." };
-    case "documentRequestNode":
-      return { phase: "fieldwork", dimension: "documentRequestNode", label: "Document requests", warning: "Delete all document request cards." };
     case "findingNode":
       return { phase: "fieldwork", dimension: "findingNode", label: "Findings", warning: "Delete all finding cards." };
     case "reportNode":
@@ -148,8 +125,6 @@ function initialDraft(node: Node<FlowNodeData>): Draft {
       tests_per_risk: String(config.tests_per_risk ?? ""),
       risks_per_objective: String(config.risks_per_objective ?? ""),
       allowed_test_types: Array.isArray(config.allowed_test_types) ? config.allowed_test_types.join(", ") : "",
-      questions_per_role: String(config.questions_per_role ?? ""),
-      max_roles: String(config.max_roles ?? ""),
       tone: String(config.tone ?? ""),
       report_style: String(config.report_style ?? "")
     };
@@ -289,7 +264,7 @@ export function DetailPanel({
       const config: Record<string, unknown> = { ...(node.data.config || {}) };
       delete config.llm_model;
       delete config.temperature;
-      ["max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective", "questions_per_role", "max_roles"].forEach((key) => {
+      ["max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective"].forEach((key) => {
         if (draft[key] !== "") config[key] = Number(draft[key]);
       });
       ["output_mode", "tone", "report_style"].forEach((key) => {
@@ -439,12 +414,6 @@ export function DetailPanel({
             </>
           ) : null}
           {node.data.agentType === "risk_generator" ? <TextInput label="Risks per objective" value={draft.risks_per_objective || ""} onChange={(event) => update("risks_per_objective", event.target.value)} /> : null}
-          {node.data.agentType === "interview_plan_generator" ? (
-            <>
-              <TextInput label="Questions per role" value={draft.questions_per_role || ""} onChange={(event) => update("questions_per_role", event.target.value)} />
-              <TextInput label="Max roles" value={draft.max_roles || ""} onChange={(event) => update("max_roles", event.target.value)} />
-            </>
-          ) : null}
           {node.data.agentType === "finding_draft_agent" ? (
             <Select label="Tone" value={draft.tone || "internal audit"} onChange={(event) => update("tone", event.target.value)}>
               <option>concise</option>

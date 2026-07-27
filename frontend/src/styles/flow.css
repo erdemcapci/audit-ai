@@ -130,16 +130,6 @@
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.78);
 }
 
-.fieldwork-section-interviews {
-  background: rgba(245, 243, 255, 0.74);
-  border-color: #c4b5fd;
-}
-
-.fieldwork-section-documents {
-  background: rgba(248, 250, 252, 0.82);
-  border-color: #cbd5e1;
-}
-
 .fieldwork-section-issues {
   background: rgba(254, 242, 242, 0.76);
   border-color: #fecaca;
@@ -329,17 +319,8 @@
   border-top: 5px solid #c4b5fd;
 }
 
-.node-interview-role,
-.node-interview-question {
-  border-top: 5px solid #a78bfa;
-}
-
 .node-fieldwork-item {
   border-top: 5px solid #fbbf24;
-}
-
-.node-document-request {
-  border-top: 5px solid #94a3b8;
 }
 
 .node-finding {

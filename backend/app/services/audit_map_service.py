@@ -10,10 +10,9 @@ PHASE_PADDING = {"top": 100, "right": 120, "bottom": 120, "left": 80}
 SECTION_PADDING = {"top": 82, "right": 70, "bottom": 80, "left": 40}
 FIELDWORK_SECTION_GAP = 18
 FIELDWORK_SECTION_IDS = {
-    "interviews": "fieldwork-section-interviews",
-    "documents": "fieldwork-section-documents",
     "issues": "fieldwork-section-issues",
 }
+FIELDWORK_ARTIFACT_SECTIONS = ["issues"]
 
 
 def node(
@@ -97,19 +96,16 @@ def phase_node(phase: str, layout: PhaseLayout, title: str, description: str) ->
 def fieldwork_section_defaults(fieldwork_layout: PhaseLayout) -> dict[str, PhaseLayout]:
     left = PHASE_PADDING["left"] + NODE_WIDTH + 80
     top = PHASE_PADDING["top"]
-    gap = FIELDWORK_SECTION_GAP
     width = max(fieldwork_layout.width - left - 80, 760)
-    height = max((fieldwork_layout.height - top - gap * 2) / 3, 320)
-    interviews = PhaseLayout(x=fieldwork_layout.x + left, y=fieldwork_layout.y + top, width=width, height=height)
-    documents = PhaseLayout(x=interviews.x, y=interviews.y + height + gap, width=width, height=height)
-    issues = PhaseLayout(x=interviews.x, y=documents.y + height + gap, width=width, height=height)
-    return {"interviews": interviews, "documents": documents, "issues": issues}
+    height = max(fieldwork_layout.height - top - PHASE_PADDING["bottom"], 320)
+    issues = PhaseLayout(x=fieldwork_layout.x + left, y=fieldwork_layout.y + top, width=width, height=height)
+    return {"issues": issues}
 
 
 def anchored_fieldwork_section_layouts(fieldwork_layout: PhaseLayout, map_state: MapState) -> dict[str, PhaseLayout]:
     layouts = fieldwork_section_defaults(fieldwork_layout)
     y = fieldwork_layout.y + PHASE_PADDING["top"]
-    for section in ["interviews", "documents", "issues"]:
+    for section in FIELDWORK_ARTIFACT_SECTIONS:
         layout = layouts[section]
         saved_dimensions = map_state.nodeDimensions.get(FIELDWORK_SECTION_IDS[section], {})
         layout.y = y
@@ -119,7 +115,7 @@ def anchored_fieldwork_section_layouts(fieldwork_layout: PhaseLayout, map_state:
     return layouts
 
 
-def fieldwork_section_node(section: str, layout: PhaseLayout, title: str, description: str, map_state: MapState) -> FlowNode:
+def fieldwork_section_node(section: str, layout: PhaseLayout, title: str, description: str, map_state: MapState, phase: str = "fieldwork") -> FlowNode:
     node_id = FIELDWORK_SECTION_IDS[section]
     section_node = node(
         node_id,
@@ -129,7 +125,7 @@ def fieldwork_section_node(section: str, layout: PhaseLayout, title: str, descri
         title,
         description,
         "Draft",
-        {"width": layout.width, "height": layout.height, "phase": "fieldwork", "fieldworkSection": section},
+        {"width": layout.width, "height": layout.height, "phase": phase, "fieldworkSection": section},
     )
     section_node.width = layout.width
     section_node.height = layout.height
@@ -145,7 +141,7 @@ def phase_for_node(node_item: FlowNode, layouts: dict[str, PhaseLayout]) -> str 
         return "fieldwork"
     if node_item.type in {"auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode"}:
         return "planning"
-    if node_item.type in {"interviewRoleNode", "interviewQuestionNode", "fieldworkItemNode", "documentRequestNode", "findingNode"}:
+    if node_item.type in {"fieldworkItemNode", "findingNode"}:
         return "fieldwork"
     if node_item.type == "reportNode":
         return "reporting"
@@ -159,29 +155,23 @@ def phase_for_node(node_item: FlowNode, layouts: dict[str, PhaseLayout]) -> str 
     return None
 
 
-def fieldwork_section_for_node(node_item: FlowNode) -> str | None:
-    if node_item.type in {"interviewRoleNode", "interviewQuestionNode"}:
-        return "interviews"
-    if node_item.type == "documentRequestNode":
-        return "documents"
+def artifact_section_for_node(node_item: FlowNode) -> str | None:
     if node_item.type == "findingNode":
         return "issues"
     if node_item.type == "agentNode":
         agent_type = node_item.data.get("agentType")
-        if agent_type == "interview_plan_generator":
-            return "interviews"
-        if agent_type == "document_request_generator":
-            return "documents"
         if agent_type == "finding_draft_agent":
             return "issues"
     return None
 
 
-def expand_fieldwork_sections(nodes: list[FlowNode], map_state: MapState, fieldwork_layout: PhaseLayout) -> bool:
+def expand_artifact_sections(nodes: list[FlowNode], map_state: MapState, sections_to_expand: list[str]) -> bool:
     changed = False
     sections = {node_item.data.get("fieldworkSection"): node_item for node_item in nodes if node_item.type == "fieldworkSectionNode"}
     for section, section_node in sections.items():
-        contained = [node_item for node_item in nodes if fieldwork_section_for_node(node_item) == section]
+        if section not in sections_to_expand:
+            continue
+        contained = [node_item for node_item in nodes if artifact_section_for_node(node_item) == section]
         if not contained:
             continue
         min_x = min(item.position["x"] for item in contained)
@@ -204,15 +194,15 @@ def expand_fieldwork_sections(nodes: list[FlowNode], map_state: MapState, fieldw
     return changed
 
 
-def restack_fieldwork_sections(nodes: list[FlowNode], map_state: MapState, fieldwork_layout: PhaseLayout) -> bool:
+def restack_artifact_sections(nodes: list[FlowNode], map_state: MapState, base_layout: PhaseLayout, section_order: list[str], start_y: float | None = None) -> bool:
     changed = False
     sections = {
         node_item.data.get("fieldworkSection"): node_item
         for node_item in nodes
         if node_item.type == "fieldworkSectionNode"
     }
-    y = fieldwork_layout.y + PHASE_PADDING["top"]
-    for section in ["interviews", "documents", "issues"]:
+    y = start_y if start_y is not None else base_layout.y + PHASE_PADDING["top"]
+    for section in section_order:
         section_node = sections.get(section)
         if not section_node:
             continue
@@ -223,7 +213,7 @@ def restack_fieldwork_sections(nodes: list[FlowNode], map_state: MapState, field
             section_node.data["height"] = section_node.height
             map_state.nodePositions[section_node.id] = section_node.position
             for node_item in nodes:
-                if fieldwork_section_for_node(node_item) == section:
+                if artifact_section_for_node(node_item) == section:
                     node_item.position["y"] += delta_y
                     map_state.nodePositions[node_item.id] = node_item.position
             changed = True
@@ -294,12 +284,6 @@ def agent_auto_layout_position(agent_type: str, layouts: dict[str, PhaseLayout],
         x = columns["objective"]
     elif agent_type == "test_generator":
         x = columns["risk"]
-    elif agent_type == "interview_plan_generator":
-        phase = "fieldwork"
-        x = columns["interviews"]
-    elif agent_type == "document_request_generator":
-        phase = "fieldwork"
-        x = columns["documents"]
     elif agent_type == "finding_draft_agent":
         phase = "fieldwork"
         x = columns["issues"]
@@ -320,8 +304,6 @@ class AuditMapService:
     def auto_layout(self, project_id: str, config: AutoLayoutRequest) -> AuditMap:
         audit = project_store.get_project(project_id)
         planning = project_store.load_planning(project_id)
-        interviews = project_store.load_interviews(project_id)
-        document_requests = project_store.load_document_requests(project_id)
         fieldwork = project_store.load_fieldwork(project_id)
         findings = project_store.load_findings(project_id)
         report = project_store.load_report(project_id)
@@ -391,52 +373,17 @@ class AuditMapService:
         planning_layout.height = max(max_planning_bottom - planning_layout.y + PHASE_PADDING["bottom"], planning_layout.height)
 
         fieldwork_layout.x = planning_layout.x + planning_layout.width + phase_gap
-        section_layouts = anchored_fieldwork_section_layouts(fieldwork_layout, map_state)
-        interviews_layout = section_layouts["interviews"]
-        documents_layout = section_layouts["documents"]
-        issues_layout = section_layouts["issues"]
+        fieldwork_sections = anchored_fieldwork_section_layouts(fieldwork_layout, map_state)
+        issues_layout = fieldwork_sections["issues"]
         report_x_base = fieldwork_layout.x + left
-        role_x = interviews_layout.x + SECTION_PADDING["left"]
-        question_x = role_x + horizontal_gap
-        field_cursor = interviews_layout.y + SECTION_PADDING["top"]
-        max_fieldwork_bottom = field_cursor
-
-        for role in interviews.roles:
-            role_y = field_cursor
-            role_size = place(role.id, "interviewRoleNode", role_x, role_y, role.role_title, role.expected_information, {"count": len(role.questions)})
-            question_cursor = role_y
-            question_bottom = role_y + role_size["height"]
-            for question in role.questions:
-                question_size = place(question.id, "interviewQuestionNode", question_x, question_cursor, question.question_text, role.role_title)
-                question_cursor += question_size["height"] + vertical_gap
-                question_bottom = max(question_bottom, question_cursor - vertical_gap)
-            field_cursor = max(role_y + role_size["height"], question_bottom) + vertical_gap
-            max_fieldwork_bottom = max(max_fieldwork_bottom, field_cursor - vertical_gap)
-
-        interviews_layout.height = max(
-            interviews_layout.height,
-            max_fieldwork_bottom - interviews_layout.y + SECTION_PADDING["bottom"],
-        )
-        documents_layout.y = interviews_layout.y + interviews_layout.height + FIELDWORK_SECTION_GAP
 
         field_cursor = fieldwork_layout.y + top
+        max_fieldwork_bottom = field_cursor
         for item in fieldwork.items:
             item_size = place(item.id, "fieldworkItemNode", report_x_base, field_cursor, item.title, item.description, {"testType": item.test_type, "itemStatus": item.status})
             field_cursor += item_size["height"] + vertical_gap
             max_fieldwork_bottom = max(max_fieldwork_bottom, field_cursor - vertical_gap)
 
-        document_cursor = documents_layout.y + SECTION_PADDING["top"]
-        max_documents_bottom = document_cursor
-        for request in document_requests.requests:
-            request_size = place(request.id, "documentRequestNode", documents_layout.x + SECTION_PADDING["left"], document_cursor, request.title, request.description, {"requestedFrom": request.requested_from})
-            document_cursor += request_size["height"] + vertical_gap
-            max_documents_bottom = max(max_documents_bottom, document_cursor - vertical_gap)
-
-        documents_layout.height = max(
-            documents_layout.height,
-            max_documents_bottom - documents_layout.y + SECTION_PADDING["bottom"],
-        )
-        issues_layout.y = documents_layout.y + documents_layout.height + FIELDWORK_SECTION_GAP
         finding_x = issues_layout.x + SECTION_PADDING["left"]
 
         finding_cursor = issues_layout.y + SECTION_PADDING["top"]
@@ -452,17 +399,16 @@ class AuditMapService:
         )
         max_fieldwork_bottom = max(
             max_fieldwork_bottom,
-            max_documents_bottom,
             max_issues_bottom,
-            max(section.y + section.height for section in section_layouts.values()),
+            max(section.y + section.height for section in fieldwork_sections.values()),
         )
 
         fieldwork_layout.width = max(
-            max(section.x + section.width for section in section_layouts.values()) - fieldwork_layout.x + PHASE_PADDING["right"],
+            max(section.x + section.width for section in fieldwork_sections.values()) - fieldwork_layout.x + PHASE_PADDING["right"],
             fieldwork_layout.width,
         )
         fieldwork_layout.height = max(
-            max(max_fieldwork_bottom, max(section.y + section.height for section in section_layouts.values())) - fieldwork_layout.y + PHASE_PADDING["bottom"],
+            max(max_fieldwork_bottom, max(section.y + section.height for section in fieldwork_sections.values())) - fieldwork_layout.y + PHASE_PADDING["bottom"],
             fieldwork_layout.height,
         )
 
@@ -483,8 +429,6 @@ class AuditMapService:
             "risk": risk_x,
             "test": test_x,
             "fieldwork_item": report_x_base,
-            "interviews": role_x,
-            "documents": documents_layout.x + SECTION_PADDING["left"],
             "issues": finding_x,
             "finding": finding_x,
             "report": report_x,
@@ -495,7 +439,7 @@ class AuditMapService:
             place(agent.id, "agentNode", agent_x, agent_y, agent.title, agent.prompt, {"agentType": agent.type})
             agent.position = map_state.nodePositions[agent.id]
 
-        for section, layout in section_layouts.items():
+        for section, layout in fieldwork_sections.items():
             section_id = FIELDWORK_SECTION_IDS[section]
             map_state.nodePositions[section_id] = {"x": layout.x, "y": layout.y}
             map_state.nodeDimensions[section_id] = {"width": layout.width, "height": layout.height}
@@ -507,8 +451,6 @@ class AuditMapService:
     def build(self, project_id: str) -> AuditMap:
         audit = project_store.get_project(project_id)
         planning = project_store.load_planning(project_id)
-        interviews = project_store.load_interviews(project_id)
-        document_requests = project_store.load_document_requests(project_id)
         fieldwork = project_store.load_fieldwork(project_id)
         findings = project_store.load_findings(project_id)
         report = project_store.load_report(project_id)
@@ -517,17 +459,13 @@ class AuditMapService:
         planning_layout = layouts["planning"]
         fieldwork_layout = layouts["fieldwork"]
         reporting_layout = layouts["reporting"]
-        section_defaults = anchored_fieldwork_section_layouts(fieldwork_layout, map_state)
-        interviews_section = section_defaults["interviews"]
-        documents_section = section_defaults["documents"]
-        issues_section = section_defaults["issues"]
+        fieldwork_sections = anchored_fieldwork_section_layouts(fieldwork_layout, map_state)
+        issues_section = fieldwork_sections["issues"]
 
         nodes: list[FlowNode] = [
             phase_node("planning", planning_layout, "PLANNING", "Workstreams, objectives, risks, tests"),
-            phase_node("fieldwork", fieldwork_layout, "FIELDWORK", "Fieldwork items, interviews, document requests, issues"),
+            phase_node("fieldwork", fieldwork_layout, "FIELDWORK", "Fieldwork items and issues"),
             phase_node("reporting", reporting_layout, "REPORTING", "Executive summary and report"),
-            fieldwork_section_node("interviews", interviews_section, "Interviews", "Interview roles, questions, and notes", map_state),
-            fieldwork_section_node("documents", documents_section, "Document Requests", "Evidence and document request tracking", map_state),
             fieldwork_section_node("issues", issues_section, "Issues", "Findings, recommendations, and actions", map_state),
             board_node(
                 node(audit.id, "auditNode", planning_layout.x + 80, planning_layout.y + 110, audit.title, audit.description, "Draft", {"projectId": audit.id}),
@@ -556,19 +494,6 @@ class AuditMapService:
                 local_y = max(local_y + 180, risk_y)
             y = max(y + 260, local_y + 80)
 
-        role_y = interviews_section.y + SECTION_PADDING["top"]
-        for role in interviews.roles:
-            nodes.append(board_node(node(role.id, "interviewRoleNode", interviews_section.x + SECTION_PADDING["left"], role_y, role.role_title, role.expected_information, role.status, {"expected_information": role.expected_information, "rationale": role.rationale, "notes": role.notes, "count": len(role.questions)}), map_state))
-            q_y = role_y + 120
-            for question in role.questions:
-                nodes.append(board_node(node(question.id, "interviewQuestionNode", interviews_section.x + SECTION_PADDING["left"] + NODE_WIDTH + 60, q_y, question.question_text, role.role_title, question.status, {"question_text": question.question_text}), map_state))
-                edges.append(edge(role.id, question.id))
-                for mapped in [question.mapped_objective_id, question.mapped_risk_id, question.mapped_test_id]:
-                    if mapped:
-                        edges.append(edge(mapped, question.id))
-                q_y += 150
-            role_y = q_y + 80
-
         fieldwork_y = fieldwork_layout.y + PHASE_PADDING["top"] + 40
         for item in fieldwork.items:
             status = "Issue Found" if item.status == "Issue Identified" else ("In Progress" if item.status != "Not Started" else "Draft")
@@ -576,13 +501,6 @@ class AuditMapService:
             if item.test_id:
                 edges.append(edge(item.test_id, item.id, planning.approved))
             fieldwork_y += 180
-
-        document_y = documents_section.y + SECTION_PADDING["top"]
-        for request in document_requests.requests:
-            nodes.append(board_node(node(request.id, "documentRequestNode", documents_section.x + SECTION_PADDING["left"], document_y, request.title, request.description, request.status, {"requested_from": request.requested_from, "expected_document": request.expected_document, "rationale": request.rationale, "source_node_id": request.source_node_id}), map_state))
-            if request.source_node_id:
-                edges.append(edge(request.source_node_id, request.id))
-            document_y += 180
 
         finding_y = issues_section.y + SECTION_PADDING["top"]
         for finding in findings.findings:
@@ -603,6 +521,8 @@ class AuditMapService:
 
         for agent in map_state.agents:
             agent_position = map_state.nodePositions.get(agent.id, agent.position)
+            if agent.type not in {"workstream_generator", "objective_generator", "risk_generator", "test_generator", "finding_draft_agent", "report_draft_agent"}:
+                continue
             nodes.append(
                 board_node(
                     node(
@@ -634,14 +554,14 @@ class AuditMapService:
 
         original_dimensions = {key: dict(value) for key, value in map_state.nodeDimensions.items()}
         changed = False
-        changed = expand_fieldwork_sections(nodes, map_state, fieldwork_layout) or changed
-        changed = restack_fieldwork_sections(nodes, map_state, fieldwork_layout) or changed
+        changed = expand_artifact_sections(nodes, map_state, FIELDWORK_ARTIFACT_SECTIONS) or changed
+        changed = restack_artifact_sections(nodes, map_state, fieldwork_layout, FIELDWORK_ARTIFACT_SECTIONS) or changed
         for phase_key, layout in layouts.items():
             changed = expand_phase_to_fit_nodes(phase_key, nodes, layout, layouts) or changed
         changed = ensure_phase_spacing(nodes, map_state) or changed
         if changed:
-            expand_fieldwork_sections(nodes, map_state, fieldwork_layout)
-            restack_fieldwork_sections(nodes, map_state, fieldwork_layout)
+            expand_artifact_sections(nodes, map_state, FIELDWORK_ARTIFACT_SECTIONS)
+            restack_artifact_sections(nodes, map_state, fieldwork_layout, FIELDWORK_ARTIFACT_SECTIONS)
             for phase_key, layout in layouts.items():
                 expand_phase_to_fit_nodes(phase_key, nodes, layout, layouts)
         dimensions_changed = original_dimensions != map_state.nodeDimensions

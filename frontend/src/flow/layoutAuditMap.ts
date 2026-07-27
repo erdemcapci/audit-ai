@@ -51,7 +51,6 @@ export function getNextAvailablePosition(
     riskNode: 680,
     testNode: 1000,
     fieldworkItemNode: 100,
-    documentRequestNode: 120,
     findingNode: 450,
     reportNode: 120
   };

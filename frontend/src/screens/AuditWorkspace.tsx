@@ -4,7 +4,6 @@ import type { Node } from "@xyflow/react";
 import { agentsApi } from "../api/agentsApi";
 import { fieldworkApi } from "../api/fieldworkApi";
 import { findingsApi } from "../api/findingsApi";
-import { interviewsApi } from "../api/interviewsApi";
 import { planningApi } from "../api/planningApi";
 import { projectsApi } from "../api/projectsApi";
 import { reportsApi } from "../api/reportsApi";
@@ -29,13 +28,11 @@ import type {
   FieldworkState,
   FindingsState,
   FlowNodeData,
-  InterviewPlan,
   MapStateUpdate,
   PlanningState,
   ReportState
 } from "../types";
 import { FieldworkScreen } from "./FieldworkScreen";
-import { InterviewsScreen } from "./InterviewsScreen";
 import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
@@ -71,7 +68,7 @@ function renderMarkdownPreview(markdown: string) {
 }
 
 function agentPhase(agentType: string): PhaseFilter {
-  if (agentType === "finding_draft_agent" || agentType === "interview_plan_generator" || agentType === "document_request_generator") return "fieldwork";
+  if (agentType === "finding_draft_agent") return "fieldwork";
   if (agentType === "report_draft_agent") return "reporting";
   return "planning";
 }
@@ -89,7 +86,6 @@ export function AuditWorkspace({
 }) {
   const [project, setProject] = useState<AuditProject | null>(null);
   const [planning, setPlanning] = useState<PlanningState | null>(null);
-  const [interviews, setInterviews] = useState<InterviewPlan | null>(null);
   const [fieldwork, setFieldwork] = useState<FieldworkState | null>(null);
   const [findings, setFindings] = useState<FindingsState | null>(null);
   const [report, setReport] = useState<ReportState | null>(null);
@@ -109,18 +105,13 @@ export function AuditWorkspace({
   const [reportAttachmentNodeId, setReportAttachmentNodeId] = useState<string | null>(null);
   const [reportAttachmentDraft, setReportAttachmentDraft] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
-  const [mapFilters, setMapFilters] = useState<Pick<MapHierarchyFilters, "showInterviews" | "showDocumentRequests">>({
-    showInterviews: true,
-    showDocumentRequests: true
-  });
   const [showApprovePlanning, setShowApprovePlanning] = useState(false);
   const [fieldworkCreateMode, setFieldworkCreateMode] = useState<FieldworkCreateMode>("missing");
 
   const refresh = useCallback(async () => {
-    const [projectData, planningData, interviewData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
+    const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
       projectsApi.get(projectId),
       planningApi.get(projectId),
-      interviewsApi.get(projectId),
       fieldworkApi.get(projectId),
       findingsApi.get(projectId),
       reportsApi.get(projectId),
@@ -129,7 +120,6 @@ export function AuditWorkspace({
     ]);
     setProject(projectData);
     setPlanning(planningData);
-    setInterviews(interviewData);
     setFieldwork(fieldworkData);
     setFindings(findingsData);
     setReport(reportData);
@@ -161,14 +151,7 @@ export function AuditWorkspace({
 
   function agentPosition(type: string): { x: number; y: number } {
     const targetPhase = agentPhase(type);
-    const targetSection =
-      type === "interview_plan_generator"
-        ? map?.nodes.find((node) => node.id === "fieldwork-section-interviews")
-        : type === "document_request_generator"
-          ? map?.nodes.find((node) => node.id === "fieldwork-section-documents")
-          : type === "finding_draft_agent"
-            ? map?.nodes.find((node) => node.id === "fieldwork-section-issues")
-            : null;
+    const targetSection = type === "finding_draft_agent" ? map?.nodes.find((node) => node.id === "fieldwork-section-issues") : null;
     if (targetSection) {
       const existingSectionAgents = map?.nodes.filter(
         (node) =>
@@ -392,20 +375,8 @@ export function AuditWorkspace({
     if (!agentNode || !definition) return;
 
     let candidates = map.nodes.filter((node) => definition.allowed_input_node_types.includes(node.type));
-    if (agentNode.data.agentType === "interview_plan_generator") {
-      const fieldworkItems = candidates.filter((node) => node.type === "fieldworkItemNode");
-      if (fieldworkItems.length) {
-        candidates = fieldworkItems;
-      }
-    }
     if (agentNode.data.agentType === "finding_draft_agent") {
       candidates = candidates.filter((node) => node.type === "fieldworkItemNode");
-    }
-    if (agentNode.data.agentType === "document_request_generator") {
-      const fieldworkItems = candidates.filter((node) => node.type === "fieldworkItemNode");
-      if (fieldworkItems.length) {
-        candidates = fieldworkItems;
-      }
     }
     if (agentNode.data.agentType === "report_draft_agent") {
       candidates = candidates.filter((node) => node.type === "findingNode");
@@ -547,7 +518,7 @@ export function AuditWorkspace({
       ) : null}
 
       <nav className="workspace-tabs">
-        {["Map", "Planning", "Interviews", "Fieldwork", "Reporting"].map((tab) => (
+        {["Map", "Audit Plan", "Fieldwork", "Reporting"].map((tab) => (
           <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
             {tab}
           </button>
@@ -577,24 +548,6 @@ export function AuditWorkspace({
               </select>
             </label>
             <Button variant="secondary" onClick={addAgent} disabled={busy || !agentTypes.length}>Add Agent Card</Button>
-            <div className="map-section-toggles">
-              <label className="map-toggle-label">
-                <span>Show Interviews</span>
-                <input
-                  type="checkbox"
-                  checked={mapFilters.showInterviews}
-                  onChange={(event) => setMapFilters((current) => ({ ...current, showInterviews: event.target.checked }))}
-                />
-              </label>
-              <label className="map-toggle-label">
-                <span>Show Document Requests</span>
-                <input
-                  type="checkbox"
-                  checked={mapFilters.showDocumentRequests}
-                  onChange={(event) => setMapFilters((current) => ({ ...current, showDocumentRequests: event.target.checked }))}
-                />
-              </label>
-            </div>
           </div>
         </div>
         <section className="map-workspace">
@@ -615,7 +568,6 @@ export function AuditWorkspace({
             agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
             actionBusy={busy}
             hierarchyFilters={{
-              ...mapFilters,
               nodeIds: []
             }}
           />
@@ -650,7 +602,7 @@ export function AuditWorkspace({
         </>
       ) : null}
 
-      {activeScreen === "Planning" && planning ? (
+      {activeScreen === "Audit Plan" && planning ? (
         <PlanningScreen
           planning={planning}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
@@ -659,14 +611,6 @@ export function AuditWorkspace({
             setShowApprovePlanning(true);
           }}
           onReopen={() => run(() => planningApi.reopen(projectId))}
-        />
-      ) : null}
-      {activeScreen === "Interviews" && interviews ? (
-        <InterviewsScreen
-          plan={interviews}
-          onGenerate={() => run(() => interviewsApi.generatePlan(projectId))}
-          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-          onChange={(next) => run(() => interviewsApi.update(projectId, next))}
         />
       ) : null}
       {activeScreen === "Fieldwork" && fieldwork ? (

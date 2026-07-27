@@ -100,29 +100,6 @@ class PlanningState(BaseModel):
     open_questions: list[str] = Field(default_factory=list)
 
 
-class InterviewQuestion(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("iq"))
-    question_text: str
-    mapped_objective_id: str | None = None
-    mapped_risk_id: str | None = None
-    mapped_test_id: str | None = None
-    status: StatusBadge = "AI Generated"
-
-
-class InterviewRole(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("role"))
-    role_title: str
-    rationale: str = ""
-    expected_information: str = ""
-    notes: str = ""
-    questions: list[InterviewQuestion] = Field(default_factory=list)
-    status: StatusBadge = "AI Generated"
-
-
-class InterviewPlan(BaseModel):
-    roles: list[InterviewRole] = Field(default_factory=list)
-
-
 class FieldworkItem(BaseModel):
     id: str = Field(default_factory=lambda: new_id("fw"))
     test_id: str
@@ -143,21 +120,6 @@ class FieldworkState(BaseModel):
 
 class FieldworkCreateFromPlanningRequest(BaseModel):
     mode: Literal["keep", "missing", "replace"] = "missing"
-
-
-class DocumentRequest(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("docreq"))
-    title: str
-    description: str = ""
-    requested_from: str = ""
-    expected_document: str = ""
-    rationale: str = ""
-    source_node_id: str | None = None
-    status: StatusBadge = "AI Generated"
-
-
-class DocumentRequestState(BaseModel):
-    requests: list[DocumentRequest] = Field(default_factory=list)
 
 
 class FindingDraftRequest(BaseModel):

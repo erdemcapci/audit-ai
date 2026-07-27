@@ -52,7 +52,7 @@ The snapshot includes:
 - Audit title, description, process area, initial concern, and extra context.
 - Current audit status and inferred phase.
 - Planning, workstream, objective, risk, and test summaries.
-- Fieldwork, document request, interview, finding, and reporting summaries.
+- Fieldwork, finding, and reporting summaries.
 - Item counts by type.
 - Relationship gap count and compact warnings.
 - Key open items.
@@ -74,7 +74,7 @@ The block includes:
 - Audit metadata.
 - Current phase.
 - Planning sections for workstreams, objectives, risks, and tests.
-- Fieldwork, document request, interview, finding, and report summaries.
+- Fieldwork, finding, and report summaries.
 - Relationship gaps as compact item references.
 - Snapshot staleness and truncation metadata.
 
@@ -105,8 +105,6 @@ Each snapshot stores a `source_fingerprint`, computed from relevant project data
 
 - audit
 - planning
-- interviews
-- document requests
 - fieldwork
 - findings
 - report
@@ -177,9 +175,7 @@ It normalizes items from:
 
 - Audit project data.
 - Planning workstreams, objectives, risks, and tests.
-- Interview roles and questions.
 - Fieldwork items.
-- Document requests.
 - Findings.
 - Report sections.
 - Agent cards.
@@ -188,8 +184,6 @@ It normalizes relationships from:
 
 - Planning hierarchy.
 - Fieldwork execution.
-- Document requests.
-- Interview mappings.
 - Findings.
 - Reporting.
 - Canvas edges.
@@ -223,8 +217,6 @@ Canvas edges are converted into semantic audit relationships where possible. If 
 | `objective` | `risk` | `contains` |
 | `risk` | `test` | `contains` |
 | `test` | `fieldwork_item` | `executed_as` |
-| `test` | `document_request` | `requires_document` |
-| `objective` / `risk` / `test` | `interview_question` | `clarified_by` |
 | `fieldwork_item` | `finding` | `results_in` |
 | `finding` | `report` | `reported_in` |
 | `finding` | `executive-summary` | `summarized_in` |
@@ -234,7 +226,7 @@ When no semantic relationship can be inferred, the graph keeps `visual_edge` and
 Context traversal uses these semantic relationships by default:
 
 ```text
-contains, executed_as, requires_document, clarified_by, results_in, reported_in, summarized_in
+contains, executed_as, results_in, reported_in, summarized_in
 ```
 
 Operational relationships such as `agent_input`, `agent_output`, and generic `visual_edge` are excluded unless a recipe explicitly asks for them. Agent nodes are excluded by default.

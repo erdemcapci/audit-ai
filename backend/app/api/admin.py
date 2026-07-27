@@ -5,7 +5,6 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from app.agents.demo_data import demo_document_requests
 from app.config import settings
 from app.models import (
     AdminLoginRequest,
@@ -15,7 +14,6 @@ from app.models import (
     DemoCreateRequest,
     DemoJobStatus,
     DemoJobStep,
-    DocumentRequestState,
     FieldworkCreateFromPlanningRequest,
     FindingDraftRequest,
 )
@@ -29,7 +27,6 @@ from app.runtime import (
 from app.services.audit_map_service import audit_map_service
 from app.services.fieldwork_service import fieldwork_service
 from app.services.finding_service import finding_service
-from app.services.interview_service import interview_service
 from app.services.planning_service import planning_service
 from app.services.report_service import report_service
 from app.store.project_store import project_store
@@ -44,8 +41,6 @@ DEMO_STEPS = [
     "Generate tests",
     "Approve planning",
     "Create fieldwork items",
-    "Generate interview plan",
-    "Generate document requests",
     "Generate findings",
     "Generate report",
     "Auto layout map",
@@ -116,8 +111,6 @@ async def _run_full_demo(job: DemoJobStatus, payload: DemoCreateRequest) -> None
             "Create fieldwork items",
             lambda: fieldwork_service.create_from_planning(audit.id, FieldworkCreateFromPlanningRequest(mode="missing")),
         )
-        await _run_step(job, "Generate interview plan", lambda: interview_service.generate_plan(audit.id))
-        await _run_step(job, "Generate document requests", lambda: _create_document_requests(audit.id))
         await _run_step(job, "Generate findings", lambda: _create_demo_findings(audit.id))
         await _run_step(job, "Generate report", lambda: report_service.generate(audit.id))
         await _run_step(job, "Auto layout map", lambda: audit_map_service.auto_layout(audit.id, AutoLayoutRequest()))
@@ -126,17 +119,6 @@ async def _run_full_demo(job: DemoJobStatus, payload: DemoCreateRequest) -> None
     except Exception as exc:
         job.error = str(exc)
         job.status = "partial" if job.projectId else "failed"
-
-
-def _create_document_requests(project_id: str) -> DocumentRequestState:
-    fieldwork = project_store.load_fieldwork(project_id)
-    existing = project_store.load_document_requests(project_id)
-    generated = demo_document_requests([item.title for item in fieldwork.items], max_items=min(10, max(1, len(fieldwork.items))))
-    for index, request_item in enumerate(generated.requests):
-        source = fieldwork.items[index % len(fieldwork.items)] if fieldwork.items else None
-        request_item.source_node_id = source.id if source else None
-        existing.requests.append(request_item)
-    return project_store.save_document_requests(project_id, existing)
 
 
 async def _create_demo_findings(project_id: str):

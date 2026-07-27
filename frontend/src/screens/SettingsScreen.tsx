@@ -211,7 +211,7 @@ export function SettingsScreen({
           AuditCopilot is an open-source visual AI audit workspace for planning, fieldwork, findings, and reporting.
         </p>
         <p>
-          It helps auditors generate audit objectives, risks, tests, interview plans, findings, and report drafts using local or user-configured AI providers.
+          It helps auditors generate audit objectives, risks, tests, findings, and report drafts using local or user-configured AI providers.
         </p>
         <p>Created by <CreatorLink />.</p>
         <p>Feedback or questions? Reach out on <FeedbackLink>LinkedIn</FeedbackLink>.</p>

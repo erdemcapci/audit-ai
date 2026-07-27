@@ -33,7 +33,7 @@ AuditCopilot is built around these principles:
 - AI suggests, auditor decides: AI output is draft material, not final audit work.
 - Editable: generated cards can be reviewed and changed by the auditor.
 - Lightweight: no database, no authentication, no enterprise workflow.
-- Practical: the tool focuses on objectives, risks, tests, interviews, fieldwork, findings, and reports.
+- Practical: the tool focuses on objectives, risks, tests, fieldwork, findings, and reports.
 
 ## Main Audit Phases
 
@@ -46,10 +46,10 @@ AuditCopilot organizes the map into three high-level phase areas:
 The user journey is more detailed:
 
 ```text
-Understand -> Plan -> Interview -> Test -> Report
+Understand -> Plan -> Test -> Report
 ```
 
-The phase areas help the auditor see where each card belongs. Planning cards sit in the Planning area, fieldwork and finding cards sit in the Fieldwork area, and report cards sit in the Reporting area.
+The phase areas help the auditor see where each card belongs. Audit plan cards sit in the Planning area, fieldwork items and findings sit in the Fieldwork area, and report cards sit in the Reporting area.
 
 ## What the AI Can Support
 
@@ -60,7 +60,6 @@ AI can support these steps:
 - Generate objectives and workstreams from an audit title and description
 - Generate risks linked to confirmed objectives
 - Generate audit tests linked to risks
-- Generate interview roles and questions
 - Draft findings from rough observations or fieldwork items
 - Generate executive summaries and draft report sections
 
@@ -168,7 +167,6 @@ Supported test types include:
 - Test of Operating Effectiveness
 - Detailed Test
 - Analytical Review
-- Inquiry / Interview
 
 Example tests:
 
@@ -185,25 +183,9 @@ Auditor responsibility:
 - Adjust sample approach based on audit methodology.
 - Remove tests that are not practical or relevant.
 
-## Step 5: Generate Interview Plan
+## Step 5: Create Fieldwork
 
-AI can create an interview plan from the planning hierarchy.
-
-The output can include:
-
-- Interviewee roles
-- Rationale for each role
-- Expected information
-- Questions grouped by role
-- Mapping to objectives, risks, or tests where possible
-
-Example interview roles:
-
-- Process Owner
-- Control Owner
-- System Owner
-- Finance Manager
-- Compliance Officer
+After planning is approved, create fieldwork items from the planned audit tests.
 - Operations Lead
 - Vendor Manager
 
@@ -315,7 +297,6 @@ Examples:
 
 - Risk Generator
 - Test Generator
-- Interview Plan Generator
 - Finding Draft Agent
 - Report Draft Agent
 
@@ -331,7 +312,7 @@ If connected cards already have outputs, the app can ask whether to:
 
 All AI-generated content should be reviewed.
 
-The auditor can click cards and edit fields directly in the right panel. This includes objectives, risks, tests, interview questions, fieldwork items, findings, reports, and agents.
+The auditor can click cards and edit fields directly in the inspector overlay. This includes objectives, risks, tests, fieldwork items, findings, reports, and agents.
 
 The review process is intentionally built into the map. The auditor does not need a separate review screen for every object.
 
@@ -372,7 +353,7 @@ A practical workflow is:
 6. Generate tests.
 7. Review and edit tests.
 8. Approve planning.
-9. Generate interview plan.
+9. Create and review fieldwork items.
 10. Create fieldwork items.
 11. Update fieldwork status and notes.
 12. Draft findings when issues are identified.
@@ -393,4 +374,3 @@ Users remain responsible for:
 - Final report quality
 
 AuditCopilot can accelerate thinking and drafting, but the auditor remains accountable for the audit work.
-
