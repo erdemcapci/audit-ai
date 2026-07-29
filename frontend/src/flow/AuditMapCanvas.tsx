@@ -345,6 +345,7 @@ function InnerCanvas({
     () =>
       nodes.map((node) => ({
         ...node,
+        selected: node.id === selectedNodeId,
         data: {
           ...node.data,
           onRunAgent: (agentId: string) => onRunAgentRef.current(agentId, edges.filter((edge) => edge.target === agentId).map((edge) => edge.source)),
@@ -529,9 +530,7 @@ function InnerCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onSelectionChange={({ nodes: selectedNodes }) => {
-          if (selectedNodes.length === 1) {
-            onSelectNode(selectedNodes[0] as Node<FlowNodeData>);
-          } else if (selectedNodes.length > 1) {
+          if (selectedNodes.length > 1) {
             onSelectNode(null);
           }
         }}
