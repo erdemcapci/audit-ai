@@ -1,6 +1,6 @@
 .audit-map-canvas {
-  min-height: 680px;
-  height: calc(100vh - 260px);
+  min-height: 320px;
+  height: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   overflow: hidden;
@@ -26,16 +26,16 @@
 
 .map-scrollbar-horizontal {
   left: 18px;
-  right: 48px;
+  right: 226px;
   bottom: 12px;
-  width: calc(100% - 66px);
+  width: calc(100% - 244px);
 }
 
 .map-scrollbar-vertical {
   top: 74px;
   right: 12px;
   width: 18px;
-  height: calc(100% - 122px);
+  height: calc(100% - 260px);
   writing-mode: vertical-lr;
 }
 
