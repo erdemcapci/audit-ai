@@ -257,9 +257,9 @@
 }
 
 .audit-flow-node h3 {
-  margin: 10px 0 7px;
-  font-size: 1.2rem;
-  line-height: 1.32;
+  margin: 10px 0 8px;
+  font-size: 1.34rem;
+  line-height: 1.3;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -267,8 +267,8 @@
 .audit-flow-node p {
   margin: 0;
   color: #64748b;
-  font-size: 0.98rem;
-  line-height: 1.42;
+  font-size: 1.08rem;
+  line-height: 1.45;
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
@@ -285,8 +285,13 @@
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   font-weight: 900;
+}
+
+.node-topline .badge {
+  font-size: 0.8rem;
+  padding: 4px 9px;
 }
 
 .node-audit {
