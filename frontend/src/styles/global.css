@@ -620,6 +620,10 @@ h3 {
   margin-left: auto;
 }
 
+.map-expand-toggle {
+  margin-left: auto;
+}
+
 .map-command-bar label {
   display: grid;
   gap: 6px;

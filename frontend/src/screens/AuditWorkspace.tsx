@@ -107,6 +107,7 @@ export function AuditWorkspace({
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
   const [showApprovePlanning, setShowApprovePlanning] = useState(false);
   const [fieldworkCreateMode, setFieldworkCreateMode] = useState<FieldworkCreateMode>("missing");
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
     const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
@@ -498,32 +499,35 @@ export function AuditWorkspace({
 
   return (
     <main className="workspace">
-      <header className="workspace-header">
-        <div>
-          <h1>{project?.title || "Audit"}</h1>
-          <p>{project?.description}</p>
-        </div>
-        <div className="header-actions">
-          <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
-          <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
-          <Button variant="ghost" onClick={onReset}>New audit</Button>
-          {busy ? <LoadingState label="Action running" /> : null}
-        </div>
-      </header>
+      {!mapExpanded ? (
+        <>
+          <header className="workspace-header">
+            <div>
+              <h1>{project?.title || "Audit"}</h1>
+            </div>
+            <div className="header-actions">
+              <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
+              <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
+              <Button variant="ghost" onClick={onReset}>New audit</Button>
+              {busy ? <LoadingState label="Action running" /> : null}
+            </div>
+          </header>
+
+          <nav className="workspace-tabs">
+            {["Map", "Audit Plan", "Fieldwork", "Reporting"].map((tab) => (
+              <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </>
+      ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
       {runtime?.deploymentMode === "hosted" && !runtime.agentExecutionEnabled ? (
         <div className="message-text">AI agent execution is disabled in this hosted showcase.</div>
       ) : null}
-
-      <nav className="workspace-tabs">
-        {["Map", "Audit Plan", "Fieldwork", "Reporting"].map((tab) => (
-          <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
-            {tab}
-          </button>
-        ))}
-      </nav>
 
       {activeScreen === "Map" ? (
         <>
@@ -548,6 +552,9 @@ export function AuditWorkspace({
               </select>
             </label>
             <Button variant="secondary" onClick={addAgent} disabled={busy || !agentTypes.length}>Add Agent Card</Button>
+            <Button variant="ghost" className="map-expand-toggle" onClick={() => setMapExpanded((current) => !current)}>
+              {mapExpanded ? "Exit full screen" : "Fit to screen"}
+            </Button>
           </div>
         </div>
         <section className="map-workspace">

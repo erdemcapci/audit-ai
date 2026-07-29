@@ -404,7 +404,6 @@ export function DetailPanel({
               <Button variant="ghost" onClick={() => onDisconnectRelated(node.id)}>Disconnect related cards</Button>
             </div>
           ) : null}
-          {node.data.agentType !== "report_draft_agent" ? <TextInput label="Max output items" value={draft.max_output_items || ""} onChange={(event) => update("max_output_items", event.target.value)} /> : null}
           {node.data.agentType === "workstream_generator" ? <TextInput label="Number of workstreams" value={draft.workstreams_count || ""} onChange={(event) => update("workstreams_count", event.target.value)} /> : null}
           {node.data.agentType === "objective_generator" ? <TextInput label="Objectives per workstream" value={draft.objectives_per_workstream || ""} onChange={(event) => update("objectives_per_workstream", event.target.value)} /> : null}
           {node.data.agentType === "test_generator" ? (
