@@ -42,6 +42,7 @@ You can use it to:
 - Generate audit objectives
 - Generate risks
 - Generate audit tests
+- Review planning readiness
 - Track fieldwork items
 - Draft findings
 - Generate executive summaries and draft reports
@@ -394,11 +395,13 @@ If the connected cards already have outputs, AuditCopilot asks whether you want 
 
 ### 7. Use Planning Views
 
-The Planning area contains the audit plan.
+The Planning area contains the audit plan and Planning Readiness.
 
 Use the Planning tabs and map controls to work with:
 
 - Audit plan cards
+- Readiness findings
+- AI Planning Review results
 
 Editing and review happen directly inside the map cards and inspector overlay.
 
@@ -412,7 +415,9 @@ A typical planning flow is:
 4. Review and edit risk cards.
 5. Confirm risks and generate tests.
 6. Review and edit test cards.
-7. Approve planning.
+7. Review Planning Readiness.
+8. Run the AI Planning Review if AI execution is enabled.
+9. Approve planning.
 
 The goal is not to accept AI output blindly. Treat generated content as a draft.
 

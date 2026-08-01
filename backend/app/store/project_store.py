@@ -9,6 +9,7 @@ from app.models import (
     FindingsState,
     MapState,
     PlanningState,
+    PlanningReadinessState,
     ReportState,
     utc_now,
 )
@@ -51,6 +52,7 @@ class ProjectStore:
         self.save_fieldwork(audit.id, FieldworkState())
         self.save_findings(audit.id, FindingsState())
         self.save_report(audit.id, ReportState())
+        self.save_planning_readiness(audit.id, PlanningReadinessState())
         self.save_map_state(audit.id, MapState())
         return audit
 
@@ -86,6 +88,13 @@ class ProjectStore:
     def save_planning(self, project_id: str, planning: PlanningState) -> PlanningState:
         self.file_store.write_json(self.project_dir(project_id) / "planning.json", planning.model_dump())
         return planning
+
+    def load_planning_readiness(self, project_id: str) -> PlanningReadinessState:
+        return PlanningReadinessState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "planning_readiness.json", {}))
+
+    def save_planning_readiness(self, project_id: str, readiness: PlanningReadinessState) -> PlanningReadinessState:
+        self.file_store.write_json(self.project_dir(project_id) / "planning_readiness.json", readiness.model_dump())
+        return readiness
 
     def load_fieldwork(self, project_id: str) -> FieldworkState:
         return FieldworkState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "fieldwork.json", {}))

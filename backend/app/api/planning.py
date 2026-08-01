@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Request
 
-from app.models import PlanningState
+from app.models import PlanningReadinessResponse, PlanningState
 from app.runtime import ensure_agent_execution_allowed
+from app.services.planning_readiness_service import planning_readiness_service
 from app.services.planning_service import planning_service
 from app.store.project_store import project_store
 
@@ -35,6 +36,17 @@ def approve(project_id: str) -> PlanningState:
 @router.post("/reopen", response_model=PlanningState)
 def reopen(project_id: str) -> PlanningState:
     return planning_service.reopen(project_id)
+
+
+@router.get("/readiness", response_model=PlanningReadinessResponse)
+def get_readiness(project_id: str) -> PlanningReadinessResponse:
+    return planning_readiness_service.get_readiness(project_id)
+
+
+@router.post("/readiness/ai-review", response_model=PlanningReadinessResponse)
+async def run_ai_readiness_review(project_id: str, request: Request) -> PlanningReadinessResponse:
+    ensure_agent_execution_allowed(request)
+    return await planning_readiness_service.run_ai_review(project_id)
 
 
 @router.get("", response_model=PlanningState)

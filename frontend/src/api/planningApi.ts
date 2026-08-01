@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { PlanningState } from "../types";
+import type { PlanningReadinessResponse, PlanningState } from "../types";
 
 export const planningApi = {
   get: (projectId: string) => apiRequest<PlanningState>(`/api/projects/${projectId}/planning`),
@@ -12,5 +12,8 @@ export const planningApi = {
   generateTests: (projectId: string) =>
     apiRequest<PlanningState>(`/api/projects/${projectId}/planning/generate-tests`, { method: "POST" }),
   approve: (projectId: string) => apiRequest<PlanningState>(`/api/projects/${projectId}/planning/approve`, { method: "POST" }),
-  reopen: (projectId: string) => apiRequest<PlanningState>(`/api/projects/${projectId}/planning/reopen`, { method: "POST" })
+  reopen: (projectId: string) => apiRequest<PlanningState>(`/api/projects/${projectId}/planning/reopen`, { method: "POST" }),
+  readiness: (projectId: string) => apiRequest<PlanningReadinessResponse>(`/api/projects/${projectId}/planning/readiness`),
+  runReadinessReview: (projectId: string) =>
+    apiRequest<PlanningReadinessResponse>(`/api/projects/${projectId}/planning/readiness/ai-review`, { method: "POST" })
 };

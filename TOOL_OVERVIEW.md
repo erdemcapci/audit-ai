@@ -60,6 +60,7 @@ AI can support these steps:
 - Generate objectives and workstreams from an audit title and description
 - Generate risks linked to confirmed objectives
 - Generate audit tests linked to risks
+- Review planning readiness and planning quality before fieldwork
 - Draft findings from rough observations or fieldwork items
 - Generate executive summaries and draft report sections
 
@@ -183,18 +184,21 @@ Auditor responsibility:
 - Adjust sample approach based on audit methodology.
 - Remove tests that are not practical or relevant.
 
-## Step 5: Create Fieldwork
+## Step 5: Review Planning Readiness
 
-After planning is approved, create fieldwork items from the planned audit tests.
-- Operations Lead
-- Vendor Manager
+Before moving into fieldwork, the Planning screen can show a readiness view for the current audit plan.
+
+Planning Readiness includes:
+
+- Deterministic checks for missing workstreams, objectives, risks, tests, expected evidence, duplicate titles, and unsupported planning relationships.
+- An optional AI Planning Review that assesses coverage, traceability, duplication, contradictions, balance, and clarity.
+- An overall score when the AI review is current.
 
 Auditor responsibility:
 
-- Replace generic role names with actual stakeholder names when known.
-- Remove unnecessary questions.
-- Add questions specific to the organization.
-- Use the questions as a starting point, not a script that must be followed rigidly.
+- Resolve critical gaps before approving planning.
+- Re-run the AI Planning Review after meaningful plan changes.
+- Treat readiness scores as review aids, not approval decisions.
 
 ## Step 6: Create Fieldwork Items
 

@@ -611,6 +611,7 @@ export function AuditWorkspace({
 
       {activeScreen === "Audit Plan" && planning ? (
         <PlanningScreen
+          projectId={projectId}
           planning={planning}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
           onApprove={() => {
@@ -618,6 +619,8 @@ export function AuditWorkspace({
             setShowApprovePlanning(true);
           }}
           onReopen={() => run(() => planningApi.reopen(projectId))}
+          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
+          agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
         />
       ) : null}
       {activeScreen === "Fieldwork" && fieldwork ? (

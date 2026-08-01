@@ -18,6 +18,7 @@ It helps with:
 
 - Planning an audit from a title and description
 - Generating objectives, risks, and tests
+- Reviewing planning readiness before moving into fieldwork
 - Organizing fieldwork and findings
 - Drafting executive summaries and reports
 - Keeping audit project data in local files

@@ -1025,6 +1025,109 @@ h3 {
   color: #334155;
 }
 
+.planning-readiness {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.planning-readiness-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.planning-readiness-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.planning-readiness-grid,
+.readiness-findings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.readiness-findings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.readiness-score-card,
+.readiness-finding,
+.readiness-dimensions > div {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.readiness-score-card > span,
+.readiness-finding small {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.readiness-score-card strong {
+  color: #0f172a;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.readiness-score-card p,
+.readiness-summary,
+.readiness-finding p,
+.readiness-finding em,
+.readiness-dimensions p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.readiness-summary {
+  padding: 10px 12px;
+  border-left: 3px solid #2563eb;
+  background: #eff6ff;
+}
+
+.readiness-dimensions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.readiness-dimensions span {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.readiness-finding-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.readiness-finding-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.readiness-finding-topline span:not(.badge),
+.readiness-finding em {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
 .planning-test-card {
   border: 1px solid #dbeafe;
   border-radius: 8px;
@@ -1409,6 +1512,11 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .planning-readiness-grid,
+  .readiness-findings-grid {
+    grid-template-columns: 1fr;
+  }
+
   .report-attachment-modal .modal-actions {
     grid-column: auto;
   }
@@ -1421,6 +1529,7 @@ h3 {
 
   .workspace-header,
   .screen-header,
+  .planning-readiness-header,
   .fieldwork-card-header,
   .finding-inline {
     grid-template-columns: 1fr;
