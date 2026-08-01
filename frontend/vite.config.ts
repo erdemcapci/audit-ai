@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
       host
     },
     preview: {
-      host: env.VITE_PREVIEW_HOST || host,
+      host: env.VITE_PREVIEW_HOST || "0.0.0.0",
       port: parsePort(env.VITE_PREVIEW_PORT || env.FRONTEND_PORT, 3000),
       allowedHosts: [
         "www.assurancegraph.ai",
