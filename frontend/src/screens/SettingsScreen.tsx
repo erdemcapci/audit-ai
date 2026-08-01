@@ -205,10 +205,10 @@ export function SettingsScreen({
       <Card className="settings-card about-card">
         <div>
           <p className="eyebrow">About</p>
-          <h2>AuditCopilot</h2>
+          <h2>Assurance Graph</h2>
         </div>
         <p>
-          AuditCopilot is an open-source visual AI audit workspace for planning, fieldwork, findings, and reporting.
+          Assurance Graph is an open-source visual AI audit workspace for planning, fieldwork, findings, and reporting.
         </p>
         <p>
           It helps auditors generate audit objectives, risks, tests, findings, and report drafts using local or user-configured AI providers.

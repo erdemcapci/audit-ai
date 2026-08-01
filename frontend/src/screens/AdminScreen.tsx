@@ -89,7 +89,7 @@ export function AdminScreen({
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Admin</p>
-          <h1>AuditCopilot Showcase Admin</h1>
+          <h1>Assurance Graph Showcase Admin</h1>
           <p>Create hosted demo audits and run the full audit generation pipeline.</p>
         </div>
         <div className="header-actions">

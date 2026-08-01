@@ -1,8 +1,8 @@
-"""AuditCopilot FastAPI entrypoint.
+"""Assurance Graph FastAPI entrypoint.
 
 Copyright (C) 2026 Erdem Capci
 
-This file is part of AuditCopilot and is licensed under AGPLv3-or-later.
+This file is part of Assurance Graph and is licensed under AGPLv3-or-later.
 """
 
 from fastapi import FastAPI, HTTPException, Request
@@ -13,7 +13,7 @@ from app.api import admin, agent_runs, agents, audit_map, context_snapshot, fiel
 from app.config import settings
 
 
-app = FastAPI(title="Audit AI Copilot", version="0.1.0")
+app = FastAPI(title="Assurance Graph", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

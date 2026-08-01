@@ -11,7 +11,7 @@ from app.config import settings
 from app.models import RuntimeSettings
 
 
-ADMIN_COOKIE = "auditcopilot_admin"
+ADMIN_COOKIE = "assurance_graph_admin"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 12
 
 

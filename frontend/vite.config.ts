@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => {
       host: env.VITE_PREVIEW_HOST || host,
       port: parsePort(env.VITE_PREVIEW_PORT || env.FRONTEND_PORT, 3000),
       allowedHosts: [
-        "www.auditcopilot.ai",
-        "auditcopilot.ai",
+        "www.assurancegraph.ai",
+        "assurancegraph.ai",
         "www.assurancegraph.com",
         "assurancegraph.com",
         ".up.railway.app"
