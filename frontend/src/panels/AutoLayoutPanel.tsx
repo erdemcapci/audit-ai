@@ -10,7 +10,7 @@ const DEFAULT_CONFIG: AutoLayoutConfig = {
   phase_gap: 160
 };
 
-const STORAGE_KEY = "auditcopilot.autoLayoutConfig";
+const STORAGE_KEY = "assuranceGraph.autoLayoutConfig";
 
 export function AutoLayoutPanel({
   onApply,

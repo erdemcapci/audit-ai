@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request
 
-from app.models import PlanningState
-from app.showcase.project_access import require_project_read, require_project_write
-from app.runtime import agent_execution_context, record_successful_ai_run
+from app.models import PlanningReadinessResponse, PlanningState
+from app.runtime import ensure_agent_execution_allowed
+from app.services.planning_readiness_service import planning_readiness_service
 from app.services.planning_service import planning_service
 from app.store.project_store import project_store
 
@@ -12,50 +12,48 @@ router = APIRouter(prefix="/api/projects/{project_id}/planning", tags=["planning
 
 @router.post("/generate-objectives", response_model=PlanningState)
 async def generate_objectives(project_id: str, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
-    with agent_execution_context(request):
-        planning = await planning_service.generate_objectives(project_id)
-        record_successful_ai_run(request)
-    return planning
+    ensure_agent_execution_allowed(request)
+    return await planning_service.generate_objectives(project_id)
 
 
 @router.post("/generate-risks", response_model=PlanningState)
 async def generate_risks(project_id: str, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
-    with agent_execution_context(request):
-        planning = await planning_service.generate_risks(project_id)
-        record_successful_ai_run(request)
-    return planning
+    ensure_agent_execution_allowed(request)
+    return await planning_service.generate_risks(project_id)
 
 
 @router.post("/generate-tests", response_model=PlanningState)
 async def generate_tests(project_id: str, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
-    with agent_execution_context(request):
-        planning = await planning_service.generate_tests(project_id)
-        record_successful_ai_run(request)
-    return planning
+    ensure_agent_execution_allowed(request)
+    return await planning_service.generate_tests(project_id)
 
 
 @router.post("/approve", response_model=PlanningState)
-def approve(project_id: str, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
+def approve(project_id: str) -> PlanningState:
     return planning_service.approve(project_id)
 
 
 @router.post("/reopen", response_model=PlanningState)
-def reopen(project_id: str, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
+def reopen(project_id: str) -> PlanningState:
     return planning_service.reopen(project_id)
 
 
+@router.get("/readiness", response_model=PlanningReadinessResponse)
+def get_readiness(project_id: str) -> PlanningReadinessResponse:
+    return planning_readiness_service.get_readiness(project_id)
+
+
+@router.post("/readiness/ai-review", response_model=PlanningReadinessResponse)
+async def run_ai_readiness_review(project_id: str, request: Request) -> PlanningReadinessResponse:
+    ensure_agent_execution_allowed(request)
+    return await planning_readiness_service.run_ai_review(project_id)
+
+
 @router.get("", response_model=PlanningState)
-def get_planning(project_id: str, request: Request) -> PlanningState:
-    require_project_read(request, project_id)
+def get_planning(project_id: str) -> PlanningState:
     return project_store.load_planning(project_id)
 
 
 @router.put("", response_model=PlanningState)
-def update_planning(project_id: str, planning: PlanningState, request: Request) -> PlanningState:
-    require_project_write(request, project_id)
+def update_planning(project_id: str, planning: PlanningState) -> PlanningState:
     return project_store.save_planning(project_id, planning)

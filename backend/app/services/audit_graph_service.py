@@ -9,13 +9,11 @@ from app.store.project_store import project_store
 
 
 PLANNING_TYPES = {"audit", "workstream", "objective", "risk", "test"}
-FIELDWORK_TYPES = {"fieldwork_item", "document_request", "finding", "interview_role", "interview_question"}
+FIELDWORK_TYPES = {"fieldwork_item", "finding"}
 REPORTING_TYPES = {"report"}
 DEFAULT_CONTEXT_RELATIONSHIPS = {
     "contains",
     "executed_as",
-    "requires_document",
-    "clarified_by",
     "results_in",
     "reported_in",
     "summarized_in",
@@ -26,13 +24,6 @@ SEMANTIC_EDGE_RULES = {
     ("objective", "risk"): "contains",
     ("risk", "test"): "contains",
     ("test", "fieldwork_item"): "executed_as",
-    ("test", "document_request"): "requires_document",
-    ("fieldwork_item", "document_request"): "requires_document",
-    ("objective", "document_request"): "requires_document",
-    ("risk", "document_request"): "requires_document",
-    ("objective", "interview_question"): "clarified_by",
-    ("risk", "interview_question"): "clarified_by",
-    ("test", "interview_question"): "clarified_by",
     ("fieldwork_item", "finding"): "results_in",
     ("finding", "report"): "reported_in",
 }
@@ -161,25 +152,11 @@ class AuditGraphService:
                         )
                         add_relationship(risk.id, test.id, "contains")
 
-        interviews = project_store.load_interviews(audit.id)
-        for role in interviews.roles:
-            add_item(role.id, "interview_role", role.role_title, role.expected_information, role.status, role.model_dump())
-            for question in role.questions:
-                add_item(question.id, "interview_question", question.question_text, role.role_title, question.status, question.model_dump(), {"role_id": role.id})
-                add_relationship(role.id, question.id, "contains")
-                for mapped_id in [question.mapped_objective_id, question.mapped_risk_id, question.mapped_test_id]:
-                    add_relationship(mapped_id, question.id, "clarified_by")
-
         fieldwork = project_store.load_fieldwork(audit.id)
         for item in fieldwork.items:
             source_test_id = item.source_test_id or item.test_id
             add_item(item.id, "fieldwork_item", item.title, item.description, item.status, item.model_dump(), {"test_id": item.test_id, "source_test_id": source_test_id})
             add_relationship(source_test_id, item.id, "executed_as")
-
-        document_requests = project_store.load_document_requests(audit.id)
-        for request in document_requests.requests:
-            add_item(request.id, "document_request", request.title, request.description, request.status, request.model_dump(), {"source_node_id": request.source_node_id})
-            add_relationship(request.source_node_id, request.id, "requires_document")
 
         findings = project_store.load_findings(audit.id)
         fieldwork_by_finding_id: dict[str, str] = {}
@@ -347,10 +324,6 @@ class AuditGraphService:
                 gaps.append(self._gap(item, "test_without_fieldwork", "Test has no linked fieldwork item."))
             if item.type == "fieldwork_item" and item.data.get("status") == "Issue Identified" and not has_child(item.id, "finding", "results_in"):
                 gaps.append(self._gap(item, "fieldwork_without_finding", "Fieldwork item is marked as an issue but has no finding."))
-            if item.type == "document_request" and not item.metadata.get("source_node_id") and not has_parent(item.id, "test", "requires_document"):
-                gaps.append(self._gap(item, "document_request_without_test_or_source", "Document request is not linked to a test or source audit item."))
-            if item.type == "interview_question" and not any(relationship.type == "clarified_by" for relationship in incoming.get(item.id, [])):
-                gaps.append(self._gap(item, "interview_question_without_mapping", "Interview question is not mapped to an objective, risk, or test."))
             if item.type == "finding":
                 if not item.metadata.get("linked_fieldwork_item_id") and not has_parent(item.id, "fieldwork_item", "results_in"):
                     gaps.append(self._gap(item, "finding_without_fieldwork", "Finding is not linked to fieldwork."))
@@ -370,17 +343,12 @@ class AuditGraphService:
         risks = self._children(graph, objective_id, "risk", "contains")
         tests = [test for risk in risks for test in self._children(graph, risk["id"], "test", "contains")]
         fieldwork = [item for test in tests for item in self._children(graph, test["id"], "fieldwork_item", "executed_as")]
-        source_ids = {objective_id, *(risk["id"] for risk in risks), *(test["id"] for test in tests), *(item["id"] for item in fieldwork)}
         findings = self._targets_from_sources(graph, {item["id"] for item in fieldwork}, "finding", "results_in")
-        interview_questions = self._targets_from_sources(graph, source_ids, "interview_question", "clarified_by")
         return {
             "objective": objective.to_dict() if objective else None,
             "risks": risks,
             "tests": tests,
             "fieldwork_items": fieldwork,
-            "document_requests": self._targets_from_sources(graph, source_ids, "document_request", "requires_document"),
-            "interview_questions": interview_questions,
-            "interview_roles": self._interview_roles_for_questions(graph, interview_questions),
             "findings": findings,
             "report_sections": self._report_sections_for_findings(graph, findings),
         }
@@ -391,17 +359,12 @@ class AuditGraphService:
         upstream = self.get_upstream_items(graph, risk_id, depth=2)
         tests = self._children(graph, risk_id, "test", "contains")
         fieldwork = [item for test in tests for item in self._children(graph, test["id"], "fieldwork_item", "executed_as")]
-        source_ids = {risk_id, *(test["id"] for test in tests), *(item["id"] for item in fieldwork)}
         findings = self._targets_from_sources(graph, {item["id"] for item in fieldwork}, "finding", "results_in")
-        interview_questions = self._targets_from_sources(graph, source_ids, "interview_question", "clarified_by")
         return {
             "risk": risk.to_dict() if risk else None,
             "upstream": [entry["item"] for entry in upstream],
             "tests": tests,
             "fieldwork_items": fieldwork,
-            "document_requests": self._targets_from_sources(graph, source_ids, "document_request", "requires_document"),
-            "interview_questions": interview_questions,
-            "interview_roles": self._interview_roles_for_questions(graph, interview_questions),
             "findings": findings,
             "report_sections": self._report_sections_for_findings(graph, findings),
         }
@@ -410,16 +373,11 @@ class AuditGraphService:
         graph = self._ensure_graph(project)
         test = graph.items.get(test_id)
         fieldwork = self._children(graph, test_id, "fieldwork_item", "executed_as")
-        source_ids = {test_id, *(item["id"] for item in fieldwork)}
         findings = self._targets_from_sources(graph, {item["id"] for item in fieldwork}, "finding", "results_in")
-        interview_questions = self._targets_from_sources(graph, {test_id}, "interview_question", "clarified_by")
         return {
             "test": test.to_dict() if test else None,
             "upstream": [entry["item"] for entry in self.get_upstream_items(graph, test_id, depth=3)],
             "fieldwork_items": fieldwork,
-            "document_requests": self._targets_from_sources(graph, source_ids, "document_request", "requires_document"),
-            "interview_questions": interview_questions,
-            "interview_roles": self._interview_roles_for_questions(graph, interview_questions),
             "findings": findings,
             "report_sections": self._report_sections_for_findings(graph, findings),
         }
@@ -444,15 +402,6 @@ class AuditGraphService:
             outputs["findings"] = [item.to_dict() for item in graph.items.values() if item.type == "finding"]
             outputs["report_sections"] = [item.to_dict() for item in graph.items.values() if item.type == "report" and any(str(value).strip() for value in item.data.values() if isinstance(value, str))]
             return outputs
-        if agent_type == "interview_plan_generator":
-            for input_id in input_ids:
-                if input_id not in graph.items:
-                    continue
-                chain = self.get_traceability_chain(graph, input_id)
-                questions = chain.get("interview_questions") or self._targets_from_sources(graph, {input_id}, "interview_question", "clarified_by")
-                roles = self._interview_roles_for_questions(graph, questions)
-                outputs[input_id] = [*roles, *questions]
-            return outputs
         if agent_type == "risk_generator":
             for input_id in input_ids:
                 item = graph.items.get(input_id)
@@ -476,16 +425,6 @@ class AuditGraphService:
                     risks = self._children(graph, input_id, "risk", "contains")
                     tests = [test for risk in risks for test in self._children(graph, risk["id"], "test", "contains")]
                     outputs[input_id] = [*risks, *tests]
-            return outputs
-        if agent_type == "document_request_generator":
-            for input_id in input_ids:
-                item = graph.items.get(input_id)
-                if not item:
-                    continue
-                source_ids = {input_id}
-                if item.type == "fieldwork_item":
-                    source_ids.add(str(item.metadata.get("test_id") or item.data.get("test_id") or ""))
-                outputs[input_id] = self._targets_from_sources(graph, {source_id for source_id in source_ids if source_id}, "document_request", "requires_document")
             return outputs
         if agent_type == "finding_draft_agent":
             for input_id in input_ids:
@@ -598,17 +537,6 @@ class AuditGraphService:
                     targets.append(target.to_dict())
         return targets
 
-    def _interview_roles_for_questions(self, graph: AuditGraph, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        seen: set[str] = set()
-        roles: list[dict[str, Any]] = []
-        for question in questions:
-            role_id = question.get("metadata", {}).get("role_id") or question.get("data", {}).get("role_id")
-            role = graph.items.get(role_id) if role_id else None
-            if role and role.id not in seen:
-                seen.add(role.id)
-                roles.append(role.to_dict())
-        return roles
-
     def _report_sections_for_findings(self, graph: AuditGraph, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         finding_ids = {finding["id"] for finding in findings}
         report_sections = self._targets_from_sources(graph, finding_ids, "report", "reported_in")
@@ -634,7 +562,6 @@ class AuditGraphService:
             "objective_generator": ("contains", "objective"),
             "risk_generator": ("contains", "risk"),
             "test_generator": ("contains", "test"),
-            "document_request_generator": ("requires_document", "document_request"),
             "finding_draft_agent": ("results_in", "finding"),
         }.get(agent_type, (None, None))
 
@@ -646,10 +573,7 @@ class AuditGraphService:
             "risk": ["severity", "why_it_matters", "potential_impact"],
             "test": ["test_type", "test_objective", "expected_evidence", "sample_considerations"],
             "fieldwork_item": ["test_type", "expected_evidence", "notes", "evidence_placeholder"],
-            "document_request": ["requested_from", "expected_document", "rationale", "source_node_id"],
             "finding": ["severity", "criteria", "root_cause", "impact", "recommendation"],
-            "interview_role": ["rationale", "expected_information", "notes"],
-            "interview_question": ["mapped_objective_id", "mapped_risk_id", "mapped_test_id"],
             "report": ["audit_conclusion", "issue_summary", "key_themes", "management_attention_points"],
             "agent": ["type", "status", "last_run_at"],
         }
@@ -660,7 +584,6 @@ class AuditGraphService:
             "workstream": ["objectives"],
             "objective": ["risks"],
             "risk": ["tests"],
-            "interview_role": ["questions"],
             "fieldwork_item": ["finding_ids"],
             "finding": ["evidence_needed", "validation_questions"],
             "report": ["key_themes", "management_attention_points", "draft_report_structure"],

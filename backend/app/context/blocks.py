@@ -212,7 +212,7 @@ class WorkflowStateBlock(BaseContextBlock):
     def _current_phase(self, counts: dict[str, int]) -> str:
         if counts.get("finding"):
             return "reporting"
-        if counts.get("fieldwork_item") or counts.get("interview_role") or counts.get("document_request"):
+        if counts.get("fieldwork_item"):
             return "fieldwork"
         return "planning"
 
@@ -265,7 +265,7 @@ class CurrentTaskBlock(BaseContextBlock):
             request.graph,
             item_id,
             depth=4,
-            relationship_types={"contains", "executed_as", "results_in", "requires_document", "clarified_by"},
+            relationship_types={"contains", "executed_as", "results_in"},
             exclude_item_types={"agent"},
         )
         ordered = sorted(upstream, key=lambda entry: entry["depth"], reverse=True)

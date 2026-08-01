@@ -20,19 +20,9 @@ export type LlmSettingsUpdate = {
 export type RuntimeSettings = {
   deploymentMode: "local" | "hosted";
   isAdmin: boolean;
-  isAuthenticated: boolean;
-  userEmail: string | null;
-  userCanRunAgents: boolean;
-  userAiRunLimit: number | null;
-  userAiRunsUsed: number;
-  userAiRunsRemaining: number | null;
-  aiAccessMessage: string;
   adminEnabled: boolean;
   llmProviderConfigured: boolean;
   agentExecutionEnabled: boolean;
-  activeAiProviderLabel: string;
-  activeAiModelLabel: string;
-  allowedAiModels: string[];
 };
 
 export type AgentRunLoggingSettings = {

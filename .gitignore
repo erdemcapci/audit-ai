@@ -8,4 +8,3 @@ __pycache__/
 .pytest_cache/
 projects/*
 !projects/.gitkeep
-docs/architecture/public-vs-showcase.md

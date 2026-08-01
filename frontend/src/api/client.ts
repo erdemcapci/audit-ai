@@ -14,13 +14,11 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   if (!response.ok) {
     let message = response.statusText;
     const rawBody = await response.text();
-    if (rawBody) {
-      try {
-        const body = JSON.parse(rawBody);
-        message = body.detail || rawBody;
-      } catch {
-        message = rawBody;
-      }
+    try {
+      const body = JSON.parse(rawBody);
+      message = body.detail || message;
+    } catch {
+      message = rawBody || message;
     }
     throw new Error(message);
   }

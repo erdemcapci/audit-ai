@@ -1,33 +1,22 @@
 /*
  * Copyright (C) 2026 Erdem Capci
  *
- * This file is part of AuditCopilot and is licensed under AGPLv3-or-later.
+ * This file is part of Assurance Graph and is licensed under AGPLv3-or-later.
  */
 
 import { useEffect, useState } from "react";
-import { authApi, type UserMe } from "./api/authApi";
 import { projectsApi } from "./api/projectsApi";
 import { settingsApi, type RuntimeSettings } from "./api/settingsApi";
 import { AdminScreen } from "./screens/AdminScreen";
-import { AuthScreen } from "./screens/AuthScreen";
 import { AuditWorkspace } from "./screens/AuditWorkspace";
 import { StartScreen } from "./screens/StartScreen";
-import { CookieNotice } from "./showcase/CookieNotice";
-import { HowToUsePage } from "./showcase/HowToUsePage";
-import { LegalPage } from "./showcase/LegalPage";
 
 const CURRENT_PROJECT_KEY = "audit-ai-current-project";
 
 function App() {
   const [projectId, setProjectId] = useState<string | null>(() => localStorage.getItem(CURRENT_PROJECT_KEY));
   const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
-  const [user, setUser] = useState<UserMe | null>(null);
-  const [authLoaded, setAuthLoaded] = useState(false);
-  const [path, setPath] = useState(window.location.pathname);
-  const isAdminRoute = path.startsWith("/admin");
-  const isAuthRoute = path.startsWith("/auth");
-  const isHowToUseRoute = path === "/how-to-use";
-  const legalPage = path === "/impressum" || path === "/privacy" || path === "/terms" ? path.slice(1) : null;
+  const isAdminRoute = window.location.pathname.startsWith("/admin");
 
   async function refreshRuntime() {
     const next = await settingsApi.runtime();
@@ -40,35 +29,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const onPopState = () => setPath(window.location.pathname);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
-  useEffect(() => {
-    authApi.me()
-      .then((next) => {
-        setUser(next);
-        setRuntime(next.runtime);
-      })
-      .catch(() => setUser(null))
-      .finally(() => setAuthLoaded(true));
-  }, []);
-
-  useEffect(() => {
-    if (!user?.isAuthenticated || runtime?.deploymentMode !== "hosted") return;
-    const interval = window.setInterval(() => {
-      authApi.me()
-        .then((next) => {
-          setUser(next);
-          setRuntime(next.runtime);
-        })
-        .catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(interval);
-  }, [runtime?.deploymentMode, user?.isAuthenticated]);
-
-  useEffect(() => {
     if (projectId) {
       localStorage.setItem(CURRENT_PROJECT_KEY, projectId);
     } else {
@@ -76,109 +36,25 @@ function App() {
     }
   }, [projectId]);
 
-  async function startAudit(payload: {
-    title: string;
-    description: string;
-    process_area: string;
-    initial_concern: string;
-    extra_context: string;
-    accepted_data_warning?: boolean;
-  }) {
+  async function startAudit(payload: { title: string; description: string; process_area: string; initial_concern: string; extra_context: string }) {
     const project = await projectsApi.create(payload);
     setProjectId(project.id);
   }
 
   function openProject(id: string) {
     window.history.pushState({}, "", "/");
-    setPath("/");
     setProjectId(id);
-  }
-
-  function goTo(pathname: string) {
-    window.history.pushState({}, "", pathname);
-    setPath(pathname);
-  }
-
-  async function logoutUser() {
-    const next = await authApi.logout();
-    setUser(next);
-    setRuntime(next.runtime);
-    setProjectId(null);
   }
 
   if (isAdminRoute) {
     return <AdminScreen onOpenProject={openProject} onRuntimeChange={setRuntime} refreshRuntime={refreshRuntime} />;
   }
 
-  if (legalPage) {
-    return <LegalPage page={legalPage} onBack={() => goTo("/")} />;
-  }
-
-  if (isHowToUseRoute) {
-    return (
-      <>
-        <HowToUsePage onBack={() => goTo("/")} />
-        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
-      </>
-    );
-  }
-
-  if (!authLoaded) {
-    return <main className="workspace"><p className="muted">Loading session...</p></main>;
-  }
-
-  if (isAuthRoute) {
-    return (
-      <>
-        <AuthScreen
-          onAuthenticated={(next) => {
-            setUser(next);
-            setRuntime(next.runtime);
-            goTo("/");
-          }}
-          onCancel={() => {
-            goTo("/");
-          }}
-        />
-        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
-      </>
-    );
-  }
-
   if (!projectId) {
-    return (
-      <>
-        <StartScreen
-          onStart={startAudit}
-          onOpenExisting={setProjectId}
-          runtime={runtime}
-          user={user}
-          onLogoutUser={logoutUser}
-          onSignIn={() => goTo("/auth")}
-          onHowToUse={() => goTo("/how-to-use")}
-        />
-        <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
-      </>
-    );
+    return <StartScreen onStart={startAudit} onOpenExisting={setProjectId} />;
   }
 
-  return (
-    <>
-      <AuditWorkspace
-        projectId={projectId}
-        onReset={() => setProjectId(null)}
-        runtime={runtime}
-        user={user}
-        onLogoutUser={logoutUser}
-        onSignIn={() => goTo("/auth")}
-        onHowToUse={() => goTo("/how-to-use")}
-        onRuntimeChanged={async () => {
-          await refreshRuntime();
-        }}
-      />
-      <CookieNotice enabled={runtime?.deploymentMode === "hosted"} />
-    </>
-  );
+  return <AuditWorkspace projectId={projectId} onReset={() => setProjectId(null)} runtime={runtime} onRuntimeChanged={refreshRuntime} />;
 }
 
 export default App;

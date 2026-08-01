@@ -13,16 +13,11 @@ from app.context.context_pack_builder import context_pack_builder
 from app.models import (
     AgentState,
     AuditCreate,
-    DocumentRequest,
-    DocumentRequestState,
     FieldworkItem,
     FieldworkState,
     Finding,
     FindingsState,
     FlowEdge,
-    InterviewPlan,
-    InterviewQuestion,
-    InterviewRole,
     MapState,
     Objective,
     PlanningState,
@@ -31,6 +26,7 @@ from app.models import (
     Workstream,
 )
 from app.services.audit_graph_service import audit_graph_service
+from app.services.audit_map_service import audit_map_service
 from app.services.agent_service import agent_service
 from app.store.file_store import FileStore
 from app.store.project_store import project_store
@@ -89,47 +85,6 @@ class ContextAwarenessTests(unittest.TestCase):
                 ]
             ),
         )
-        project_store.save_document_requests(
-            self.project.id,
-            DocumentRequestState(
-                requests=[
-                    DocumentRequest(
-                        id="doc_approval_matrix",
-                        title="Approval matrix",
-                        expected_document="Current approval matrix",
-                        source_node_id=self.risk.id,
-                    ),
-                    DocumentRequest(
-                        id="doc_vendor_master",
-                        title="Vendor master extract",
-                        expected_document="Vendor master change listing",
-                    ),
-                    DocumentRequest(
-                        id="doc_orphan",
-                        title="Unlinked policy",
-                        expected_document="Policy document",
-                    ),
-                ]
-            ),
-        )
-        project_store.save_interviews(
-            self.project.id,
-            InterviewPlan(
-                roles=[
-                    InterviewRole(
-                        id="role_procurement_owner",
-                        role_title="Procurement Owner",
-                        questions=[
-                            InterviewQuestion(
-                                id="iq_override_review",
-                                question_text="How are approval overrides reviewed?",
-                                mapped_risk_id=self.risk.id,
-                            )
-                        ],
-                    )
-                ]
-            ),
-        )
         self.agent = AgentState(
             id="agent_risk",
             type="risk_generator",
@@ -144,7 +99,6 @@ class ContextAwarenessTests(unittest.TestCase):
                     FlowEdge(id=f"{self.objective.id}->{self.agent.id}", source=self.objective.id, target=self.agent.id),
                     FlowEdge(id=f"{self.objective.id}->{self.other_risk.id}", source=self.objective.id, target=self.other_risk.id),
                     FlowEdge(id=f"{self.risk.id}->{self.other_test.id}", source=self.risk.id, target=self.other_test.id),
-                    FlowEdge(id=f"{self.test.id}->doc_vendor_master", source=self.test.id, target="doc_vendor_master"),
                 ],
             ),
         )
@@ -169,8 +123,6 @@ class ContextAwarenessTests(unittest.TestCase):
         self.assertIn(self.fieldwork_item.id, {item["id"] for item in chain["fieldwork_items"]})
         self.assertEqual([item["id"] for item in chain["findings"]], ["finding_missing_approval"])
         self.assertEqual({item["id"] for item in chain["report_sections"]}, {"report-main", "executive-summary"})
-        self.assertEqual([item["id"] for item in chain["interview_questions"]], ["iq_override_review"])
-        self.assertEqual([item["id"] for item in chain["interview_roles"]], ["role_procurement_owner"])
 
     def test_semantic_canvas_edges_and_default_agent_exclusion(self) -> None:
         graph = audit_graph_service.build_graph(self.project.id)
@@ -184,10 +136,17 @@ class ContextAwarenessTests(unittest.TestCase):
         self.assertEqual(by_pair[(self.objective.id, self.other_risk.id)].type, "contains")
         self.assertTrue(by_pair[(self.objective.id, self.other_risk.id)].metadata["semantic"])
         self.assertEqual(by_pair[(self.risk.id, self.other_test.id)].type, "contains")
-        self.assertEqual(by_pair[(self.test.id, "doc_vendor_master")].type, "requires_document")
-
         related = audit_graph_service.get_related_items(graph, self.objective.id, depth=1, direction="both")
         self.assertNotIn(self.agent.id, {entry["item"]["id"] for entry in related})
+
+    def test_removed_planning_artifacts_are_not_canvas_artifacts(self) -> None:
+        graph = audit_graph_service.build_graph(self.project.id)
+
+        self.assertEqual(graph.items[self.fieldwork_item.id].phase, "fieldwork")
+
+        audit_map = audit_map_service.build(self.project.id)
+        nodes_by_id = {node.id: node for node in audit_map.nodes}
+        self.assertEqual(nodes_by_id["fieldwork-section-issues"].data["phase"], "fieldwork")
 
     def test_risk_and_test_chain_include_report_sections(self) -> None:
         graph = audit_graph_service.build_graph(self.project.id)
@@ -247,7 +206,6 @@ class ContextAwarenessTests(unittest.TestCase):
         graph = audit_graph_service.build_graph(self.project.id)
         gap_types = {gap["gap_type"] for gap in audit_graph_service.get_relationship_gaps(graph)}
 
-        self.assertIn("document_request_without_test_or_source", gap_types)
         self.assertIn("finding_without_recommendation", gap_types)
         self.assertIn("finding_without_impact", gap_types)
 

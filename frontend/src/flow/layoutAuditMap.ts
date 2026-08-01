@@ -7,21 +7,20 @@ const NODE_HEIGHT = 130;
 const VERTICAL_GAP = 180;
 
 export function calculateRequiredNodeSize(
-  nodeData: { title?: string; description?: string; agentType?: string; severity?: string; testType?: string; itemStatus?: string; count?: number },
+  nodeData: { title?: string; description?: string; agentType?: string },
   currentWidth = 560
 ): { width: number; height: number } {
   const minWidth = nodeData.agentType ? 560 : 560;
   const minHeight = nodeData.agentType ? 160 : 140;
   const width = Math.max(currentWidth, minWidth);
-  const charsPerLine = Math.max(Math.floor((width - 36) / 7.2), 24);
+  const charsPerLine = Math.max(Math.floor((width - 36) / 8.8), 20);
   const titleLength = nodeData.title?.length || 0;
   const descriptionLength = nodeData.description?.length || 0;
   const titleLines = Math.max(1, Math.ceil(titleLength / charsPerLine));
   const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / charsPerLine) : 0;
   let metaRows = 1;
-  if (nodeData.severity || nodeData.testType || nodeData.itemStatus || typeof nodeData.count === "number") metaRows += 1;
-  if (nodeData.agentType) metaRows += 2;
-  const height = 38 + titleLines * 23 + descriptionLines * 19 + metaRows * 30 + 24;
+  if (nodeData.agentType) metaRows += 1;
+  const height = 38 + titleLines * 30 + descriptionLines * 26 + metaRows * 30 + 24;
   return { width, height: Math.max(height, minHeight) };
 }
 
@@ -51,7 +50,6 @@ export function getNextAvailablePosition(
     riskNode: 680,
     testNode: 1000,
     fieldworkItemNode: 100,
-    documentRequestNode: 120,
     findingNode: 450,
     reportNode: 120
   };

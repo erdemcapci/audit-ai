@@ -1,10 +1,10 @@
-# AuditCopilot User Manual
+# Assurance Graph User Manual
 
-This manual is for auditors and non-technical users who want to start AuditCopilot and use it for an audit.
+This manual is for auditors and non-technical users who want to start Assurance Graph and use it for an audit.
 
-AuditCopilot runs locally on your computer. Your audit project files are stored in the local `projects` folder.
+Assurance Graph runs locally on your computer. Your audit project files are stored in the local `projects` folder.
 
-You do not need to know programming to use AuditCopilot. Some setup steps require copying and pasting commands into a terminal, but the commands are provided exactly as you need them.
+You do not need to know programming to use Assurance Graph. Some setup steps require copying and pasting commands into a terminal, but the commands are provided exactly as you need them.
 
 ## Quick Answer: How Long Will Setup Take?
 
@@ -19,19 +19,19 @@ The slowest parts are installing Docker Desktop and waiting for the first build.
 
 ## Table of Contents
 
-- [What AuditCopilot Does](#what-auditcopilot-does)
+- [What Assurance Graph Does](#what-assurance-graph-does)
 - [Before You Start](#before-you-start)
 - [Option 1: Start with Docker Desktop](#option-1-start-with-docker-desktop)
 - [Option 2: Use Local AI with Ollama](#option-2-use-local-ai-with-ollama)
 - [Option 3: Use OpenAI or Claude](#option-3-use-openai-or-claude)
-- [How to Use AuditCopilot](#how-to-use-auditcopilot)
+- [How to Use Assurance Graph](#how-to-use-assurance-graph)
 - [Deleting Cards](#deleting-cards)
 - [Where Your Data Is Stored](#where-your-data-is-stored)
 - [Troubleshooting](#troubleshooting)
 
-## What AuditCopilot Does
+## What Assurance Graph Does
 
-AuditCopilot helps you turn a short audit description into a visual audit map:
+Assurance Graph helps you turn a short audit description into a visual audit map:
 
 ```text
 Planning -> Fieldwork -> Findings -> Reporting
@@ -42,7 +42,7 @@ You can use it to:
 - Generate audit objectives
 - Generate risks
 - Generate audit tests
-- Generate interview plans
+- Review planning readiness
 - Track fieldwork items
 - Draft findings
 - Generate executive summaries and draft reports
@@ -52,7 +52,7 @@ AI output is a draft. You remain responsible for reviewing, editing, validating,
 
 For a more detailed explanation of the tool, the audit steps, and where AI can support the process, see:
 
-[AuditCopilot Tool Overview](TOOL_OVERVIEW.md)
+[Assurance Graph Tool Overview](TOOL_OVERVIEW.md)
 
 ## Before You Start
 
@@ -60,13 +60,13 @@ For the easiest setup, you need:
 
 - A computer running Windows, macOS, or Linux
 - Docker Desktop installed
-- The AuditCopilot project folder
+- The Assurance Graph project folder
 
 You do not need an AI account to try the app. Demo mode is enabled by default.
 
 ### What Is Docker Desktop?
 
-Docker Desktop is the easiest way to run AuditCopilot without installing developer tools one by one.
+Docker Desktop is the easiest way to run Assurance Graph without installing developer tools one by one.
 
 Instead of asking you to install Python, Node.js, frontend dependencies, and backend dependencies separately, Docker starts the full app for you.
 
@@ -96,11 +96,11 @@ Install it and open Docker Desktop.
 
 Wait until Docker Desktop says it is running.
 
-### Step 2: Get AuditCopilot
+### Step 2: Get Assurance Graph
 
 If you are using GitHub and do not know Git:
 
-1. Open the AuditCopilot GitHub page:
+1. Open the Assurance Graph GitHub page:
 
 ```text
 https://github.com/erdemcapci/audit-ai
@@ -121,17 +121,17 @@ git clone https://github.com/erdemcapci/audit-ai.git
 
 ### Step 3: Open a terminal in the project folder
 
-You need to run two commands from the AuditCopilot folder.
+You need to run two commands from the Assurance Graph folder.
 
 On macOS:
 
-1. Open the AuditCopilot folder in Finder.
+1. Open the Assurance Graph folder in Finder.
 2. Right-click the folder area.
 3. Choose `New Terminal at Folder` if available.
 
 On Windows:
 
-1. Open the AuditCopilot folder in File Explorer.
+1. Open the Assurance Graph folder in File Explorer.
 2. Click the address bar.
 3. Type `cmd`.
 4. Press Enter.
@@ -176,7 +176,7 @@ When it is running, open your browser and go to:
 http://localhost:3000
 ```
 
-Leave the terminal window open while using AuditCopilot. If you close it, the app may stop.
+Leave the terminal window open while using Assurance Graph. If you close it, the app may stop.
 
 ### Step 6: Stop the app
 
@@ -199,7 +199,7 @@ docker compose up
 After the first setup, you normally only need to:
 
 1. Open Docker Desktop.
-2. Open a terminal in the AuditCopilot folder.
+2. Open a terminal in the Assurance Graph folder.
 3. Run:
 
 ```bash
@@ -216,7 +216,7 @@ http://localhost:3000
 
 This is optional.
 
-By default, AuditCopilot uses demo mode, so it can work without Ollama or API keys.
+By default, Assurance Graph uses demo mode, so it can work without Ollama or API keys.
 
 If you want local AI:
 
@@ -287,7 +287,7 @@ ANTHROPIC_API_KEY=your_key_here
 
 Restart the app after changing `.env`.
 
-## How to Use AuditCopilot
+## How to Use Assurance Graph
 
 ### 1. Start a New Audit
 
@@ -310,7 +310,7 @@ Click:
 Build my audit map
 ```
 
-AuditCopilot creates a local project and opens the audit workspace.
+Assurance Graph creates a local project and opens the audit workspace.
 
 ### 2. Understand the Main Map
 
@@ -328,7 +328,6 @@ Cards represent audit objects such as:
 - Objectives
 - Risks
 - Tests
-- Interview roles/questions
 - Fieldwork items
 - Findings
 - Report sections
@@ -364,7 +363,7 @@ To select several cards, left-click and drag on empty map space.
 
 Click a card.
 
-The right panel shows editable fields for that card.
+The inspector overlay shows editable fields for that card.
 
 You can edit titles, descriptions, risk severity, test details, finding fields, and other card-specific information.
 
@@ -378,7 +377,6 @@ Agent cards can generate outputs such as:
 
 - Risks
 - Tests
-- Interview plans
 - Findings
 - Report drafts
 
@@ -386,30 +384,26 @@ Typical use:
 
 1. Add an agent card from the `Add Agent` control.
 2. Connect it to related cards.
-3. Configure the agent in the right panel.
+3. Configure the agent in the inspector overlay.
 4. Run the agent from the agent card on the map.
 
-If the connected cards already have outputs, AuditCopilot asks whether you want to:
+If the connected cards already have outputs, Assurance Graph asks whether you want to:
 
 - Cancel
 - Delete old outputs and create new ones
 - Keep old outputs and add new ones
 
-### 7. Follow the Guided Checklist
+### 7. Use Planning Views
 
-When no card is selected, the right panel shows the guided checklist.
+The Planning area contains the audit plan and Planning Readiness.
 
-The checklist is grouped by phase:
+Use the Planning tabs and map controls to work with:
 
-- Planning
-- Interviews
-- Fieldwork
-- Findings
-- Reporting
+- Audit plan cards
+- Readiness findings
+- AI Planning Review results
 
-Click a phase heading to expand or collapse it.
-
-The checklist shows major actions only. Editing and review happen directly inside the map cards.
+Editing and review happen directly inside the map cards and inspector overlay.
 
 ### 8. Planning Workflow
 
@@ -421,24 +415,13 @@ A typical planning flow is:
 4. Review and edit risk cards.
 5. Confirm risks and generate tests.
 6. Review and edit test cards.
-7. Approve planning.
+7. Review Planning Readiness.
+8. Run the AI Planning Review if AI execution is enabled.
+9. Approve planning.
 
 The goal is not to accept AI output blindly. Treat generated content as a draft.
 
-### 9. Interviews
-
-Generate an interview plan after planning exists.
-
-Interview cards can include:
-
-- Interviewee roles
-- Rationale
-- Expected information
-- Questions
-
-Edit the cards as needed.
-
-### 10. Fieldwork
+### 9. Fieldwork
 
 Create fieldwork items from approved planning.
 
@@ -486,7 +469,7 @@ Markdown files can be opened in many editors and converted later to other format
 
 ## Deleting Cards
 
-When you select a card, the right panel can show cleanup actions.
+When you select a card, the inspector overlay can show cleanup actions.
 
 You may see:
 
@@ -515,7 +498,6 @@ Each project has JSON files such as:
 ```text
 audit.json
 planning.json
-interview_plan.json
 fieldwork.json
 findings.json
 report.json
@@ -592,12 +574,12 @@ Check:
 
 ## Important Disclaimer
 
-AuditCopilot provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
+Assurance Graph provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
 
 AI-generated outputs may be incomplete or inaccurate. Users remain responsible for professional judgment, validation, regulatory compliance, and compliance with their organization’s policies.
 
 ## Feedback
 
-AuditCopilot was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
+Assurance Graph was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 For feedback, questions, suggestions, or collaboration, feel free to reach out on LinkedIn.

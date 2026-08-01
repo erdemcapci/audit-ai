@@ -1,11 +1,6 @@
 from app.models import (
-    DocumentRequest,
-    DocumentRequestState,
     FieldworkItem,
     Finding,
-    InterviewPlan,
-    InterviewQuestion,
-    InterviewRole,
     Objective,
     PlanningState,
     ReportState,
@@ -123,51 +118,6 @@ def demo_tests(planning: PlanningState) -> PlanningState:
     return planning
 
 
-def demo_interviews(planning: PlanningState, max_roles: int = 3, questions_per_role: int = 3) -> InterviewPlan:
-    objective_id = planning.workstreams[0].objectives[0].id if planning.workstreams and planning.workstreams[0].objectives else None
-    roles = [
-        ("Process Owner", "Explain end-to-end process design, decision rights, and known pain points."),
-        ("Control Owner", "Describe control operation, evidence retained, and exception handling."),
-        ("System Owner", "Confirm workflow configuration, access model, and audit trail availability."),
-        ("Operations Lead", "Explain day-to-day execution, handoffs, and recurring exceptions."),
-        ("Compliance Officer", "Confirm policy requirements, monitoring expectations, and compliance concerns."),
-    ]
-    question_templates = [
-        lambda: InterviewQuestion(question_text="Walk us through the process from initiation to completion.", mapped_objective_id=objective_id),
-        lambda: InterviewQuestion(question_text="Which controls are most important, and where do exceptions occur?"),
-        lambda: InterviewQuestion(question_text="What evidence is retained to demonstrate the control operated?"),
-        lambda: InterviewQuestion(question_text="What changes, incidents, or known issues should the audit consider?"),
-        lambda: InterviewQuestion(question_text="Which reports or system records would best support audit testing?"),
-    ]
-    return InterviewPlan(
-        roles=[
-            InterviewRole(
-                role_title=role,
-                rationale=f"{role} is likely to hold information needed to validate planning assumptions.",
-                expected_information=expected,
-                questions=[template() for template in question_templates[: max(1, questions_per_role)]],
-            )
-            for role, expected in roles[: max(1, max_roles)]
-        ]
-    )
-
-
-def demo_document_requests(source_titles: list[str], max_items: int = 8) -> DocumentRequestState:
-    titles = source_titles or ["Fieldwork evidence"]
-    requests: list[DocumentRequest] = []
-    for index, title in enumerate(titles[: max(1, max_items)], start=1):
-        requests.append(
-            DocumentRequest(
-                title=f"Request evidence for {title[:64]}",
-                description="Ask the process owner to provide the evidence needed to perform or validate this audit procedure.",
-                requested_from="Process Owner",
-                expected_document="Policy, approval trail, transaction support, system report, or other retained control evidence.",
-                rationale="This evidence supports fieldwork execution and helps validate whether the related control activity operated as expected.",
-            )
-        )
-    return DocumentRequestState(requests=requests)
-
-
 def demo_finding(raw_description: str, fieldwork_item: FieldworkItem | None = None) -> Finding:
     title = "Control exception requires management attention"
     if fieldwork_item:
@@ -199,7 +149,7 @@ def demo_report() -> ReportState:
     issue_summary = "Findings noted during fieldwork should be validated with process owners and prioritized by severity."
     draft_structure = [
         {"heading": "Background", "content": "Summary of audit scope and process context."},
-        {"heading": "Scope and Approach", "content": "Planning, interviews, evidence review, and selected testing."},
+        {"heading": "Scope and Approach", "content": "Planning, evidence review, and selected testing."},
         {"heading": "Findings", "content": "Detailed issues, impact, and recommendations."},
         {"heading": "Conclusion", "content": "Overall control assessment and management next steps."},
     ]

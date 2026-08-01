@@ -1,14 +1,14 @@
-# AuditCopilot Tool Overview
+# Assurance Graph Tool Overview
 
-This document explains what AuditCopilot does, how it supports an audit, and where AI can help during the audit lifecycle.
+This document explains what Assurance Graph does, how it supports an audit, and where AI can help during the audit lifecycle.
 
-AuditCopilot is an open-source visual AI audit workspace. It is designed to help auditors think through an audit from a simple title and description, then turn that starting point into a structured audit map.
+Assurance Graph is an open-source visual AI audit workspace. It is designed to help auditors think through an audit from a simple title and description, then turn that starting point into a structured audit map.
 
 It is not a GRC system, audit issue tracker, approval workflow, or enterprise audit management platform. It is a local-first thinking, planning, drafting, and documentation aid for auditors.
 
-## What AuditCopilot Does
+## What Assurance Graph Does
 
-AuditCopilot helps an auditor move from:
+Assurance Graph helps an auditor move from:
 
 ```text
 Audit idea -> Objectives -> Risks -> Tests -> Fieldwork -> Findings -> Report
@@ -26,18 +26,18 @@ The purpose is to make the audit journey visible. Instead of managing audit plan
 
 ## Core Principles
 
-AuditCopilot is built around these principles:
+Assurance Graph is built around these principles:
 
 - Local-first: project files are stored locally on the user's computer.
 - Visual-first: the audit map is the main workspace.
 - AI suggests, auditor decides: AI output is draft material, not final audit work.
 - Editable: generated cards can be reviewed and changed by the auditor.
 - Lightweight: no database, no authentication, no enterprise workflow.
-- Practical: the tool focuses on objectives, risks, tests, interviews, fieldwork, findings, and reports.
+- Practical: the tool focuses on objectives, risks, tests, fieldwork, findings, and reports.
 
 ## Main Audit Phases
 
-AuditCopilot organizes the map into three high-level phase areas:
+Assurance Graph organizes the map into three high-level phase areas:
 
 - Planning
 - Fieldwork
@@ -46,10 +46,10 @@ AuditCopilot organizes the map into three high-level phase areas:
 The user journey is more detailed:
 
 ```text
-Understand -> Plan -> Interview -> Test -> Report
+Understand -> Plan -> Test -> Report
 ```
 
-The phase areas help the auditor see where each card belongs. Planning cards sit in the Planning area, fieldwork and finding cards sit in the Fieldwork area, and report cards sit in the Reporting area.
+The phase areas help the auditor see where each card belongs. Audit plan cards sit in the Planning area, fieldwork items and findings sit in the Fieldwork area, and report cards sit in the Reporting area.
 
 ## What the AI Can Support
 
@@ -60,7 +60,7 @@ AI can support these steps:
 - Generate objectives and workstreams from an audit title and description
 - Generate risks linked to confirmed objectives
 - Generate audit tests linked to risks
-- Generate interview roles and questions
+- Review planning readiness and planning quality before fieldwork
 - Draft findings from rough observations or fieldwork items
 - Generate executive summaries and draft report sections
 
@@ -168,7 +168,6 @@ Supported test types include:
 - Test of Operating Effectiveness
 - Detailed Test
 - Analytical Review
-- Inquiry / Interview
 
 Example tests:
 
@@ -185,34 +184,21 @@ Auditor responsibility:
 - Adjust sample approach based on audit methodology.
 - Remove tests that are not practical or relevant.
 
-## Step 5: Generate Interview Plan
+## Step 5: Review Planning Readiness
 
-AI can create an interview plan from the planning hierarchy.
+Before moving into fieldwork, the Planning screen can show a readiness view for the current audit plan.
 
-The output can include:
+Planning Readiness includes:
 
-- Interviewee roles
-- Rationale for each role
-- Expected information
-- Questions grouped by role
-- Mapping to objectives, risks, or tests where possible
-
-Example interview roles:
-
-- Process Owner
-- Control Owner
-- System Owner
-- Finance Manager
-- Compliance Officer
-- Operations Lead
-- Vendor Manager
+- Deterministic checks for missing workstreams, objectives, risks, tests, expected evidence, duplicate titles, and unsupported planning relationships.
+- An optional AI Planning Review that assesses coverage, traceability, duplication, contradictions, balance, and clarity.
+- An overall score when the AI review is current.
 
 Auditor responsibility:
 
-- Replace generic role names with actual stakeholder names when known.
-- Remove unnecessary questions.
-- Add questions specific to the organization.
-- Use the questions as a starting point, not a script that must be followed rigidly.
+- Resolve critical gaps before approving planning.
+- Re-run the AI Planning Review after meaningful plan changes.
+- Treat readiness scores as review aids, not approval decisions.
 
 ## Step 6: Create Fieldwork Items
 
@@ -315,7 +301,6 @@ Examples:
 
 - Risk Generator
 - Test Generator
-- Interview Plan Generator
 - Finding Draft Agent
 - Report Draft Agent
 
@@ -331,13 +316,13 @@ If connected cards already have outputs, the app can ask whether to:
 
 All AI-generated content should be reviewed.
 
-The auditor can click cards and edit fields directly in the right panel. This includes objectives, risks, tests, interview questions, fieldwork items, findings, reports, and agents.
+The auditor can click cards and edit fields directly in the inspector overlay. This includes objectives, risks, tests, fieldwork items, findings, reports, and agents.
 
 The review process is intentionally built into the map. The auditor does not need a separate review screen for every object.
 
-## What AuditCopilot Does Not Do
+## What Assurance Graph Does Not Do
 
-AuditCopilot does not:
+Assurance Graph does not:
 
 - Replace auditor judgment
 - Validate evidence automatically
@@ -352,7 +337,7 @@ It is a planning, thinking, drafting, and mapping tool.
 
 ## Local Data and Privacy
 
-AuditCopilot stores projects in local files under the `projects` folder.
+Assurance Graph stores projects in local files under the `projects` folder.
 
 If demo mode or Ollama is used, the app can run without sending prompts to OpenAI or Claude.
 
@@ -360,7 +345,7 @@ If OpenAI or Claude is configured, prompts are sent to the selected external pro
 
 ## Recommended Way to Use the Tool
 
-Use AuditCopilot as an audit copilot, not as an automatic audit author.
+Use Assurance Graph as an audit assistant, not as an automatic audit author.
 
 A practical workflow is:
 
@@ -372,7 +357,7 @@ A practical workflow is:
 6. Generate tests.
 7. Review and edit tests.
 8. Approve planning.
-9. Generate interview plan.
+9. Create and review fieldwork items.
 10. Create fieldwork items.
 11. Update fieldwork status and notes.
 12. Draft findings when issues are identified.
@@ -392,5 +377,4 @@ Users remain responsible for:
 - Organizational policy compliance
 - Final report quality
 
-AuditCopilot can accelerate thinking and drafting, but the auditor remains accountable for the audit work.
-
+Assurance Graph can accelerate thinking and drafting, but the auditor remains accountable for the audit work.

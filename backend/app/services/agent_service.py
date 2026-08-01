@@ -6,9 +6,8 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.agents.json_utils import parse_or_warn
-from app.agents.demo_data import demo_document_requests, demo_interviews, demo_objectives, demo_report
+from app.agents.demo_data import demo_objectives, demo_report
 from app.config import settings
-from app.demo_generation import current_ai_model, demo_generation_enabled
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
 from app.context.context_pack_builder import context_pack_builder
@@ -24,13 +23,8 @@ from app.models import (
     AgentRunResponse,
     AgentState,
     AgentUpdateRequest,
-    DocumentRequest,
-    DocumentRequestState,
     FlowEdge,
     FindingDraftRequest,
-    InterviewPlan,
-    InterviewQuestion,
-    InterviewRole,
     MapState,
     NodeUpdateRequest,
     Objective,
@@ -88,15 +82,6 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         allowed_input_node_types=["riskNode"],
         output_node_types=["testNode"],
     ),
-    "interview_plan_generator": AgentDefinition(
-        type="interview_plan_generator",
-        title="Interview Plan Generator",
-        description="Generates interview roles and questions from connected planning or fieldwork cards.",
-        default_prompt="You are an internal audit interview planning assistant. Generate role-based interview questions mapped to connected objectives, risks, tests, or fieldwork items. Return valid JSON only.",
-        default_config={"output_mode": "json", "questions_per_role": 3, "max_roles": 4},
-        allowed_input_node_types=["objectiveNode", "riskNode", "testNode", "fieldworkItemNode"],
-        output_node_types=["interviewRoleNode", "interviewQuestionNode"],
-    ),
     "finding_draft_agent": AgentDefinition(
         type="finding_draft_agent",
         title="Finding Draft Agent",
@@ -105,15 +90,6 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         default_config={"output_mode": "json", "tone": "internal audit"},
         allowed_input_node_types=["fieldworkItemNode"],
         output_node_types=["findingNode"],
-    ),
-    "document_request_generator": AgentDefinition(
-        type="document_request_generator",
-        title="Document Request Generator",
-        description="Generates document and evidence request cards from connected fieldwork or planning cards.",
-        default_prompt="You are an internal audit fieldwork assistant. Generate practical document and evidence requests for the connected audit cards. Return valid JSON only. Each request should include title, description, requested_from, expected_document, and rationale.",
-        default_config={"output_mode": "json", "max_output_items": 8},
-        allowed_input_node_types=["fieldworkItemNode", "testNode", "riskNode", "objectiveNode"],
-        output_node_types=["documentRequestNode"],
     ),
     "report_draft_agent": AgentDefinition(
         type="report_draft_agent",
@@ -197,6 +173,9 @@ def prune_deleted_or_orphan_agents(map_state: MapState) -> None:
     removed_ids: set[str] = set()
     seen_ids: set[str] = set()
     for agent in map_state.agents:
+        if agent.type not in AGENT_DEFINITIONS:
+            removed_ids.add(agent.id)
+            continue
         if agent.id in deleted_agent_ids or agent.id in seen_ids:
             removed_ids.add(agent.id)
             continue
@@ -247,7 +226,6 @@ def test_catalog(risk: Risk, allowed_types: list[str]) -> list[tuple[str, str, s
         ("Test operating evidence", allowed_types[1 % len(allowed_types)] if allowed_types else "Detailed Test", "Completed transactions, approval trail, review evidence, and exception logs.", "Validate whether the control operated consistently for selected items."),
         ("Inspect exception handling", "Detailed Test", "Exception register, escalation evidence, remediation actions, and management review records.", "Assess whether exceptions are identified, escalated, and resolved."),
         ("Reconcile system report to source records", "Analytical Review", "System extract, source population, reconciliation support, and variance explanations.", "Evaluate completeness and accuracy of the population used for control operation."),
-        ("Interview control owner on execution", "Inquiry / Interview", "Interview notes, process walkthrough, evidence examples, and control owner explanations.", "Corroborate how the control is performed and where judgment is applied."),
         ("Review access or configuration settings", "Test of Design", "Configuration screenshots, access listings, workflow rules, and change history.", "Determine whether system settings support the intended control."),
         ("Analyze trends and recurring exceptions", "Analytical Review", "Trend report, exception aging, repeat offender analysis, and management dashboards.", "Identify patterns that may indicate control weakness."),
         ("Perform targeted sample of high-risk items", "Detailed Test", "High-value, unusual, late, manual, or override transaction support.", "Focus testing on transactions most likely to expose the risk."),
@@ -567,25 +545,6 @@ class AgentService:
                             project_store.save_planning(project_id, planning)
                             return
 
-        interviews = project_store.load_interviews(project_id)
-        for role in interviews.roles:
-            if node_id == role.id:
-                for field, target in [("title", "role_title"), ("rationale", "rationale"), ("expected_information", "expected_information"), ("notes", "notes")]:
-                    if field in request.fields:
-                        setattr(role, target, request.fields[field])
-                role.status = "Edited"
-                project_store.save_interviews(project_id, interviews)
-                return
-            for question in role.questions:
-                if node_id == question.id:
-                    if "title" in request.fields:
-                        question.question_text = request.fields["title"]
-                    if "question_text" in request.fields:
-                        question.question_text = request.fields["question_text"]
-                    question.status = "Edited"
-                    project_store.save_interviews(project_id, interviews)
-                    return
-
         fieldwork = project_store.load_fieldwork(project_id)
         for item in fieldwork.items:
             if node_id == item.id:
@@ -593,16 +552,6 @@ class AgentService:
                     if field in request.fields:
                         setattr(item, field, request.fields[field])
                 project_store.save_fieldwork(project_id, fieldwork)
-                return
-
-        document_requests = project_store.load_document_requests(project_id)
-        for request_item in document_requests.requests:
-            if node_id == request_item.id:
-                for field in ["title", "description", "requested_from", "expected_document", "rationale"]:
-                    if field in request.fields:
-                        setattr(request_item, field, request.fields[field])
-                request_item.status = "Edited"
-                project_store.save_document_requests(project_id, document_requests)
                 return
 
         findings = project_store.load_findings(project_id)
@@ -667,12 +616,6 @@ class AgentService:
                     for risk in objective.risks:
                         if risk.id == input_id:
                             return [{"id": test.id, "type": "testNode", "title": test.title} for test in risk.tests]
-        if agent.type == "interview_plan_generator":
-            plan = project_store.load_interviews(project_id)
-            return [{"id": role.id, "type": "interviewRoleNode", "title": role.role_title} for role in plan.roles]
-        if agent.type == "document_request_generator":
-            requests = project_store.load_document_requests(project_id)
-            return [{"id": request.id, "type": "documentRequestNode", "title": request.title} for request in requests.requests if not request.source_node_id or request.source_node_id == input_id]
         if agent.type == "finding_draft_agent":
             fieldwork = project_store.load_fieldwork(project_id)
             findings = project_store.load_findings(project_id)
@@ -706,21 +649,10 @@ class AgentService:
         for item in fieldwork.items:
             if item.id == node_id:
                 return item.title
-        document_requests = project_store.load_document_requests(project_id)
-        for request_item in document_requests.requests:
-            if request_item.id == node_id:
-                return request_item.title
         findings = project_store.load_findings(project_id)
         for finding in findings.findings:
             if finding.id == node_id:
                 return finding.title
-        interviews = project_store.load_interviews(project_id)
-        for role in interviews.roles:
-            if role.id == node_id:
-                return role.role_title
-            for question in role.questions:
-                if question.id == node_id:
-                    return question.question_text
         return node_id
 
     def _delete_agent_outputs(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str]) -> int:
@@ -776,21 +708,10 @@ class AgentService:
                         if dimension == "testNode":
                             node_ids.update(test.id for test in risk.tests)
 
-        interviews = project_store.load_interviews(project_id)
         if phase == "fieldwork":
-            for role in interviews.roles:
-                if dimension in {"fieldwork_all", "interviewRoleNode"}:
-                    node_ids.add(role.id)
-                if dimension == "interviewQuestionNode":
-                    node_ids.update(question.id for question in role.questions)
-
             fieldwork = project_store.load_fieldwork(project_id)
             if dimension in {"fieldwork_all", "fieldworkItemNode"}:
                 node_ids.update(item.id for item in fieldwork.items)
-
-            document_requests = project_store.load_document_requests(project_id)
-            if dimension in {"fieldwork_all", "documentRequestNode"}:
-                node_ids.update(request.id for request in document_requests.requests)
 
             findings = project_store.load_findings(project_id)
             if dimension in {"fieldwork_all", "findingNode"}:
@@ -809,10 +730,7 @@ class AgentService:
             "riskNode",
             "testNode",
             "fieldwork_all",
-            "interviewRoleNode",
-            "interviewQuestionNode",
             "fieldworkItemNode",
-            "documentRequestNode",
             "findingNode",
             "reporting_all",
             "reportNode",
@@ -822,6 +740,10 @@ class AgentService:
         return node_ids
 
     def _agent_phase(self, agent: AgentState, map_state: MapState) -> str:
+        if agent.type == "finding_draft_agent":
+            return "fieldwork"
+        if agent.type == "report_draft_agent":
+            return "reporting"
         position = map_state.nodePositions.get(agent.id, agent.position)
         x = position.get("x", agent.position.get("x", 0))
         layouts = map_state.phaseLayouts
@@ -859,23 +781,6 @@ class AgentService:
         if removed:
             project_store.save_planning(project_id, planning)
 
-        interviews = project_store.load_interviews(project_id)
-        interview_removed = False
-        for role in list(interviews.roles):
-            if role.id in node_ids:
-                removed.add(role.id)
-                removed.update(question.id for question in role.questions)
-                interviews.roles.remove(role)
-                interview_removed = True
-                continue
-            for question in list(role.questions):
-                if question.id in node_ids:
-                    removed.add(question.id)
-                    role.questions.remove(question)
-                    interview_removed = True
-        if interview_removed:
-            project_store.save_interviews(project_id, interviews)
-
         fieldwork = project_store.load_fieldwork(project_id)
         fieldwork_removed = False
         for item in list(fieldwork.items):
@@ -889,14 +794,6 @@ class AgentService:
                 fieldwork_removed = fieldwork_removed or before != len(item.finding_ids)
         if fieldwork_removed:
             project_store.save_fieldwork(project_id, fieldwork)
-
-        document_requests = project_store.load_document_requests(project_id)
-        before_requests = len(document_requests.requests)
-        request_removed_ids = {request.id for request in document_requests.requests if request.id in node_ids}
-        document_requests.requests = [request for request in document_requests.requests if request.id not in node_ids]
-        removed.update(request_removed_ids)
-        if before_requests != len(document_requests.requests):
-            project_store.save_document_requests(project_id, document_requests)
 
         findings = project_store.load_findings(project_id)
         removed_finding_ids = {finding.id for finding in findings.findings if finding.id in node_ids}
@@ -971,127 +868,6 @@ class AgentService:
         if agent.type == "test_generator":
             return await self._run_test_generator(project_id, map_state, agent, input_node_ids, context_pack, capture)
 
-        if agent.type == "interview_plan_generator":
-            planning = project_store.load_planning(project_id)
-            max_roles = int(agent.config.get("max_roles", 3))
-            questions_per_role = int(agent.config.get("questions_per_role", 3))
-            if demo_generation_enabled():
-                plan = demo_interviews(planning, max_roles=max_roles, questions_per_role=questions_per_role)
-            else:
-                data = await self._agent_json(
-                    agent,
-                    "Generate interview roles and questions for the connected audit cards.",
-                    {
-                        "connected_inputs": [self._node_task_reference(project_id, input_id) for input_id in input_node_ids],
-                        "max_roles": max_roles,
-                        "questions_per_role": questions_per_role,
-                        "mapping_instruction": "Use item IDs from selected and related context when mapping questions to objectives, risks, or tests.",
-                    },
-                    {
-                        "roles": [
-                            {
-                                "role_title": "Interviewee role",
-                                "rationale": "Why this role should be interviewed",
-                                "expected_information": "Information expected from this role",
-                                "questions": [
-                                    {
-                                        "question_text": "Question text",
-                                        "mapped_objective_id": None,
-                                        "mapped_risk_id": None,
-                                        "mapped_test_id": None,
-                                    }
-                                ],
-                            }
-                        ]
-                    },
-                    context_pack,
-                    capture,
-                )
-                plan = InterviewPlan(
-                    roles=[
-                        InterviewRole(
-                            role_title=role.get("role_title", "Interviewee"),
-                            rationale=role.get("rationale", ""),
-                            expected_information=role.get("expected_information", ""),
-                            notes=role.get("notes", ""),
-                            questions=[
-                                InterviewQuestion(
-                                    question_text=question.get("question_text", "Interview question"),
-                                    mapped_objective_id=question.get("mapped_objective_id"),
-                                    mapped_risk_id=question.get("mapped_risk_id"),
-                                    mapped_test_id=question.get("mapped_test_id"),
-                                )
-                                for question in role.get("questions", [])[: max(1, questions_per_role)]
-                            ],
-                        )
-                        for role in data.get("roles", [])[: max(1, max_roles)]
-                    ]
-                )
-            project_store.save_interviews(project_id, plan)
-            for role in plan.roles:
-                add_custom_edge(map_state, agent.id, role.id)
-            return {"roles": len(plan.roles)}
-
-        if agent.type == "document_request_generator":
-            document_requests = project_store.load_document_requests(project_id)
-            source_titles = [self._node_title(project_id, input_id) for input_id in input_node_ids]
-            max_items = int(agent.config.get("max_output_items", 8))
-            if demo_generation_enabled():
-                generated = demo_document_requests(source_titles, max_items=max_items)
-            else:
-                data = await self._agent_json(
-                    agent,
-                    "Generate practical document and evidence request cards for the connected audit cards.",
-                    {
-                        "connected_inputs": [self._node_task_reference(project_id, input_id) for input_id in input_node_ids],
-                        "max_items": max_items,
-                    },
-                    {
-                        "requests": [
-                            {
-                                "title": "Request title",
-                                "description": "Detailed request description",
-                                "requested_from": "Role or team",
-                                "expected_document": "Expected evidence",
-                                "rationale": "Why this evidence is needed",
-                            }
-                        ]
-                    },
-                    context_pack,
-                    capture,
-                )
-                generated = DocumentRequestState(
-                    requests=[
-                        DocumentRequest(
-                            title=item.get("title", "Document request"),
-                            description=item.get("description", ""),
-                            requested_from=item.get("requested_from", ""),
-                            expected_document=item.get("expected_document", ""),
-                            rationale=item.get("rationale", ""),
-                        )
-                        for item in data.get("requests", [])[: max(1, max_items)]
-                    ]
-                )
-            documents_layout = anchored_fieldwork_section_layouts(map_state.phaseLayouts["fieldwork"], map_state)["documents"]
-            existing_positions = [
-                position for request_item in document_requests.requests if (position := map_state.nodePositions.get(request_item.id))
-            ]
-            y = documents_layout.y + SECTION_PADDING["top"]
-            for index, request_item in enumerate(generated.requests):
-                request_item.source_node_id = input_node_ids[index % len(input_node_ids)] if input_node_ids else None
-                document_requests.requests.append(request_item)
-                if request_item.source_node_id:
-                    add_custom_edge(map_state, request_item.source_node_id, agent.id)
-                add_custom_edge(map_state, agent.id, request_item.id)
-                while any(abs(y - position.get("y", 0)) < 160 for position in existing_positions):
-                    y += 170
-                position = {"x": documents_layout.x + SECTION_PADDING["left"], "y": y}
-                existing_positions.append(position)
-                map_state.nodePositions[request_item.id] = position
-                y += 170
-            project_store.save_document_requests(project_id, document_requests)
-            return {"document_requests": len(generated.requests)}
-
         if agent.type == "finding_draft_agent":
             audit = project_store.get_project(project_id)
             fieldwork = project_store.load_fieldwork(project_id)
@@ -1136,7 +912,7 @@ class AgentService:
             return {"findings": generated}
 
         if agent.type == "report_draft_agent":
-            if demo_generation_enabled():
+            if settings.demo_mode:
                 report = demo_report()
             else:
                 data = await self._agent_json(
@@ -1174,10 +950,10 @@ class AgentService:
         return next_config
 
     def _current_provider_and_model(self) -> tuple[str, str]:
-        if demo_generation_enabled():
+        if settings.demo_mode:
             return "demo", "deterministic"
         if settings.llm_provider == "openai":
-            return "openai", current_ai_model() or settings.openai_model
+            return "openai", settings.openai_model
         if settings.llm_provider == "claude":
             return "claude", settings.anthropic_model
         return "ollama", settings.ollama_model
@@ -1222,10 +998,6 @@ class AgentService:
         output_ids: list[str] = []
         for input_id in input_node_ids:
             output_ids.extend(item["id"] for item in self._outputs_for_agent_input(project_id, agent, input_id))
-        if agent.type == "interview_plan_generator":
-            plan = project_store.load_interviews(project_id)
-            output_ids.extend(role.id for role in plan.roles)
-            output_ids.extend(question.id for role in plan.roles for question in role.questions)
         return sorted(set(output_ids))
 
     async def _agent_json(
@@ -1250,7 +1022,6 @@ class AgentService:
             user_prompt,
             json_mode=True,
             temperature=0.2,
-            model=current_ai_model() if settings.llm_provider == "openai" else None,
         )
         if capture is not None:
             capture["provider"] = response.provider
@@ -1400,24 +1171,6 @@ class AgentService:
             if finding.id == node_id:
                 return {"id": finding.id, "type": "finding", "data": self._compact_finding_context(finding)}
 
-        requests = project_store.load_document_requests(project_id)
-        for request_item in requests.requests:
-            if request_item.id == node_id:
-                return {"id": request_item.id, "type": "document_request", "data": self._compact_document_request_context(request_item)}
-
-        interviews = project_store.load_interviews(project_id)
-        for role in interviews.roles:
-            if role.id == node_id:
-                return {"id": role.id, "type": "interview_role", "data": self._compact_interview_role_context(role)}
-            for question in role.questions:
-                if question.id == node_id:
-                    return {
-                        "id": question.id,
-                        "type": "interview_question",
-                        "role": self._compact_interview_role_context(role),
-                        "data": self._compact_interview_question_context(question),
-                    }
-
         return {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}
 
     def _compact_audit_context(self, audit: Any) -> dict[str, Any]:
@@ -1491,18 +1244,6 @@ class AgentService:
             "findings_count": len(item.finding_ids),
         }
 
-    def _compact_document_request_context(self, request_item: DocumentRequest) -> dict[str, Any]:
-        return {
-            "id": request_item.id,
-            "title": request_item.title,
-            "description": request_item.description,
-            "requested_from": request_item.requested_from,
-            "expected_document": request_item.expected_document,
-            "rationale": request_item.rationale,
-            "source_node_id": request_item.source_node_id,
-            "status": request_item.status,
-        }
-
     def _compact_finding_context(self, finding: Any) -> dict[str, Any]:
         return {
             "id": finding.id,
@@ -1516,27 +1257,6 @@ class AgentService:
             "severity": finding.severity,
             "linked_fieldwork_item_id": finding.linked_fieldwork_item_id,
             "status": finding.status,
-        }
-
-    def _compact_interview_role_context(self, role: InterviewRole) -> dict[str, Any]:
-        return {
-            "id": role.id,
-            "role_title": role.role_title,
-            "rationale": role.rationale,
-            "expected_information": role.expected_information,
-            "notes": role.notes,
-            "status": role.status,
-            "questions_count": len(role.questions),
-        }
-
-    def _compact_interview_question_context(self, question: InterviewQuestion) -> dict[str, Any]:
-        return {
-            "id": question.id,
-            "question_text": question.question_text,
-            "mapped_objective_id": question.mapped_objective_id,
-            "mapped_risk_id": question.mapped_risk_id,
-            "mapped_test_id": question.mapped_test_id,
-            "status": question.status,
         }
 
     def _audit_ref(self, audit: Any) -> dict[str, Any]:
@@ -1607,7 +1327,7 @@ class AgentService:
         map_state.nodeDimensions.update(project_store.load_map_state(project_id).nodeDimensions)
         add_custom_edge(map_state, audit.id, agent.id)
         existing_titles = [workstream.name for workstream in planning.workstreams]
-        if demo_generation_enabled():
+        if settings.demo_mode:
             workstreams = workstream_templates(audit.title, audit.description, count, existing_titles)
         else:
             data = await self._agent_json(
@@ -1661,7 +1381,7 @@ class AgentService:
                 continue
             add_custom_edge(map_state, workstream.id, agent.id)
             existing_titles = [objective.title for objective in workstream.objectives]
-            if demo_generation_enabled():
+            if settings.demo_mode:
                 objectives = [objective_templates(index, workstream, existing_titles) for index in range(count)]
             else:
                 data = await self._agent_json(
@@ -1727,7 +1447,7 @@ class AgentService:
             raise ValueError("Connect at least one objective node before running this agent.")
 
         generated_by_objective: dict[str, list[Risk]] = {}
-        if demo_generation_enabled():
+        if settings.demo_mode:
             for _, objective, existing_titles in selected:
                 generated_by_objective[objective.id] = [risk_templates(index, objective, existing_titles) for index in range(count)]
         else:
@@ -1815,7 +1535,7 @@ class AgentService:
                     add_custom_edge(map_state, risk.id, agent.id)
                     sibling_titles = [test.title for sibling_risk in objective.risks for test in sibling_risk.tests]
                     existing_titles = [test.title for test in risk.tests] + sibling_titles
-                    if demo_generation_enabled():
+                    if settings.demo_mode:
                         tests = [test_templates(index, risk, allowed_types, agent.id, existing_titles) for index in range(count)]
                     else:
                         data = await self._agent_json(
@@ -1833,7 +1553,7 @@ class AgentService:
                                 "tests": [
                                     {
                                         "title": "Test title",
-                                        "test_type": "Test of Design|Test of Operating Effectiveness|Detailed Test|Analytical Review|Inquiry / Interview",
+                                        "test_type": "Test of Design|Test of Operating Effectiveness|Detailed Test|Analytical Review",
                                         "test_objective": "Test objective",
                                         "description": "Detailed test procedure description",
                                         "expected_evidence": "Expected evidence",
@@ -1871,6 +1591,8 @@ class AgentService:
     def _get_agent(self, map_state: MapState, agent_id: str) -> AgentState:
         agent = next((item for item in map_state.agents if item.id == agent_id), None)
         if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        if agent.type not in AGENT_DEFINITIONS:
             raise HTTPException(status_code=404, detail="Agent not found")
         return agent
 

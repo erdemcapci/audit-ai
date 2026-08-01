@@ -4,7 +4,7 @@ from app.agents.demo_data import demo_report
 from app.agents.context_utils import compact_fieldwork, compact_findings, compact_planning
 from app.agents.json_utils import parse_or_warn
 from app.agents.prompts import REPORT_PROMPT, SYSTEM_PROMPT
-from app.demo_generation import current_ai_model, demo_generation_enabled
+from app.config import settings
 from app.llm.router import get_llm_provider
 from app.models import FieldworkState, FindingsState, PlanningState, ReportState
 
@@ -38,7 +38,7 @@ def report_to_markdown(report: ReportState) -> str:
 
 class ReportAgent:
     async def run(self, planning: PlanningState, fieldwork: FieldworkState, findings: FindingsState) -> ReportState:
-        if demo_generation_enabled():
+        if settings.demo_mode:
             report = demo_report()
             if findings.findings:
                 report.issue_summary = "; ".join(finding.title for finding in findings.findings)
@@ -52,7 +52,7 @@ class ReportAgent:
             },
             indent=2,
         )
-        response = await get_llm_provider().generate(SYSTEM_PROMPT, REPORT_PROMPT.format(report_context=context), model=current_ai_model())
+        response = await get_llm_provider().generate(SYSTEM_PROMPT, REPORT_PROMPT.format(report_context=context))
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)

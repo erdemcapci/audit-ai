@@ -1,6 +1,6 @@
 import httpx
 
-from app.config import settings, validate_openai_model
+from app.config import settings
 from app.llm.base import LLMProvider, LLMProviderError, LLMResponse
 
 
@@ -18,16 +18,11 @@ class OpenAIProvider(LLMProvider):
         user_prompt: str,
         json_mode: bool = True,
         temperature: float = 0.2,
-        model: str | None = None,
     ) -> LLMResponse:
         if not settings.openai_api_key:
             raise LLMProviderError("OPENAI_API_KEY is not configured.")
-        try:
-            selected_model = validate_openai_model(model or settings.openai_model)
-        except ValueError as exc:
-            raise LLMProviderError(str(exc)) from exc
         payload = {
-            "model": selected_model,
+            "model": settings.openai_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -47,6 +42,6 @@ class OpenAIProvider(LLMProvider):
         return LLMResponse(
             content=data.get("choices", [{}])[0].get("message", {}).get("content", ""),
             provider="openai",
-            model=selected_model,
+            model=settings.openai_model,
             raw_response=data,
         )

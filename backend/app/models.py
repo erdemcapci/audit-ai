@@ -34,7 +34,6 @@ class AuditCreate(BaseModel):
     process_area: str = ""
     initial_concern: str = ""
     extra_context: str = ""
-    accepted_data_warning: bool = False
 
 
 class AuditProject(BaseModel):
@@ -48,10 +47,6 @@ class AuditProject(BaseModel):
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
     status: str = "planning"
-    visibility: Literal["local", "public_sample", "anonymous_temp", "private"] = "local"
-    owner_user_id: str | None = None
-    anonymous_session_id: str | None = None
-    is_read_only_sample: bool = False
 
 
 class Risk(BaseModel):
@@ -105,29 +100,6 @@ class PlanningState(BaseModel):
     open_questions: list[str] = Field(default_factory=list)
 
 
-class InterviewQuestion(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("iq"))
-    question_text: str
-    mapped_objective_id: str | None = None
-    mapped_risk_id: str | None = None
-    mapped_test_id: str | None = None
-    status: StatusBadge = "AI Generated"
-
-
-class InterviewRole(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("role"))
-    role_title: str
-    rationale: str = ""
-    expected_information: str = ""
-    notes: str = ""
-    questions: list[InterviewQuestion] = Field(default_factory=list)
-    status: StatusBadge = "AI Generated"
-
-
-class InterviewPlan(BaseModel):
-    roles: list[InterviewRole] = Field(default_factory=list)
-
-
 class FieldworkItem(BaseModel):
     id: str = Field(default_factory=lambda: new_id("fw"))
     test_id: str
@@ -148,21 +120,6 @@ class FieldworkState(BaseModel):
 
 class FieldworkCreateFromPlanningRequest(BaseModel):
     mode: Literal["keep", "missing", "replace"] = "missing"
-
-
-class DocumentRequest(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("docreq"))
-    title: str
-    description: str = ""
-    requested_from: str = ""
-    expected_document: str = ""
-    rationale: str = ""
-    source_node_id: str | None = None
-    status: StatusBadge = "AI Generated"
-
-
-class DocumentRequestState(BaseModel):
-    requests: list[DocumentRequest] = Field(default_factory=list)
 
 
 class FindingDraftRequest(BaseModel):
@@ -222,19 +179,9 @@ class LLMSettingsUpdate(BaseModel):
 class RuntimeSettings(BaseModel):
     deploymentMode: Literal["local", "hosted"]
     isAdmin: bool
-    isAuthenticated: bool = False
-    userEmail: str | None = None
-    userCanRunAgents: bool = False
-    userAiRunLimit: int | None = None
-    userAiRunsUsed: int = 0
-    userAiRunsRemaining: int | None = None
-    aiAccessMessage: str = ""
     adminEnabled: bool
     llmProviderConfigured: bool
     agentExecutionEnabled: bool
-    activeAiProviderLabel: str = "Demo Data"
-    activeAiModelLabel: str = "Demo Model"
-    allowedAiModels: list[str] = Field(default_factory=list)
 
 
 class AgentRunLoggingSettings(BaseModel):
@@ -295,6 +242,106 @@ class AuditContextSnapshot(BaseModel):
     truncated: bool = False
 
 
+PlanningReadinessSeverity = Literal["critical", "high", "medium", "low"]
+
+
+class PlanningReadinessNavigation(BaseModel):
+    node_id: str = ""
+    node_type: str = ""
+    phase: Literal["planning", "fieldwork", "reporting"] = "planning"
+
+
+class PlanningReadinessFinding(BaseModel):
+    id: str
+    check_name: str
+    category: str
+    severity: PlanningReadinessSeverity
+    explanation: str
+    affected_artifact_ids: list[str] = Field(default_factory=list)
+    affected_artifact_names: list[str] = Field(default_factory=list)
+    branch: str = ""
+    recommended_action: str = ""
+    navigation: PlanningReadinessNavigation | None = None
+
+
+class PlanningReadinessComponent(BaseModel):
+    score: float
+    max_score: float = 100
+    status: str = ""
+    summary: str = ""
+    findings: list[PlanningReadinessFinding] = Field(default_factory=list)
+    category_counts: dict[str, int] = Field(default_factory=dict)
+    severity_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class PlanningAIReviewDimensionScore(BaseModel):
+    dimension: str
+    score: float
+    explanation: str = ""
+
+
+class PlanningAIReviewFinding(BaseModel):
+    id: str
+    category: str
+    priority: Literal["Critical", "Important", "Enhancement"] = "Important"
+    severity: PlanningReadinessSeverity = "medium"
+    confidence: float = 0.7
+    explanation: str
+    suggested_action: str = ""
+    affected_workstreams: list[str] = Field(default_factory=list)
+    affected_artifact_ids: list[str] = Field(default_factory=list)
+    affected_artifact_names: list[str] = Field(default_factory=list)
+
+
+class PlanningAIReviewResult(BaseModel):
+    status: Literal["success"] = "success"
+    score: float
+    reviewed_at: str = Field(default_factory=utc_now)
+    provider: str = ""
+    model: str = ""
+    plan_fingerprint: str = ""
+    stale: bool = False
+    executive_summary: str = ""
+    strengths: list[str] = Field(default_factory=list)
+    critical_gaps: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    warnings: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    duplication_findings: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    contradiction_findings: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    missing_coverage_findings: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    improvement_opportunities: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    prioritized_recommendations: list[PlanningAIReviewFinding] = Field(default_factory=list)
+    dimension_scores: list[PlanningAIReviewDimensionScore] = Field(default_factory=list)
+
+
+class PlanningAIReviewError(BaseModel):
+    status: Literal["error"] = "error"
+    reviewed_at: str = Field(default_factory=utc_now)
+    error_message: str
+    provider: str = ""
+    model: str = ""
+
+
+class PlanningReadinessWeights(BaseModel):
+    deterministic: float = 0.65
+    ai: float = 0.35
+
+
+class PlanningReadinessState(BaseModel):
+    latest_successful_ai_review: PlanningAIReviewResult | None = None
+    latest_error: PlanningAIReviewError | None = None
+
+
+class PlanningReadinessResponse(BaseModel):
+    plan_fingerprint: str
+    deterministic: PlanningReadinessComponent
+    ai_review: PlanningAIReviewResult | None = None
+    ai_error: PlanningAIReviewError | None = None
+    weights: PlanningReadinessWeights = Field(default_factory=PlanningReadinessWeights)
+    overall_score: float | None = None
+    overall_status: Literal["awaiting_ai_review", "current", "stale_ai_review", "ai_review_failed"] = "awaiting_ai_review"
+    overall_explanation: str = ""
+
+
 class AdminLoginRequest(BaseModel):
     secret: str
 
@@ -302,50 +349,6 @@ class AdminLoginRequest(BaseModel):
 class AdminMe(BaseModel):
     isAdmin: bool
     runtime: RuntimeSettings
-
-
-class UserAuthRequest(BaseModel):
-    username: str
-    access_code: str = ""
-
-
-class UserRecord(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("user"))
-    email: str
-    password_hash: str
-    can_run_agents: bool = False
-    ai_total_run_limit: int = 50
-    ai_runs_used: int = 0
-    ai_model: str | None = None
-    created_at: str = Field(default_factory=utc_now)
-    updated_at: str = Field(default_factory=utc_now)
-
-
-class UserMe(BaseModel):
-    isAuthenticated: bool
-    username: str | None = None
-    accessCode: str | None = None
-    canRunAgents: bool = False
-    runtime: RuntimeSettings
-
-
-class AdminUserSummary(BaseModel):
-    id: str
-    username: str
-    canRunAgents: bool
-    aiTotalRunLimit: int
-    aiRunsUsed: int
-    aiRunsRemaining: int
-    aiModel: str | None = None
-    createdAt: str
-    updatedAt: str
-
-
-class AdminUserAccessUpdate(BaseModel):
-    canRunAgents: bool
-    aiTotalRunLimit: int | None = None
-    aiRunsUsed: int | None = None
-    aiModel: str | None = None
 
 
 class DemoCreateRequest(BaseModel):

@@ -47,12 +47,6 @@ export function NodeShell({
       </div>
       <h3>{data.title}</h3>
       {data.description ? <p>{data.description}</p> : null}
-      <div className="node-meta">
-        {data.severity ? <span>Severity: {data.severity}</span> : null}
-        {data.testType ? <span>{data.testType}</span> : null}
-        {data.itemStatus ? <span>{data.itemStatus}</span> : null}
-        {typeof data.count === "number" ? <span>{data.count} linked</span> : null}
-      </div>
       {showSource ? <Handle type="source" position={Position.Right} /> : null}
     </div>
   );

@@ -1,4 +1,4 @@
-SYSTEM_PROMPT = """You are an internal audit planning copilot.
+SYSTEM_PROMPT = """You are an internal audit planning assistant.
 Return valid JSON only. Do not include markdown, comments, or explanatory prose.
 Use practical internal audit language, avoid generic consulting phrases, and keep outputs concise enough for a working auditor to edit."""
 
@@ -56,7 +56,7 @@ Return this JSON shape:
       "tests": [
         {
           "title": "...",
-          "test_type": "Test of Design|Test of Operating Effectiveness|Detailed Test|Analytical Review|Inquiry / Interview",
+          "test_type": "Test of Design|Test of Operating Effectiveness|Detailed Test|Analytical Review",
           "test_objective": "...",
           "description": "...",
           "expected_evidence": "...",
@@ -67,30 +67,6 @@ Return this JSON shape:
   ]
 }
 Audit, objectives, and risks:
-{planning_context}
-"""
-
-
-INTERVIEW_PROMPT = """Generate an interview plan mapped to the current planning hierarchy where possible.
-Return this JSON shape:
-{
-  "roles": [
-    {
-      "role_title": "...",
-      "rationale": "...",
-      "expected_information": "...",
-      "questions": [
-        {
-          "question_text": "...",
-          "mapped_objective_id": null,
-          "mapped_risk_id": null,
-          "mapped_test_id": null
-        }
-      ]
-    }
-  ]
-}
-Planning hierarchy:
 {planning_context}
 """
 

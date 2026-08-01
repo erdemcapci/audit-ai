@@ -21,10 +21,6 @@ export function AgentNode({ id, data, selected }: { id: string; data: FlowNodeDa
       </div>
       <h3><span aria-hidden="true">✦</span> {data.title}</h3>
       <p>{data.agentType?.replace(/_/g, " ")}</p>
-      <div className="node-meta">
-        <span>{data.inputCount || 0} inputs</span>
-        {data.lastRunAt ? <span>{new Date(data.lastRunAt).toLocaleTimeString()}</span> : <span>Not run</span>}
-      </div>
       {data.lastError ? <p className="agent-error">{data.lastError}</p> : null}
       <Button
         className="agent-run-button"

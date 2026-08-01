@@ -1,6 +1,6 @@
 .audit-map-canvas {
-  min-height: 680px;
-  height: calc(100vh - 260px);
+  min-height: 320px;
+  height: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   overflow: hidden;
@@ -26,29 +26,36 @@
 
 .map-scrollbar-horizontal {
   left: 18px;
-  right: 48px;
+  right: 226px;
   bottom: 12px;
-  width: calc(100% - 66px);
+  width: calc(100% - 244px);
 }
 
 .map-scrollbar-vertical {
   top: 74px;
   right: 12px;
   width: 18px;
-  height: calc(100% - 122px);
+  height: calc(100% - 260px);
   writing-mode: vertical-lr;
 }
 
 .canvas-toolbar {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px;
   border: 1px solid rgba(203, 213, 225, 0.9);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(10px);
+}
+
+.canvas-toolbar .button {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
 }
 
 .canvas-action-status {
@@ -128,16 +135,6 @@
 
 .fieldwork-section.selected {
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.78);
-}
-
-.fieldwork-section-interviews {
-  background: rgba(245, 243, 255, 0.74);
-  border-color: #c4b5fd;
-}
-
-.fieldwork-section-documents {
-  background: rgba(248, 250, 252, 0.82);
-  border-color: #cbd5e1;
 }
 
 .fieldwork-section-issues {
@@ -260,9 +257,9 @@
 }
 
 .audit-flow-node h3 {
-  margin: 9px 0 6px;
-  font-size: 0.95rem;
-  line-height: 1.25;
+  margin: 10px 0 8px;
+  font-size: 1.34rem;
+  line-height: 1.3;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -270,8 +267,8 @@
 .audit-flow-node p {
   margin: 0;
   color: #64748b;
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 1.08rem;
+  line-height: 1.45;
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
@@ -288,25 +285,13 @@
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0;
-  font-size: 0.65rem;
+  font-size: 0.86rem;
   font-weight: 900;
 }
 
-.node-meta {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.node-meta span {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 3px 7px;
-  color: #475569;
-  font-size: 0.7rem;
-  font-weight: 800;
+.node-topline .badge {
+  font-size: 0.8rem;
+  padding: 4px 9px;
 }
 
 .node-audit {
@@ -329,17 +314,8 @@
   border-top: 5px solid #c4b5fd;
 }
 
-.node-interview-role,
-.node-interview-question {
-  border-top: 5px solid #a78bfa;
-}
-
 .node-fieldwork-item {
   border-top: 5px solid #fbbf24;
-}
-
-.node-document-request {
-  border-top: 5px solid #94a3b8;
 }
 
 .node-finding {
@@ -383,15 +359,4 @@
   border-radius: 8px;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   overflow: hidden;
-}
-
-.canvas-toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }

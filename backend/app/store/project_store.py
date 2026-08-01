@@ -5,12 +5,11 @@ from app.config import settings
 from app.models import (
     AuditCreate,
     AuditProject,
-    DocumentRequestState,
     FieldworkState,
     FindingsState,
-    InterviewPlan,
     MapState,
     PlanningState,
+    PlanningReadinessState,
     ReportState,
     utc_now,
 )
@@ -38,38 +37,22 @@ class ProjectStore:
                 return child
         raise FileNotFoundError(f"Project not found: {project_id}")
 
-    def create_project(
-        self,
-        payload: AuditCreate,
-        visibility: str | None = None,
-        owner_user_id: str | None = None,
-        anonymous_session_id: str | None = None,
-        is_read_only_sample: bool = False,
-    ) -> AuditProject:
+    def create_project(self, payload: AuditCreate) -> AuditProject:
         base_slug = slugify(payload.title)
         slug = base_slug
         suffix = 2
         while (settings.projects_dir / slug).exists():
             slug = f"{base_slug}-{suffix}"
             suffix += 1
-        audit_payload = payload.model_dump(exclude={"accepted_data_warning"})
-        audit = AuditProject(
-            slug=slug,
-            **audit_payload,
-            visibility=visibility or ("local" if settings.deployment_mode != "hosted" else "private"),
-            owner_user_id=owner_user_id,
-            anonymous_session_id=anonymous_session_id,
-            is_read_only_sample=is_read_only_sample,
-        )
+        audit = AuditProject(slug=slug, **payload.model_dump())
         project_dir = settings.projects_dir / slug
         (project_dir / "documents").mkdir(parents=True, exist_ok=True)
         self.file_store.write_json(project_dir / "audit.json", audit.model_dump())
         self.save_planning(audit.id, PlanningState())
-        self.save_interviews(audit.id, InterviewPlan())
-        self.save_document_requests(audit.id, DocumentRequestState())
         self.save_fieldwork(audit.id, FieldworkState())
         self.save_findings(audit.id, FindingsState())
         self.save_report(audit.id, ReportState())
+        self.save_planning_readiness(audit.id, PlanningReadinessState())
         self.save_map_state(audit.id, MapState())
         return audit
 
@@ -80,28 +63,6 @@ class ProjectStore:
             if audit_path.exists():
                 projects.append(AuditProject.model_validate(self.file_store.read_json(audit_path, {})))
         return sorted(projects, key=lambda project: project.updated_at, reverse=True)
-
-    def list_visible_projects(self, *, is_hosted: bool, is_admin: bool, user_id: str | None, anonymous_session_id: str | None) -> list[AuditProject]:
-        if not is_hosted or is_admin:
-            return self.list_projects()
-        projects = []
-        for project in self.list_projects():
-            if project.visibility == "public_sample":
-                projects.append(project)
-            elif user_id and project.visibility == "private" and project.owner_user_id == user_id:
-                projects.append(project)
-            elif anonymous_session_id and project.visibility == "anonymous_temp" and project.anonymous_session_id == anonymous_session_id:
-                projects.append(project)
-        return projects
-
-    def public_sample_projects(self) -> list[AuditProject]:
-        return [project for project in self.list_projects() if project.visibility == "public_sample"]
-
-    def count_anonymous_projects(self, anonymous_session_id: str) -> int:
-        return sum(1 for project in self.list_projects() if project.visibility == "anonymous_temp" and project.anonymous_session_id == anonymous_session_id)
-
-    def count_user_projects(self, owner_user_id: str) -> int:
-        return sum(1 for project in self.list_projects() if project.visibility == "private" and project.owner_user_id == owner_user_id)
 
     def get_project(self, project_id: str) -> AuditProject:
         path = self.project_dir(project_id) / "audit.json"
@@ -128,19 +89,12 @@ class ProjectStore:
         self.file_store.write_json(self.project_dir(project_id) / "planning.json", planning.model_dump())
         return planning
 
-    def load_interviews(self, project_id: str) -> InterviewPlan:
-        return InterviewPlan.model_validate(self.file_store.read_json(self.project_dir(project_id) / "interview_plan.json", {}))
+    def load_planning_readiness(self, project_id: str) -> PlanningReadinessState:
+        return PlanningReadinessState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "planning_readiness.json", {}))
 
-    def save_interviews(self, project_id: str, plan: InterviewPlan) -> InterviewPlan:
-        self.file_store.write_json(self.project_dir(project_id) / "interview_plan.json", plan.model_dump())
-        return plan
-
-    def load_document_requests(self, project_id: str) -> DocumentRequestState:
-        return DocumentRequestState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "document_requests.json", {}))
-
-    def save_document_requests(self, project_id: str, requests: DocumentRequestState) -> DocumentRequestState:
-        self.file_store.write_json(self.project_dir(project_id) / "document_requests.json", requests.model_dump())
-        return requests
+    def save_planning_readiness(self, project_id: str, readiness: PlanningReadinessState) -> PlanningReadinessState:
+        self.file_store.write_json(self.project_dir(project_id) / "planning_readiness.json", readiness.model_dump())
+        return readiness
 
     def load_fieldwork(self, project_id: str) -> FieldworkState:
         return FieldworkState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "fieldwork.json", {}))

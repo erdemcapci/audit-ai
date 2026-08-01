@@ -1,23 +1,19 @@
-"""AuditCopilot FastAPI entrypoint.
+"""Assurance Graph FastAPI entrypoint.
 
 Copyright (C) 2026 Erdem Capci
 
-This file is part of AuditCopilot and is licensed under AGPLv3-or-later.
+This file is part of Assurance Graph and is licensed under AGPLv3-or-later.
 """
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import log_projects_dir, settings
-
-log_projects_dir()
-
-from app.api import admin, agent_runs, agents, audit_map, auth, context_snapshot, fieldwork, findings, interviews, planning, projects, reports, settings as settings_api
-from app.showcase.sample_audit import bootstrap_hosted_showcase
+from app.api import admin, agent_runs, agents, audit_map, context_snapshot, fieldwork, findings, planning, projects, reports, settings as settings_api
+from app.config import settings
 
 
-app = FastAPI(title="Audit AI Copilot", version="0.1.0")
+app = FastAPI(title="Assurance Graph", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,14 +40,8 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.on_event("startup")
-def startup() -> None:
-    bootstrap_hosted_showcase()
-
-
 app.include_router(projects.router)
 app.include_router(planning.router)
-app.include_router(interviews.router)
 app.include_router(fieldwork.router)
 app.include_router(findings.router)
 app.include_router(reports.router)
@@ -64,4 +54,3 @@ app.include_router(agents.project_router)
 app.include_router(agent_runs.project_router)
 app.include_router(agent_runs.admin_router)
 app.include_router(admin.router)
-app.include_router(auth.router)

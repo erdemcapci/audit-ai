@@ -18,13 +18,11 @@ class ClaudeProvider(LLMProvider):
         user_prompt: str,
         json_mode: bool = True,
         temperature: float = 0.2,
-        model: str | None = None,
     ) -> LLMResponse:
         if not settings.anthropic_api_key:
             raise LLMProviderError("ANTHROPIC_API_KEY is not configured.")
-        selected_model = model or settings.anthropic_model
         payload = {
-            "model": selected_model,
+            "model": settings.anthropic_model,
             "max_tokens": 4000,
             "temperature": temperature,
             "system": system_prompt,
@@ -43,4 +41,4 @@ class ClaudeProvider(LLMProvider):
             raise LLMProviderError(f"Claude request failed: {error_detail(exc)}") from exc
         data = response.json()
         text = "".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
-        return LLMResponse(content=text, provider="claude", model=selected_model, raw_response=data)
+        return LLMResponse(content=text, provider="claude", model=settings.anthropic_model, raw_response=data)

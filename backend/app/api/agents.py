@@ -11,8 +11,7 @@ from app.models import (
     MessageResponse,
 )
 from app.context.models import ContextPack, ContextPreviewRequest
-from app.runtime import actor_id_for_request, agent_execution_context, record_successful_ai_run
-from app.showcase.project_access import require_project_read, require_project_write
+from app.runtime import actor_id_for_request, ensure_agent_execution_allowed
 from app.services.agent_service import agent_service
 
 
@@ -26,40 +25,32 @@ def list_agent_types() -> list[AgentDefinition]:
 
 
 @project_router.post("", response_model=AgentState)
-def create_agent(project_id: str, payload: AgentCreateRequest, request: Request) -> AgentState:
-    require_project_write(request, project_id)
-    return agent_service.create(project_id, payload)
+def create_agent(project_id: str, request: AgentCreateRequest) -> AgentState:
+    return agent_service.create(project_id, request)
 
 
 @project_router.put("/{agent_id}", response_model=AgentState)
-def update_agent(project_id: str, agent_id: str, payload: AgentUpdateRequest, request: Request) -> AgentState:
-    require_project_write(request, project_id)
-    return agent_service.update(project_id, agent_id, payload)
+def update_agent(project_id: str, agent_id: str, request: AgentUpdateRequest) -> AgentState:
+    return agent_service.update(project_id, agent_id, request)
 
 
 @project_router.post("/{agent_id}/output-check", response_model=AgentOutputCheckResponse)
-def check_agent_outputs(project_id: str, agent_id: str, payload: AgentRunRequest, request: Request) -> AgentOutputCheckResponse:
-    require_project_read(request, project_id)
-    return agent_service.check_outputs(project_id, agent_id, payload)
+def check_agent_outputs(project_id: str, agent_id: str, request: AgentRunRequest) -> AgentOutputCheckResponse:
+    return agent_service.check_outputs(project_id, agent_id, request)
 
 
 @project_router.post("/{agent_id}/context-preview", response_model=ContextPack)
-def preview_agent_context(project_id: str, agent_id: str, payload: ContextPreviewRequest, request: Request) -> ContextPack:
-    require_project_read(request, project_id)
+def preview_agent_context(project_id: str, agent_id: str, payload: ContextPreviewRequest) -> ContextPack:
     return agent_service.preview_context(project_id, agent_id, payload)
 
 
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
 async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
-    require_project_write(request, project_id)
-    with agent_execution_context(request):
-        result = await agent_service.run(project_id, agent_id, payload, actor_id=actor_id_for_request(request))
-        record_successful_ai_run(request)
-    return result
+    ensure_agent_execution_allowed(request)
+    return await agent_service.run(project_id, agent_id, payload, actor_id=actor_id_for_request(request))
 
 
 @project_router.delete("/{agent_id}", response_model=MessageResponse)
-def delete_agent(project_id: str, agent_id: str, request: Request) -> MessageResponse:
-    require_project_write(request, project_id)
+def delete_agent(project_id: str, agent_id: str) -> MessageResponse:
     agent_service.delete(project_id, agent_id)
     return MessageResponse(message="Agent deleted")

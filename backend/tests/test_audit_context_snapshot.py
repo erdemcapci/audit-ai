@@ -53,6 +53,7 @@ class AuditContextSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot.item_counts["objective"], 1)
         self.assertEqual(snapshot.item_counts["risk"], 1)
         self.assertIn("planning_summary", snapshot.source_sections_used)
+        self.assertEqual(snapshot.structured_summary["fieldwork_summary"]["fieldwork_item"]["count"], 0)
 
     def test_snapshot_stale_when_source_changes(self) -> None:
         snapshot = self.service.rebuild(self.project.id)

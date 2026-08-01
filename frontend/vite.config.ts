@@ -8,7 +8,7 @@ function parsePort(value: string | undefined, fallback: number): number {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "..", "");
-  const host = env.VITE_DEV_HOST || "0.0.0.0";
+  const host = env.VITE_DEV_HOST || "127.0.0.1";
   const port = parsePort(env.FRONTEND_PORT, 3000);
 
   return {
@@ -19,11 +19,11 @@ export default defineConfig(({ mode }) => {
       host
     },
     preview: {
-      host: env.VITE_PREVIEW_HOST || host,
+      host: env.VITE_PREVIEW_HOST || "0.0.0.0",
       port: parsePort(env.VITE_PREVIEW_PORT || env.FRONTEND_PORT, 3000),
       allowedHosts: [
-        "www.auditcopilot.ai",
-        "auditcopilot.ai",
+        "www.assurancegraph.ai",
+        "assurancegraph.ai",
         "www.assurancegraph.com",
         "assurancegraph.com",
         ".up.railway.app"

@@ -55,8 +55,6 @@ class AuditContextSnapshotService:
         payload = {
             "audit": audit.model_dump(),
             "planning": project_store.load_planning(audit.id).model_dump(),
-            "interviews": project_store.load_interviews(audit.id).model_dump(),
-            "document_requests": project_store.load_document_requests(audit.id).model_dump(),
             "fieldwork": project_store.load_fieldwork(audit.id).model_dump(),
             "findings": project_store.load_findings(audit.id).model_dump(),
             "report": project_store.load_report(audit.id).model_dump(),
@@ -97,9 +95,7 @@ class AuditContextSnapshotService:
             "objectives_summary": self._items(items_by_type.get("objective", [])),
             "risks_summary": self._items(items_by_type.get("risk", [])),
             "tests_summary": self._items(items_by_type.get("test", [])),
-            "fieldwork_summary": self._section(items_by_type, ["fieldwork_item", "document_request", "interview_role", "interview_question"]),
-            "document_requests_summary": self._items(items_by_type.get("document_request", [])),
-            "interview_summary": self._section(items_by_type, ["interview_role", "interview_question"]),
+            "fieldwork_summary": self._section(items_by_type, ["fieldwork_item"]),
             "findings_summary": self._items(items_by_type.get("finding", [])),
             "reporting_summary": self._items(items_by_type.get("report", [])),
             "relationship_gaps": gaps[:MAX_WARNINGS],
@@ -167,7 +163,7 @@ class AuditContextSnapshotService:
     def _status_items(self, items_by_type: dict[str, list[dict[str, Any]]], *, open_status: bool) -> list[dict[str, Any]]:
         closed = {"confirmed", "ready for report", "completed", "done", "approved"}
         result: list[dict[str, Any]] = []
-        for item_type in ["objective", "risk", "test", "fieldwork_item", "document_request", "finding", "report"]:
+        for item_type in ["objective", "risk", "test", "fieldwork_item", "finding", "report"]:
             for item in items_by_type.get(item_type, []):
                 status = str(item.get("status", "")).strip().lower()
                 is_closed = status in closed
@@ -193,7 +189,7 @@ class AuditContextSnapshotService:
         )
         if items_by_type.get("finding") or has_report_content:
             return "reporting"
-        if items_by_type.get("fieldwork_item") or items_by_type.get("document_request") or items_by_type.get("interview_role"):
+        if items_by_type.get("fieldwork_item"):
             return "fieldwork"
         return "planning"
 

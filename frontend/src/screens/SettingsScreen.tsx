@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { projectsApi } from "../api/projectsApi";
-import { settingsApi, type LlmSettings, type RuntimeSettings } from "../api/settingsApi";
+import { settingsApi, type AgentRunLoggingSettings, type LlmSettings, type RuntimeSettings } from "../api/settingsApi";
 import { CreatorLink, FeedbackLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -11,31 +11,31 @@ import { TextInput } from "../components/TextInput";
 export function SettingsScreen({
   projectId,
   projectTitle,
-  runtime,
-  isReadOnlySample,
   onDeleted,
-  onRuntimeChanged
+  onRuntimeChanged,
+  runtime,
+  onViewAgentRunLogs
 }: {
   projectId: string;
   projectTitle: string;
-  runtime: RuntimeSettings | null;
-  isReadOnlySample: boolean;
   onDeleted: () => void;
-  onRuntimeChanged?: () => Promise<void>;
+  onRuntimeChanged?: () => Promise<unknown>;
+  runtime: RuntimeSettings | null;
+  onViewAgentRunLogs: () => void;
 }) {
   const [settings, setSettings] = useState<LlmSettings | null>(null);
+  const [logSettings, setLogSettings] = useState<AgentRunLoggingSettings | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [message, setMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const canManageLlm = runtime ? runtime.deploymentMode !== "hosted" : false;
 
   useEffect(() => {
-    if (!canManageLlm) return;
     settingsApi.get().then(setSettings).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load settings."));
-  }, [canManageLlm]);
+    settingsApi.agentRunLogs().then(setLogSettings).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load logging settings."));
+  }, []);
 
   async function save() {
     if (!settings) return;
@@ -59,6 +59,22 @@ export function SettingsScreen({
     await onRuntimeChanged?.();
   }
 
+  async function saveLogSettings() {
+    if (!logSettings) return;
+    try {
+      const next = await settingsApi.updateAgentRunLogs({
+        enabled: logSettings.enabled,
+        full_io: logSettings.full_io,
+        raw_response: logSettings.raw_response,
+        retention_days: logSettings.retention_days
+      });
+      setLogSettings(next);
+      setMessage("Agent run logging settings updated for this backend session.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to update logging settings.");
+    }
+  }
+
   async function deleteAudit() {
     if (deleteConfirmText !== "DELETE") return;
     setDeleting(true);
@@ -73,104 +89,143 @@ export function SettingsScreen({
     }
   }
 
-  if (canManageLlm && !settings) return null;
-  const activeProviderLabel = !settings
-    ? ""
-    : settings.demo_mode
+  if (!settings) return null;
+  const activeProviderLabel = settings.demo_mode
     ? "Demo mode"
     : settings.provider === "openai"
       ? "OpenAI"
       : settings.provider === "claude"
         ? "Claude"
         : "Ollama";
-  const activeModelLabel = !settings ? "" : settings.demo_mode ? "Demo data" : settings.model;
+  const activeModelLabel = settings.demo_mode ? "Demo data" : settings.model;
 
   return (
     <section className="screen-panel">
       <header className="screen-header">
         <div>
           <p className="eyebrow">Settings</p>
-          <h2>Audit settings</h2>
+          <h2>LLM provider</h2>
         </div>
       </header>
-      {canManageLlm && settings ? (
+      <Card className="settings-card">
+        <Select label="Provider" value={settings.provider} onChange={(event) => setSettings({ ...settings, provider: event.target.value })}>
+          <option value="ollama">Ollama</option>
+          <option value="openai">OpenAI</option>
+          <option value="claude">Claude</option>
+        </Select>
+        <TextInput label="Model" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} />
+        {settings.provider === "openai" ? (
+          <TextInput
+            label="OpenAI API key"
+            type="password"
+            value={openaiApiKey}
+            placeholder={settings.openai_configured ? "OpenAI key is configured. Enter a new key to replace it." : "sk-..."}
+            onChange={(event) => setOpenaiApiKey(event.target.value)}
+          />
+        ) : null}
+        {settings.provider === "claude" ? (
+          <TextInput
+            label="Claude API key"
+            type="password"
+            value={anthropicApiKey}
+            placeholder={settings.anthropic_configured ? "Claude key is configured. Enter a new key to replace it." : "sk-ant-..."}
+            onChange={(event) => setAnthropicApiKey(event.target.value)}
+          />
+        ) : null}
+        <label className="check-row">
+          <input type="checkbox" checked={settings.demo_mode} onChange={(event) => setSettings({ ...settings, demo_mode: event.target.checked })} />
+          <span>Demo mode deterministic audit data</span>
+        </label>
+        <p className="muted">Ollama URL: {settings.ollama_base_url}</p>
+        <p className="muted">Current AI mode: {activeProviderLabel} - {activeModelLabel}</p>
+        <p className="muted">OpenAI configured: {settings.openai_configured ? "yes" : "no"} | Claude configured: {settings.anthropic_configured ? "yes" : "no"}</p>
+        <p className="muted">
+          API keys entered here are used by the running backend session. To make them available after restarting Docker, add them to your local <code>.env</code> file.
+        </p>
+        <div className="button-row">
+          <Button onClick={save}>Save Settings</Button>
+          <Button variant="secondary" onClick={test}>Test Provider</Button>
+        </div>
+        {message ? <p className="message-text">{message}</p> : null}
+      </Card>
+      {logSettings ? (
         <Card className="settings-card">
-          <Select label="Provider" value={settings.provider} onChange={(event) => setSettings({ ...settings, provider: event.target.value })}>
-            <option value="ollama">Ollama</option>
-            <option value="openai">OpenAI</option>
-            <option value="claude">Claude</option>
-          </Select>
-          <TextInput label="Model" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} />
-          {settings.provider === "openai" ? (
-            <TextInput
-              label="OpenAI API key"
-              type="password"
-              value={openaiApiKey}
-              placeholder={settings.openai_configured ? "OpenAI key is configured. Enter a new key to replace it." : "sk-..."}
-              onChange={(event) => setOpenaiApiKey(event.target.value)}
-            />
-          ) : null}
-          {settings.provider === "claude" ? (
-            <TextInput
-              label="Claude API key"
-              type="password"
-              value={anthropicApiKey}
-              placeholder={settings.anthropic_configured ? "Claude key is configured. Enter a new key to replace it." : "sk-ant-..."}
-              onChange={(event) => setAnthropicApiKey(event.target.value)}
-            />
-          ) : null}
-          <label className="check-row">
-            <input type="checkbox" checked={settings.demo_mode} onChange={(event) => setSettings({ ...settings, demo_mode: event.target.checked })} />
-            <span>Demo mode deterministic audit data</span>
-          </label>
-          <p className="muted">Ollama URL: {settings.ollama_base_url}</p>
-          <p className="muted">Current AI mode: {activeProviderLabel} · {activeModelLabel}</p>
-          <p className="muted">OpenAI configured: {settings.openai_configured ? "yes" : "no"} | Claude configured: {settings.anthropic_configured ? "yes" : "no"}</p>
-          <p className="muted">
-            API keys entered here are used by the running backend session. To make them available after restarting Docker, add them to your local <code>.env</code> file.
-          </p>
-          <div className="button-row">
-            <Button onClick={save}>Save Settings</Button>
-            <Button variant="secondary" onClick={test}>Test Provider</Button>
+          <div>
+            <p className="eyebrow">Traceability</p>
+            <h2>Agent run logging</h2>
           </div>
-          {message ? <p className="message-text">{message}</p> : null}
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.enabled}
+              disabled={!logSettings.can_modify}
+              onChange={(event) => setLogSettings({ ...logSettings, enabled: event.target.checked })}
+            />
+            <span>Metadata logging enabled</span>
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.full_io}
+              disabled={!logSettings.can_modify || (runtime?.deploymentMode === "hosted" && !logSettings.hosted_full_logs_allowed)}
+              onChange={(event) => setLogSettings({ ...logSettings, full_io: event.target.checked })}
+            />
+            <span>Full prompt, context, and output logging</span>
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={logSettings.raw_response}
+              disabled={!logSettings.can_modify || (runtime?.deploymentMode === "hosted" && !logSettings.hosted_full_logs_allowed)}
+              onChange={(event) => setLogSettings({ ...logSettings, raw_response: event.target.checked })}
+            />
+            <span>Raw LLM response logging</span>
+          </label>
+          <TextInput
+            label="Retention days"
+            type="number"
+            value={String(logSettings.retention_days)}
+            disabled={!logSettings.can_modify}
+            onChange={(event) => setLogSettings({ ...logSettings, retention_days: Math.max(1, Number(event.target.value) || 1) })}
+          />
+          <p className="muted">Log directory: {logSettings.log_directory}</p>
+          {runtime?.deploymentMode === "hosted" ? (
+            <p className="muted">Full prompt/context/output logging may store audit content. It is disabled by default for the hosted showcase.</p>
+          ) : (
+            <p className="muted">Full logging may store sensitive audit content locally.</p>
+          )}
+          <div className="button-row">
+            <Button onClick={saveLogSettings} disabled={!logSettings.can_modify}>Save Logging Settings</Button>
+            <Button variant="secondary" onClick={onViewAgentRunLogs} disabled={runtime?.deploymentMode === "hosted" && !runtime.isAdmin}>
+              View agent run logs
+            </Button>
+          </div>
         </Card>
       ) : null}
-      {!canManageLlm && message ? <p className="message-text">{message}</p> : null}
       <Card className="settings-card about-card">
         <div>
           <p className="eyebrow">About</p>
-          <h2>AuditCopilot</h2>
+          <h2>Assurance Graph</h2>
         </div>
         <p>
-          AuditCopilot is an open-source visual AI audit workspace for planning, fieldwork, findings, and reporting.
+          Assurance Graph is an open-source visual AI audit workspace for planning, fieldwork, findings, and reporting.
         </p>
         <p>
-          It helps auditors generate audit objectives, risks, tests, interview plans, findings, and report drafts using local or user-configured AI providers.
+          It helps auditors generate audit objectives, risks, tests, findings, and report drafts using local or user-configured AI providers.
         </p>
         <p>Created by <CreatorLink />.</p>
         <p>Feedback or questions? Reach out on <FeedbackLink>LinkedIn</FeedbackLink>.</p>
       </Card>
-      {isReadOnlySample ? (
-        <Card className="settings-card">
-          <div>
-            <p className="eyebrow">Sample audit</p>
-            <h2>Default demo audit</h2>
-          </div>
-          <p className="muted">This public sample is read-only and cannot be deleted.</p>
-        </Card>
-      ) : (
-        <Card className="settings-card">
-          <div>
-            <p className="eyebrow">Danger zone</p>
-            <h2>Delete this audit</h2>
-          </div>
-          <p className="muted">
-            Permanently delete this audit and its local project files. This cannot be undone.
-          </p>
-          <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete Audit</Button>
-        </Card>
-      )}
+      <Card className="settings-card">
+        <div>
+          <p className="eyebrow">Danger zone</p>
+          <h2>Delete this audit</h2>
+        </div>
+        <p className="muted">
+          Permanently delete this audit and its local project files. This cannot be undone.
+        </p>
+        <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete Audit</Button>
+      </Card>
       {showDeleteConfirm ? (
         <Modal title="Delete audit permanently?" onClose={() => setShowDeleteConfirm(false)}>
           <div className="modal-body">

@@ -4,12 +4,10 @@ import type { Node } from "@xyflow/react";
 import { agentsApi } from "../api/agentsApi";
 import { fieldworkApi } from "../api/fieldworkApi";
 import { findingsApi } from "../api/findingsApi";
-import { interviewsApi } from "../api/interviewsApi";
 import { planningApi } from "../api/planningApi";
 import { projectsApi } from "../api/projectsApi";
 import { reportsApi } from "../api/reportsApi";
 import type { RuntimeSettings } from "../api/settingsApi";
-import type { UserMe } from "../api/authApi";
 import { BrandingFooter, LinkedInLogoLink } from "../components/BrandingFooter";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
@@ -20,7 +18,6 @@ import { AuditMapCanvas, type MapHierarchyFilters } from "../flow/AuditMapCanvas
 import { calculateRequiredNodeSize } from "../flow/layoutAuditMap";
 import { AutoLayoutPanel } from "../panels/AutoLayoutPanel";
 import { DetailPanel } from "../panels/DetailPanel";
-import { workspaceRuntimePolicy } from "../runtime/workspacePolicy";
 import type {
   AgentDefinition,
   AgentOutputConflict,
@@ -31,16 +28,15 @@ import type {
   FieldworkState,
   FindingsState,
   FlowNodeData,
-  InterviewPlan,
   MapStateUpdate,
   PlanningState,
   ReportState
 } from "../types";
 import { FieldworkScreen } from "./FieldworkScreen";
-import { InterviewsScreen } from "./InterviewsScreen";
 import { PlanningScreen } from "./PlanningScreen";
 import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
+import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
 type FieldworkCreateMode = "keep" | "missing" | "replace";
@@ -72,37 +68,24 @@ function renderMarkdownPreview(markdown: string) {
 }
 
 function agentPhase(agentType: string): PhaseFilter {
-  if (agentType === "finding_draft_agent" || agentType === "interview_plan_generator" || agentType === "document_request_generator") return "fieldwork";
+  if (agentType === "finding_draft_agent") return "fieldwork";
   if (agentType === "report_draft_agent") return "reporting";
   return "planning";
-}
-
-function isNotFoundError(err: unknown): boolean {
-  return err instanceof Error && /not found/i.test(err.message);
 }
 
 export function AuditWorkspace({
   projectId,
   onReset,
   runtime,
-  user,
-  onLogoutUser,
-  onSignIn,
-  onHowToUse,
   onRuntimeChanged
 }: {
   projectId: string;
   onReset: () => void;
   runtime: RuntimeSettings | null;
-  user: UserMe | null;
-  onLogoutUser: () => Promise<void>;
-  onSignIn: () => void;
-  onHowToUse: () => void;
-  onRuntimeChanged: () => Promise<void>;
+  onRuntimeChanged?: () => Promise<unknown>;
 }) {
   const [project, setProject] = useState<AuditProject | null>(null);
   const [planning, setPlanning] = useState<PlanningState | null>(null);
-  const [interviews, setInterviews] = useState<InterviewPlan | null>(null);
   const [fieldwork, setFieldwork] = useState<FieldworkState | null>(null);
   const [findings, setFindings] = useState<FindingsState | null>(null);
   const [report, setReport] = useState<ReportState | null>(null);
@@ -122,18 +105,14 @@ export function AuditWorkspace({
   const [reportAttachmentNodeId, setReportAttachmentNodeId] = useState<string | null>(null);
   const [reportAttachmentDraft, setReportAttachmentDraft] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
-  const [mapFilters, setMapFilters] = useState<Pick<MapHierarchyFilters, "showInterviews" | "showDocumentRequests">>({
-    showInterviews: true,
-    showDocumentRequests: true
-  });
   const [showApprovePlanning, setShowApprovePlanning] = useState(false);
   const [fieldworkCreateMode, setFieldworkCreateMode] = useState<FieldworkCreateMode>("missing");
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [projectData, planningData, interviewData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
+    const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
       projectsApi.get(projectId),
       planningApi.get(projectId),
-      interviewsApi.get(projectId),
       fieldworkApi.get(projectId),
       findingsApi.get(projectId),
       reportsApi.get(projectId),
@@ -142,7 +121,6 @@ export function AuditWorkspace({
     ]);
     setProject(projectData);
     setPlanning(planningData);
-    setInterviews(interviewData);
     setFieldwork(fieldworkData);
     setFindings(findingsData);
     setReport(reportData);
@@ -151,14 +129,8 @@ export function AuditWorkspace({
   }, [projectId]);
 
   useEffect(() => {
-    refresh().catch((err) => {
-      if (isNotFoundError(err)) {
-        onReset();
-        return;
-      }
-      setError(err instanceof Error ? err.message : "Unable to load audit.");
-    });
-  }, [onReset, refresh]);
+    refresh().catch((err) => setError(err instanceof Error ? err.message : "Unable to load audit."));
+  }, [refresh]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -167,7 +139,6 @@ export function AuditWorkspace({
     try {
       await action();
       await refresh();
-      await onRuntimeChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
     } finally {
@@ -181,14 +152,7 @@ export function AuditWorkspace({
 
   function agentPosition(type: string): { x: number; y: number } {
     const targetPhase = agentPhase(type);
-    const targetSection =
-      type === "interview_plan_generator"
-        ? map?.nodes.find((node) => node.id === "fieldwork-section-interviews")
-        : type === "document_request_generator"
-          ? map?.nodes.find((node) => node.id === "fieldwork-section-documents")
-          : type === "finding_draft_agent"
-            ? map?.nodes.find((node) => node.id === "fieldwork-section-issues")
-            : null;
+    const targetSection = type === "finding_draft_agent" ? map?.nodes.find((node) => node.id === "fieldwork-section-issues") : null;
     if (targetSection) {
       const existingSectionAgents = map?.nodes.filter(
         (node) =>
@@ -224,7 +188,7 @@ export function AuditWorkspace({
 
   async function runAgent(agentId: string, localInputNodeIds?: string[]) {
     if (runtime && !runtime.agentExecutionEnabled) {
-      setError(runtimePolicy.agentExecutionMessage);
+      setError(runtime.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured for agent execution.");
       return;
     }
     const inputNodeIds = localInputNodeIds || map?.edges.filter((edge) => edge.target === agentId).map((edge) => edge.source) || [];
@@ -412,20 +376,8 @@ export function AuditWorkspace({
     if (!agentNode || !definition) return;
 
     let candidates = map.nodes.filter((node) => definition.allowed_input_node_types.includes(node.type));
-    if (agentNode.data.agentType === "interview_plan_generator") {
-      const fieldworkItems = candidates.filter((node) => node.type === "fieldworkItemNode");
-      if (fieldworkItems.length) {
-        candidates = fieldworkItems;
-      }
-    }
     if (agentNode.data.agentType === "finding_draft_agent") {
       candidates = candidates.filter((node) => node.type === "fieldworkItemNode");
-    }
-    if (agentNode.data.agentType === "document_request_generator") {
-      const fieldworkItems = candidates.filter((node) => node.type === "fieldworkItemNode");
-      if (fieldworkItems.length) {
-        candidates = fieldworkItems;
-      }
     }
     if (agentNode.data.agentType === "report_draft_agent") {
       candidates = candidates.filter((node) => node.type === "findingNode");
@@ -544,39 +496,38 @@ export function AuditWorkspace({
   }
 
   const hasFieldworkItems = Boolean(fieldwork?.items.length);
-  const runtimePolicy = workspaceRuntimePolicy(runtime, project, Boolean(user?.isAuthenticated));
 
   return (
     <main className="workspace">
-      <header className="workspace-header">
-        <div>
-          <h1>{project?.title || "Audit"}</h1>
-          <p>{project?.description}</p>
-        </div>
-        <div className="header-actions">
-          {runtime?.isAdmin ? <span className="session-pill session-pill-admin">Logged in as admin</span> : null}
-          {user?.isAuthenticated ? <span className="session-pill">{user.username}</span> : null}
-          <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
-          <Button variant="ghost" onClick={onHowToUse}>How to use</Button>
-          {runtimePolicy.showSignIn ? <Button variant="ghost" onClick={onSignIn}>Sign in</Button> : null}
-          {user?.isAuthenticated ? <Button variant="ghost" onClick={onLogoutUser}>Sign out</Button> : null}
-          <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
-          <Button variant="ghost" onClick={onReset}>New audit</Button>
-          {busy && activeScreen !== "Map" ? <LoadingState label="Action running" /> : null}
-        </div>
-      </header>
+      {!mapExpanded ? (
+        <>
+          <header className="workspace-header">
+            <div>
+              <h1>{project?.title || "Audit"}</h1>
+            </div>
+            <div className="header-actions">
+              <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
+              <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
+              <Button variant="ghost" onClick={onReset}>New audit</Button>
+              {busy ? <LoadingState label="Action running" /> : null}
+            </div>
+          </header>
+
+          <nav className="workspace-tabs">
+            {["Map", "Audit Plan", "Fieldwork", "Reporting"].map((tab) => (
+              <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </>
+      ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="message-text">{notice}</div> : null}
-      {runtimePolicy.projectAccessMessage ? <div className="message-text">{runtimePolicy.projectAccessMessage}</div> : null}
-
-      <nav className="workspace-tabs">
-        {["Map", "Planning", "Interviews", "Fieldwork", "Reporting"].map((tab) => (
-          <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
-            {tab}
-          </button>
-        ))}
-      </nav>
+      {runtime?.deploymentMode === "hosted" && !runtime.agentExecutionEnabled ? (
+        <div className="message-text">AI agent execution is disabled in this hosted showcase.</div>
+      ) : null}
 
       {activeScreen === "Map" ? (
         <>
@@ -601,92 +552,66 @@ export function AuditWorkspace({
               </select>
             </label>
             <Button variant="secondary" onClick={addAgent} disabled={busy || !agentTypes.length}>Add Agent Card</Button>
-            <div className="map-section-toggles">
-              <label className="map-toggle-label">
-                <span>Show Interviews</span>
-                <input
-                  type="checkbox"
-                  checked={mapFilters.showInterviews}
-                  onChange={(event) => setMapFilters((current) => ({ ...current, showInterviews: event.target.checked }))}
-                />
-              </label>
-              <label className="map-toggle-label">
-                <span>Show Document Requests</span>
-                <input
-                  type="checkbox"
-                  checked={mapFilters.showDocumentRequests}
-                  onChange={(event) => setMapFilters((current) => ({ ...current, showDocumentRequests: event.target.checked }))}
-                />
-              </label>
-            </div>
+            <Button variant="ghost" className="map-expand-toggle" onClick={() => setMapExpanded((current) => !current)}>
+              {mapExpanded ? "Exit full screen" : "Fit to screen"}
+            </Button>
           </div>
         </div>
-        <section className="workspace-grid workspace-grid-map">
-          <div className="canvas-workspace">
-            <AuditMapCanvas
-              map={map}
-              selectedNodeId={selectedNode?.id || null}
-              agentTypes={agentTypes}
-              onSelectNode={setSelectedNode}
-              onSaveMap={saveMapState}
-              onRunAgent={runAgent}
-              onAutoLayout={async () => setShowAutoLayoutConfig(true)}
-              onError={setError}
-              phaseFilter={phaseFilter}
-              agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-              agentExecutionMessage={runtimePolicy.agentExecutionMessage}
-              actionBusy={busy}
-              hierarchyFilters={{
-                ...mapFilters,
-                nodeIds: []
-              }}
-            />
-            {showAutoLayoutConfig || selectedNode ? (
-              <aside className="canvas-overlay-inspector" aria-label="Canvas inspector">
-                <button
-                  type="button"
-                  className="canvas-overlay-close"
-                  aria-label="Close canvas inspector"
-                  onClick={() => {
-                    setShowAutoLayoutConfig(false);
-                    setSelectedNode(null);
-                  }}
-                >
-                  ×
-                </button>
-                {showAutoLayoutConfig ? (
-                  <AutoLayoutPanel onApply={applyAutoLayout} onCancel={() => setShowAutoLayoutConfig(false)} />
-                ) : selectedNode ? (
-                  <DetailPanel
-                    node={selectedNode}
-                    agentTypes={agentTypes}
-                    showAiProviderInfo={runtimePolicy.showAiProviderInfo}
-                    aiProviderLabel={runtimePolicy.aiProviderLabel}
-                    aiModelLabel={runtimePolicy.aiModelLabel}
-                    onSaveNode={saveNode}
-                    onSaveAgent={saveAgent}
-                    onConnectRelated={connectRelated}
-                    onDisconnectRelated={disconnectRelated}
-                    onPreviewNode={previewNode}
-                    onDeleteNode={deleteNode}
-                    onDeleteOutputs={deleteOutputs}
-                    onDeleteDimension={deleteDimension}
-                    onOpenReport={openReportAttachment}
-                    temporaryRunContent={selectedNode.type === "agentNode" ? temporaryAgentContentById[selectedNode.id] || "" : ""}
-                    onTemporaryRunContentChange={(agentId, value) =>
-                      setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
-                    }
-                  />
-                ) : null}
-              </aside>
-            ) : null}
-          </div>
+        <section className="map-workspace">
+          <AuditMapCanvas
+            map={map}
+            selectedNodeId={selectedNode?.id || null}
+            agentTypes={agentTypes}
+            onSelectNode={setSelectedNode}
+            onSaveMap={saveMapState}
+            onRunAgent={runAgent}
+            onAutoLayout={async () => {
+              setSelectedNode(null);
+              setShowAutoLayoutConfig(true);
+            }}
+            onError={setError}
+            phaseFilter={phaseFilter}
+            agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
+            agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
+            actionBusy={busy}
+            hierarchyFilters={{
+              nodeIds: []
+            }}
+          />
+          {showAutoLayoutConfig ? (
+            <div className="map-overlay-panel map-layout-overlay">
+              <AutoLayoutPanel onApply={applyAutoLayout} onCancel={() => setShowAutoLayoutConfig(false)} />
+            </div>
+          ) : null}
+          {selectedNode && !showAutoLayoutConfig ? (
+            <div className="map-overlay-panel inspector-overlay">
+              <DetailPanel
+                node={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                agentTypes={agentTypes}
+                onSaveNode={saveNode}
+                onSaveAgent={saveAgent}
+                onConnectRelated={connectRelated}
+                onDisconnectRelated={disconnectRelated}
+                onPreviewNode={previewNode}
+                onDeleteNode={deleteNode}
+                onDeleteOutputs={deleteOutputs}
+                onDeleteDimension={deleteDimension}
+                onOpenReport={openReportAttachment}
+                temporaryRunContent={selectedNode.type === "agentNode" ? temporaryAgentContentById[selectedNode.id] || "" : ""}
+                onTemporaryRunContentChange={(agentId, value) =>
+                  setTemporaryAgentContentById((current) => ({ ...current, [agentId]: value }))
+                }
+              />
+            </div>
+          ) : null}
         </section>
         </>
       ) : null}
 
-      {activeScreen === "Planning" && planning ? (
+      {activeScreen === "Audit Plan" && planning ? (
         <PlanningScreen
+          projectId={projectId}
           planning={planning}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
           onApprove={() => {
@@ -694,14 +619,8 @@ export function AuditWorkspace({
             setShowApprovePlanning(true);
           }}
           onReopen={() => run(() => planningApi.reopen(projectId))}
-        />
-      ) : null}
-      {activeScreen === "Interviews" && interviews ? (
-        <InterviewsScreen
-          plan={interviews}
-          onGenerate={() => run(() => interviewsApi.generatePlan(projectId))}
           agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-          onChange={(next) => run(() => interviewsApi.update(projectId, next))}
+          agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
         />
       ) : null}
       {activeScreen === "Fieldwork" && fieldwork ? (
@@ -730,12 +649,13 @@ export function AuditWorkspace({
         <SettingsScreen
           projectId={projectId}
           projectTitle={project.title}
-          runtime={runtime}
-          isReadOnlySample={project.visibility === "public_sample" || project.is_read_only_sample}
           onDeleted={onReset}
           onRuntimeChanged={onRuntimeChanged}
+          runtime={runtime}
+          onViewAgentRunLogs={() => setActiveScreen("Agent Logs")}
         />
       ) : null}
+      {activeScreen === "Agent Logs" && project ? <AgentRunLogsScreen projectId={projectId} projectTitle={project.title} /> : null}
 
       {pendingAgentRun ? (
         <Modal title="Existing outputs found" onClose={() => setPendingAgentRun(null)}>
@@ -794,12 +714,7 @@ export function AuditWorkspace({
         </Modal>
       ) : null}
       {pendingFindingAgentRun ? (
-        <Modal
-          title="Draft issue from fieldwork"
-          onClose={() => {
-            setPendingFindingAgentRun(null);
-          }}
-        >
+        <Modal title="Draft issue from fieldwork" onClose={() => setPendingFindingAgentRun(null)}>
           <div className="modal-body">
             <p>Choose the fieldwork test card this issue relates to, then describe the rough issue or exception. The Finding Draft Agent will create one linked issue and recommendation.</p>
             {pendingFindingAgentRun.inputNodeIds.length > 1 ? (
@@ -824,14 +739,7 @@ export function AuditWorkspace({
               placeholder="Example: Approval evidence was missing for two sampled items, and the process owner could not explain the exception review."
             />
             <div className="button-row modal-actions">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setPendingFindingAgentRun(null);
-                }}
-              >
-                Cancel
-              </Button>
+              <Button variant="ghost" onClick={() => setPendingFindingAgentRun(null)}>Cancel</Button>
               <Button onClick={submitFindingAgentRun} disabled={busy || !findingAgentText.trim()}>Run Agent</Button>
             </div>
           </div>

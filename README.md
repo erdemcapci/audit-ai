@@ -1,4 +1,4 @@
-# AuditCopilot
+# Assurance Graph
 
 Open-source visual AI audit workspace for planning, testing, findings, and reporting.
 
@@ -6,28 +6,19 @@ Created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 For feedback, questions, ideas, or collaboration, feel free to reach out on LinkedIn.
 
-AuditCopilot helps auditors turn a simple audit title and description into a visual audit map: Audit -> Planning -> Fieldwork -> Reporting. It is an AI-native audit thinking and planning tool, not a GRC platform.
+Assurance Graph helps auditors turn a simple audit title and description into a visual audit map: Audit -> Planning -> Fieldwork -> Reporting. It is an AI-native audit thinking and planning tool, not a GRC platform.
 
 GitHub repository: [https://github.com/erdemcapci/audit-ai](https://github.com/erdemcapci/audit-ai)
 
-## Repository Note
-
-This repository contains the hosted showcase version of AuditCopilot.
-
-The open-source/local-first core is available at:
-https://github.com/erdemcapci/audit-ai
-
-This showcase version includes additional hosted-demo features such as user sign-in, admin-approved AI access, usage limits, legal pages, and Railway deployment configuration.
-
 ## Who It Is For
 
-AuditCopilot is for auditors who want a local-first workspace to think through an audit visually.
+Assurance Graph is for auditors who want a local-first workspace to think through an audit visually.
 
 It helps with:
 
 - Planning an audit from a title and description
 - Generating objectives, risks, and tests
-- Creating interview plans
+- Reviewing planning readiness before moving into fieldwork
 - Organizing fieldwork and findings
 - Drafting executive summaries and reports
 - Keeping audit project data in local files
@@ -44,7 +35,7 @@ Typical first-time setup with Docker Desktop takes about 15-30 minutes, dependin
 
 For a detailed explanation of what the tool does and where AI supports the audit process, read:
 
-[AuditCopilot Tool Overview](TOOL_OVERVIEW.md)
+[Assurance Graph Tool Overview](TOOL_OVERVIEW.md)
 
 ## Quickstart
 
@@ -78,7 +69,7 @@ By default, Docker Compose publishes the app only on your own computer using `HO
 
 ## Optional Local AI
 
-AuditCopilot supports:
+Assurance Graph supports:
 
 - Ollama
 - OpenAI
@@ -103,6 +94,26 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 ```
 
 OpenAI and Claude require API keys in `.env`.
+
+## Deployment Modes
+
+Assurance Graph supports two runtime modes:
+
+- `DEPLOYMENT_MODE=local`: local downloaded version. Users can run AI agents when Ollama, OpenAI, Claude, or demo mode is configured.
+- `DEPLOYMENT_MODE=hosted`: hosted showcase version. Public visitors can view the app, but only an authenticated admin can run AI agents.
+
+For hosted admin access, configure:
+
+```env
+DEPLOYMENT_MODE=hosted
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+ADMIN_SECRET=choose_a_secret
+PROJECTS_DIR=/data/projects
+CORS_ORIGIN_REGEX=https://.*\\.up\\.railway\\.app
+```
+
+Admin users can open `/admin`, log in with `ADMIN_SECRET`, and create a full end-to-end demo audit.
 
 ## Local Development
 
@@ -142,7 +153,6 @@ projects/
   {project_slug}/
     audit.json
     planning.json
-    interview_plan.json
     fieldwork.json
     findings.json
     report.json
@@ -154,22 +164,22 @@ No database is required for v0.1.
 
 ## License
 
-AuditCopilot is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
+Assurance Graph is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
 
 You may use, modify, and self-host this software under the terms of the AGPLv3.
 
-If you modify AuditCopilot and provide it as a network service, you must make the modified source code available under the same license.
+If you modify Assurance Graph and provide it as a network service, you must make the modified source code available under the same license.
 
 Copyright (C) 2026 Erdem Capci
 
 ## Disclaimer
 
-AuditCopilot provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
+Assurance Graph provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
 
 AI-generated outputs may be incomplete or inaccurate. Users remain responsible for professional judgment, validation, regulatory compliance, and compliance with their organization’s policies.
 
 ## Creator
 
-AuditCopilot was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
+Assurance Graph was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 If you use the project, find it useful, or have feedback, I’d be happy to hear from you.

@@ -18,11 +18,9 @@ class OllamaProvider(LLMProvider):
         user_prompt: str,
         json_mode: bool = True,
         temperature: float = 0.2,
-        model: str | None = None,
     ) -> LLMResponse:
-        selected_model = model or settings.ollama_model
         payload = {
-            "model": selected_model,
+            "model": settings.ollama_model,
             "stream": False,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -42,6 +40,6 @@ class OllamaProvider(LLMProvider):
         return LLMResponse(
             content=data.get("message", {}).get("content", ""),
             provider="ollama",
-            model=selected_model,
+            model=settings.ollama_model,
             raw_response=data,
         )

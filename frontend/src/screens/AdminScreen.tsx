@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { adminApi, type AdminMe, type AdminUserSummary, type DemoJobStatus } from "../api/adminApi";
+import { adminApi, type AdminMe, type DemoJobStatus } from "../api/adminApi";
 import type { RuntimeSettings } from "../api/settingsApi";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -23,7 +23,6 @@ export function AdminScreen({
   const [initialConcern, setInitialConcern] = useState("Potential inconsistent approval evidence and vendor due diligence.");
   const [runFullDemo, setRunFullDemo] = useState(true);
   const [job, setJob] = useState<DemoJobStatus | null>(null);
-  const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -31,9 +30,6 @@ export function AdminScreen({
     adminApi.me().then((next) => {
       setMe(next);
       onRuntimeChange(next.runtime);
-      if (next.isAdmin) {
-        adminApi.users().then(setUsers).catch(() => setUsers([]));
-      }
     }).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load admin status."));
   }, [onRuntimeChange]);
 
@@ -58,7 +54,6 @@ export function AdminScreen({
       const next = await adminApi.login(secret);
       setMe(next);
       onRuntimeChange(next.runtime);
-      setUsers(await adminApi.users());
       setSecret("");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Login failed.");
@@ -70,26 +65,7 @@ export function AdminScreen({
   async function logout() {
     const next = await adminApi.logout();
     setMe(next);
-    setUsers([]);
     onRuntimeChange(next.runtime);
-  }
-
-  async function updateUserAccess(user: AdminUserSummary, changes: Partial<Pick<AdminUserSummary, "canRunAgents" | "aiTotalRunLimit" | "aiRunsUsed" | "aiModel">>) {
-    setBusy(true);
-    setMessage("");
-    try {
-      const updated = await adminApi.updateUserAccess(user.id, {
-        canRunAgents: changes.canRunAgents ?? user.canRunAgents,
-        aiTotalRunLimit: changes.aiTotalRunLimit ?? user.aiTotalRunLimit,
-        aiRunsUsed: changes.aiRunsUsed ?? user.aiRunsUsed,
-        aiModel: changes.aiModel ?? user.aiModel
-      });
-      setUsers((current) => current.map((item) => (item.id === user.id ? updated : item)));
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to update user access.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function createDemo() {
@@ -107,14 +83,13 @@ export function AdminScreen({
 
   const runtime = me?.runtime;
   const isAdmin = Boolean(me?.isAdmin);
-  const allowedAiModels = runtime?.allowedAiModels?.length ? runtime.allowedAiModels : [];
 
   return (
     <main className="workspace admin-workspace">
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Admin</p>
-          <h1>AuditCopilot Showcase Admin</h1>
+          <h1>Assurance Graph Showcase Admin</h1>
           <p>Create hosted demo audits and run the full audit generation pipeline.</p>
         </div>
         <div className="header-actions">
@@ -136,7 +111,6 @@ export function AdminScreen({
         <div className="admin-grid">
           <Card className="admin-card">
             <h2>Runtime status</h2>
-            <div className="admin-session-pill">Logged in as admin</div>
             <dl className="runtime-list">
               <dt>Deployment mode</dt>
               <dd>{runtime?.deploymentMode}</dd>
@@ -150,66 +124,6 @@ export function AdminScreen({
           </Card>
 
           <Card className="admin-card">
-            <h2>User access</h2>
-            <p className="muted">Grant AI access, set one total run limit, reset usage, or revoke access.</p>
-            {users.length ? (
-              <div className="admin-user-list">
-                {users.map((user) => (
-                  <div key={user.id} className="admin-user-row">
-                    <span>
-                      <strong>{user.username}</strong>
-                      <small>
-                        {user.canRunAgents ? `${user.aiRunsRemaining} of ${user.aiTotalRunLimit} AI runs remaining` : "AI access not enabled"}
-                      </small>
-                    </span>
-                    <div className="admin-user-actions">
-                      <label className="check-row">
-                        <input
-                          type="checkbox"
-                          checked={user.canRunAgents}
-                          disabled={busy}
-                          onChange={(event) => updateUserAccess(user, { canRunAgents: event.target.checked })}
-                        />
-                        <span>AI access</span>
-                      </label>
-                      <TextInput
-                        label="Total run limit"
-                        type="number"
-                        value={String(user.aiTotalRunLimit)}
-                        onChange={(event) => {
-                          const value = Math.max(0, Number(event.target.value || 0));
-                          setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, aiTotalRunLimit: value } : item)));
-                        }}
-                        onBlur={(event) => updateUserAccess(user, { aiTotalRunLimit: Math.max(0, Number(event.target.value || 0)) })}
-                      />
-                      {allowedAiModels.length ? (
-                        <label className="field">
-                          <span>AI model</span>
-                          <select
-                            value={user.aiModel || allowedAiModels[0]}
-                            disabled={busy}
-                            onChange={(event) => updateUserAccess(user, { aiModel: event.target.value })}
-                          >
-                            {allowedAiModels.map((model) => (
-                              <option key={model} value={model}>{model}</option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
-                      <small>{user.aiRunsUsed} used</small>
-                      <Button variant="ghost" onClick={() => updateUserAccess(user, { aiRunsUsed: 0 })} disabled={busy}>
-                        Reset used
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No users have signed up yet.</p>
-            )}
-          </Card>
-
-          <Card className="admin-card">
             <h2>Create demo audit</h2>
             <TextInput label="Audit title" value={title} onChange={(event) => setTitle(event.target.value)} />
             <TextArea label="Audit description" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} />
@@ -219,7 +133,7 @@ export function AdminScreen({
               <input type="checkbox" checked={runFullDemo} onChange={(event) => setRunFullDemo(event.target.checked)} />
               <span>Run full end-to-end demo</span>
             </label>
-            <Button onClick={createDemo} disabled={busy || !title.trim() || !description.trim()}>
+            <Button onClick={createDemo} disabled={busy || !title.trim() || !description.trim() || runtime?.agentExecutionEnabled === false}>
               Create Demo Audit
             </Button>
           </Card>

@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
+import { Modal } from "../components/Modal";
 import { Select } from "../components/Select";
 import { TextArea } from "../components/TextArea";
 import { TextInput } from "../components/TextInput";
+import { agentsApi } from "../api/agentsApi";
 import { settingsApi, type LlmSettings } from "../api/settingsApi";
-import type { AgentDefinition, FlowNodeData } from "../types";
+import type { AgentDefinition, ContextPack, FlowNodeData } from "../types";
 
 type Draft = Record<string, string>;
 
@@ -21,12 +23,9 @@ const phaseDimensionOptions: Record<string, Array<{ value: string; label: string
     { value: "agentNode", label: "Agent cards", warning: "Delete all agent cards currently in Planning." }
   ],
   fieldwork: [
-    { value: "interviewQuestionNode", label: "Interview questions", warning: "Delete all interview question cards in Fieldwork." },
-    { value: "interviewRoleNode", label: "Interview roles and questions", warning: "Delete all interview role cards and their questions." },
     { value: "fieldworkItemNode", label: "Fieldwork items", warning: "Delete all fieldwork item cards." },
-    { value: "documentRequestNode", label: "Document requests", warning: "Delete all document request cards." },
     { value: "findingNode", label: "Findings", warning: "Delete all finding cards." },
-    { value: "fieldwork_all", label: "All fieldwork cards", warning: "Delete interviews, fieldwork items, document requests, and findings." },
+    { value: "fieldwork_all", label: "All fieldwork cards", warning: "Delete fieldwork items and findings." },
     { value: "agentNode", label: "Agent cards", warning: "Delete all agent cards currently in Fieldwork." }
   ],
   reporting: [
@@ -60,7 +59,7 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
   ],
   testNode: [
     { key: "title", label: "Test title" },
-    { key: "test_type", label: "Test type", kind: "select", options: ["Test of Design", "Test of Operating Effectiveness", "Detailed Test", "Analytical Review", "Inquiry / Interview"] },
+    { key: "test_type", label: "Test type", kind: "select", options: ["Test of Design", "Test of Operating Effectiveness", "Detailed Test", "Analytical Review"] },
     { key: "test_objective", label: "Test objective", kind: "textarea" },
     { key: "description", label: "Description", kind: "textarea" },
     { key: "expected_evidence", label: "Expected evidence", kind: "textarea" },
@@ -73,13 +72,6 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
     { key: "expected_evidence", label: "Expected evidence", kind: "textarea" },
     { key: "notes", label: "Notes", kind: "textarea" }
   ],
-  documentRequestNode: [
-    { key: "title", label: "Request title" },
-    { key: "description", label: "Description", kind: "textarea" },
-    { key: "requested_from", label: "Requested from" },
-    { key: "expected_document", label: "Expected document", kind: "textarea" },
-    { key: "rationale", label: "Rationale", kind: "textarea" }
-  ],
   findingNode: [
     { key: "title", label: "Finding title" },
     { key: "issue", label: "Issue / condition", kind: "textarea" },
@@ -89,13 +81,6 @@ const fieldMap: Record<string, Array<{ key: string; label: string; kind?: "texta
     { key: "recommendation", label: "Recommendation", kind: "textarea" },
     { key: "severity", label: "Severity", kind: "select", options: ["Low", "Medium", "High"] }
   ],
-  interviewRoleNode: [
-    { key: "title", label: "Role title" },
-    { key: "expected_information", label: "Expected information", kind: "textarea" },
-    { key: "rationale", label: "Rationale", kind: "textarea" },
-    { key: "notes", label: "Interview notes", kind: "textarea" }
-  ],
-  interviewQuestionNode: [{ key: "question_text", label: "Question", kind: "textarea" }]
 };
 
 function bulkTargetForNode(node: Node<FlowNodeData>): { phase: "planning" | "fieldwork" | "reporting"; dimension: string; label: string; warning: string } | null {
@@ -108,14 +93,8 @@ function bulkTargetForNode(node: Node<FlowNodeData>): { phase: "planning" | "fie
       return { phase: "planning", dimension: "riskNode", label: "Risks and tests", warning: "Delete all risk cards and their tests in Planning." };
     case "testNode":
       return { phase: "planning", dimension: "testNode", label: "Tests", warning: "Delete all test cards in Planning." };
-    case "interviewRoleNode":
-      return { phase: "fieldwork", dimension: "interviewRoleNode", label: "Interview roles and questions", warning: "Delete all interview roles and their questions." };
-    case "interviewQuestionNode":
-      return { phase: "fieldwork", dimension: "interviewQuestionNode", label: "Interview questions", warning: "Delete all interview question cards." };
     case "fieldworkItemNode":
       return { phase: "fieldwork", dimension: "fieldworkItemNode", label: "Fieldwork items", warning: "Delete all fieldwork item cards." };
-    case "documentRequestNode":
-      return { phase: "fieldwork", dimension: "documentRequestNode", label: "Document requests", warning: "Delete all document request cards." };
     case "findingNode":
       return { phase: "fieldwork", dimension: "findingNode", label: "Findings", warning: "Delete all finding cards." };
     case "reportNode":
@@ -146,8 +125,6 @@ function initialDraft(node: Node<FlowNodeData>): Draft {
       tests_per_risk: String(config.tests_per_risk ?? ""),
       risks_per_objective: String(config.risks_per_objective ?? ""),
       allowed_test_types: Array.isArray(config.allowed_test_types) ? config.allowed_test_types.join(", ") : "",
-      questions_per_role: String(config.questions_per_role ?? ""),
-      max_roles: String(config.max_roles ?? ""),
       tone: String(config.tone ?? ""),
       report_style: String(config.report_style ?? "")
     };
@@ -196,12 +173,14 @@ function currentModelLabel(settings: LlmSettings | null): string {
   return settings.model;
 }
 
+function contextBlockLabel(blockId: string): string {
+  return blockId.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function DetailPanel({
   node,
+  onClose,
   agentTypes,
-  showAiProviderInfo = true,
-  aiProviderLabel,
-  aiModelLabel,
   onSaveNode,
   onSaveAgent,
   onConnectRelated,
@@ -215,10 +194,8 @@ export function DetailPanel({
   onTemporaryRunContentChange
 }: {
   node: Node<FlowNodeData> | null;
+  onClose: () => void;
   agentTypes: AgentDefinition[];
-  showAiProviderInfo?: boolean;
-  aiProviderLabel?: string;
-  aiModelLabel?: string;
   onSaveNode: (nodeId: string, nodeType: string, fields: Record<string, unknown>) => Promise<void>;
   onSaveAgent: (agentId: string, fields: { title?: string; prompt?: string; config?: Record<string, unknown> }) => Promise<void>;
   onConnectRelated: (agentId: string) => Promise<void>;
@@ -234,6 +211,10 @@ export function DetailPanel({
   const [draft, setDraft] = useState<Draft>({});
   const [bulkDimension, setBulkDimension] = useState("");
   const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
+  const [contextPreview, setContextPreview] = useState<ContextPack | null>(null);
+  const [contextPreviewOpen, setContextPreviewOpen] = useState(false);
+  const [contextPreviewLoading, setContextPreviewLoading] = useState(false);
+  const [contextPreviewError, setContextPreviewError] = useState("");
 
   useEffect(() => {
     if (!node) return;
@@ -242,12 +223,23 @@ export function DetailPanel({
       const phase = node.data.phase || "planning";
       setBulkDimension(phaseDimensionOptions[phase]?.[0]?.value || "");
     }
+    setContextPreview(null);
+    setContextPreviewOpen(false);
+    setContextPreviewError("");
   }, [node]);
 
   useEffect(() => {
-    if (!showAiProviderInfo || aiProviderLabel || aiModelLabel || node?.type !== "agentNode") return;
+    if (node?.type !== "agentNode") return;
     settingsApi.get().then(setLlmSettings).catch(() => setLlmSettings(null));
-  }, [aiModelLabel, aiProviderLabel, node?.id, node?.type, showAiProviderInfo]);
+  }, [node?.id, node?.type]);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
 
   const agentDefinition = useMemo(
     () => agentTypes.find((definition) => definition.type === node?.data.agentType),
@@ -272,7 +264,7 @@ export function DetailPanel({
       const config: Record<string, unknown> = { ...(node.data.config || {}) };
       delete config.llm_model;
       delete config.temperature;
-      ["max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective", "questions_per_role", "max_roles"].forEach((key) => {
+      ["max_output_items", "workstreams_count", "objectives_per_workstream", "tests_per_risk", "risks_per_objective"].forEach((key) => {
         if (draft[key] !== "") config[key] = Number(draft[key]);
       });
       ["output_mode", "tone", "report_style"].forEach((key) => {
@@ -291,11 +283,25 @@ export function DetailPanel({
     await onSaveNode(node.id, node.type || "", fields);
   }
 
+  async function previewContext() {
+    if (!node || node.type !== "agentNode" || !node.data.projectId) return;
+    setContextPreviewLoading(true);
+    setContextPreviewError("");
+    try {
+      const preview = await agentsApi.contextPreview(String(node.data.projectId), node.id);
+      setContextPreview(preview);
+      setContextPreviewOpen(true);
+    } catch (err) {
+      setContextPreviewError(err instanceof Error ? err.message : "Context preview failed.");
+    } finally {
+      setContextPreviewLoading(false);
+    }
+  }
+
   const fields = fieldMap[node.type || ""] || [];
   const canDeleteNode = !["phaseNode", "fieldworkSectionNode", "auditNode"].includes(node.type || "") && !["report-main", "executive-summary"].includes(node.id);
   const canDeleteOutputs = !["phaseNode", "fieldworkSectionNode"].includes(node.type || "");
   const cardBulkTarget = node.type !== "phaseNode" ? bulkTargetForNode(node) : null;
-  const showAgentModelSummary = node.type === "agentNode" && (showAiProviderInfo || aiProviderLabel || aiModelLabel);
 
   async function confirmDeleteNode() {
     if (!node || !canDeleteNode) return;
@@ -333,9 +339,14 @@ export function DetailPanel({
   const selectedBulkOption = bulkOptions.find((item) => item.value === bulkDimension);
 
   return (
-    <aside className="detail-panel">
-      <div className="detail-kicker">{node.type}</div>
-      <h2>{node.data.title}</h2>
+    <aside className="detail-panel" aria-label="Canvas inspector">
+      <div className="detail-panel-header">
+        <div>
+          <div className="detail-kicker">{node.type}</div>
+          <h2>{node.data.title}</h2>
+        </div>
+        <button className="inspector-close" type="button" onClick={onClose} aria-label="Close inspector">×</button>
+      </div>
       {node.type !== "agentNode" ? <Badge>{String(node.data.status)}</Badge> : null}
 
       {node.type === "agentNode" ? (
@@ -349,21 +360,50 @@ export function DetailPanel({
             rows={4}
             placeholder="Optional context for the next run only. This is not saved on the agent card."
           />
-          {showAgentModelSummary ? (
-            <dl className="agent-model-summary">
-              <dt>Current AI provider</dt>
-              <dd>{aiProviderLabel || currentProviderLabel(llmSettings)}</dd>
-              <dt>Current AI model</dt>
-              <dd>{aiModelLabel || currentModelLabel(llmSettings)}</dd>
-            </dl>
-          ) : null}
+          <dl className="agent-model-summary">
+            <dt>Current AI provider</dt>
+            <dd>{currentProviderLabel(llmSettings)}</dd>
+            <dt>Current AI model</dt>
+            <dd>{currentModelLabel(llmSettings)}</dd>
+          </dl>
+          <div className="agent-context-summary">
+            <h3>This agent will use:</h3>
+            {contextPreview ? (
+              <>
+                <ul>
+                  {contextPreview.context_summary.blocks.map((blockId) => (
+                    <li key={blockId}>{contextBlockLabel(blockId)}</li>
+                  ))}
+                </ul>
+                <dl>
+                  <dt>Selected items</dt>
+                  <dd>{contextPreview.context_summary.selected_item_count}</dd>
+                  <dt>Related items</dt>
+                  <dd>{contextPreview.context_summary.related_item_count}</dd>
+                  <dt>Context tokens</dt>
+                  <dd>{contextPreview.limits.estimated_tokens} / {contextPreview.limits.max_context_tokens}</dd>
+                  <dt>Truncated</dt>
+                  <dd>{contextPreview.limits.truncated ? "Yes" : "No"}</dd>
+                </dl>
+              </>
+            ) : (
+              <ul>
+                {((agentDefinition?.default_config.context_blocks as string[] | undefined) || ["audit_overview", "workflow_state", "selected_items", "traceability_chain", "connected_items", "existing_outputs"]).map((blockId) => (
+                  <li key={blockId}>{contextBlockLabel(blockId)}</li>
+                ))}
+              </ul>
+            )}
+            {contextPreviewError ? <p className="message-text">{contextPreviewError}</p> : null}
+            <Button variant="ghost" onClick={previewContext} disabled={contextPreviewLoading || !node.data.projectId}>
+              {contextPreviewLoading ? "Previewing..." : "Preview context"}
+            </Button>
+          </div>
           {node.data.agentType !== "report_draft_agent" ? (
             <div className="agent-connection-actions">
               <Button variant="ghost" onClick={() => onConnectRelated(node.id)}>Connect to related cards</Button>
               <Button variant="ghost" onClick={() => onDisconnectRelated(node.id)}>Disconnect related cards</Button>
             </div>
           ) : null}
-          {node.data.agentType !== "report_draft_agent" ? <TextInput label="Max output items" value={draft.max_output_items || ""} onChange={(event) => update("max_output_items", event.target.value)} /> : null}
           {node.data.agentType === "workstream_generator" ? <TextInput label="Number of workstreams" value={draft.workstreams_count || ""} onChange={(event) => update("workstreams_count", event.target.value)} /> : null}
           {node.data.agentType === "objective_generator" ? <TextInput label="Objectives per workstream" value={draft.objectives_per_workstream || ""} onChange={(event) => update("objectives_per_workstream", event.target.value)} /> : null}
           {node.data.agentType === "test_generator" ? (
@@ -373,12 +413,6 @@ export function DetailPanel({
             </>
           ) : null}
           {node.data.agentType === "risk_generator" ? <TextInput label="Risks per objective" value={draft.risks_per_objective || ""} onChange={(event) => update("risks_per_objective", event.target.value)} /> : null}
-          {node.data.agentType === "interview_plan_generator" ? (
-            <>
-              <TextInput label="Questions per role" value={draft.questions_per_role || ""} onChange={(event) => update("questions_per_role", event.target.value)} />
-              <TextInput label="Max roles" value={draft.max_roles || ""} onChange={(event) => update("max_roles", event.target.value)} />
-            </>
-          ) : null}
           {node.data.agentType === "finding_draft_agent" ? (
             <Select label="Tone" value={draft.tone || "internal audit"} onChange={(event) => update("tone", event.target.value)}>
               <option>concise</option>
@@ -466,6 +500,23 @@ export function DetailPanel({
           ) : null}
         </div>
       )}
+      {contextPreviewOpen && contextPreview ? (
+        <Modal title="Agent Context Preview" className="context-preview-modal" onClose={() => setContextPreviewOpen(false)}>
+          <div className="modal-body">
+            <dl className="context-preview-stats">
+              <dt>Recipe</dt>
+              <dd>{contextPreview.recipe_id}</dd>
+              <dt>Phase</dt>
+              <dd>{contextPreview.context_summary.phase || "Not set"}</dd>
+              <dt>Blocks</dt>
+              <dd>{contextPreview.context_summary.blocks.length}</dd>
+              <dt>Estimated tokens</dt>
+              <dd>{contextPreview.limits.estimated_tokens}</dd>
+            </dl>
+            <pre className="context-preview-rendered">{contextPreview.rendered_context}</pre>
+          </div>
+        </Modal>
+      ) : null}
     </aside>
   );
 }
