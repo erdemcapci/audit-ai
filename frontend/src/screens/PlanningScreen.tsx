@@ -218,12 +218,12 @@ export function PlanningScreen({
           {draft.approved ? (
             <Button variant="secondary" onClick={onReopen}>Reopen Planning</Button>
           ) : (
-            <Button variant="secondary" onClick={onApprove} disabled={!hasTests}>Approve Planning</Button>
+            <Button variant="secondary" onClick={onApprove} disabled={!hasTests}>Complete Planning</Button>
           )}
         </div>
       </header>
-      {draft.approved ? <p className="muted">Planning is approved. Reopen it if you need to make planning changes before continuing.</p> : null}
-      {!hasTests ? <p className="muted">Generate tests before approving planning.</p> : null}
+      {draft.approved ? <p className="muted">Planning is complete. Reopen it if you need to make changes.</p> : null}
+      {!hasTests ? <p className="muted">Generate tests before completing planning.</p> : null}
       <section className="planning-readiness">
         <div className="planning-readiness-header">
           <div>

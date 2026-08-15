@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 
 import { agentsApi } from "../api/agentsApi";
@@ -32,14 +32,18 @@ import type {
   PlanningState,
   ReportState
 } from "../types";
-import { FieldworkScreen } from "./FieldworkScreen";
 import { PlanningScreen } from "./PlanningScreen";
-import { ReportingScreen } from "./ReportingScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
-type FieldworkCreateMode = "keep" | "missing" | "replace";
+type WorkspaceTab = "Map" | "Audit Plan" | "Settings" | "Agent Logs";
+
+const SHOW_AUDIT_PLAN_PAGE = false;
+const VISIBLE_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Audit Plan", "Settings", "Agent Logs"] : ["Map", "Settings", "Agent Logs"];
+const PRIMARY_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Audit Plan"] : ["Map"];
+const PLANNING_AGENT_TYPES = new Set(["workstream_generator", "objective_generator", "risk_generator", "test_generator"]);
+const PLANNING_NODE_TYPES = new Set(["phaseNode", "auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "agentNode"]);
 
 type PendingAgentRun = {
   agentId: string;
@@ -73,6 +77,20 @@ function agentPhase(agentType: string): PhaseFilter {
   return "planning";
 }
 
+function planningOnlyMap(map: AuditMapResponse | null): AuditMapResponse | null {
+  if (!map) return null;
+  const nodes = map.nodes.filter((node) => {
+    if (node.type === "phaseNode") return node.data.phase === "planning";
+    if (node.type === "agentNode") return PLANNING_AGENT_TYPES.has(String(node.data.agentType || ""));
+    return PLANNING_NODE_TYPES.has(node.type);
+  });
+  const visibleNodeIds = new Set(nodes.map((node) => node.id));
+  return {
+    nodes,
+    edges: map.edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+  };
+}
+
 export function AuditWorkspace({
   projectId,
   onReset,
@@ -104,10 +122,11 @@ export function AuditWorkspace({
   const [temporaryAgentContentById, setTemporaryAgentContentById] = useState<Record<string, string>>({});
   const [reportAttachmentNodeId, setReportAttachmentNodeId] = useState<string | null>(null);
   const [reportAttachmentDraft, setReportAttachmentDraft] = useState("");
-  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("all");
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>("planning");
   const [showApprovePlanning, setShowApprovePlanning] = useState(false);
-  const [fieldworkCreateMode, setFieldworkCreateMode] = useState<FieldworkCreateMode>("missing");
   const [mapExpanded, setMapExpanded] = useState(false);
+  const visibleAgentTypes = useMemo(() => agentTypes.filter((agentType) => PLANNING_AGENT_TYPES.has(agentType.type)), [agentTypes]);
+  const visibleMap = useMemo(() => planningOnlyMap(map), [map]);
 
   const refresh = useCallback(async () => {
     const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
@@ -132,6 +151,19 @@ export function AuditWorkspace({
     refresh().catch((err) => setError(err instanceof Error ? err.message : "Unable to load audit."));
   }, [refresh]);
 
+  useEffect(() => {
+    if (!VISIBLE_WORKSPACE_TABS.includes(activeScreen as (typeof VISIBLE_WORKSPACE_TABS)[number])) {
+      setActiveScreen("Map");
+    }
+  }, [activeScreen]);
+
+  useEffect(() => {
+    if (!visibleAgentTypes.length) return;
+    if (!PLANNING_AGENT_TYPES.has(agentTypeToAdd)) {
+      setAgentTypeToAdd(visibleAgentTypes[0].type);
+    }
+  }, [agentTypeToAdd, visibleAgentTypes]);
+
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -152,7 +184,7 @@ export function AuditWorkspace({
 
   function agentPosition(type: string): { x: number; y: number } {
     const targetPhase = agentPhase(type);
-    const targetSection = type === "finding_draft_agent" ? map?.nodes.find((node) => node.id === "fieldwork-section-issues") : null;
+    const targetSection = type === "finding_draft_agent" ? visibleMap?.nodes.find((node) => node.id === "fieldwork-section-issues") : null;
     if (targetSection) {
       const existingSectionAgents = map?.nodes.filter(
         (node) =>
@@ -162,23 +194,28 @@ export function AuditWorkspace({
       ).length || 0;
       return { x: targetSection.position.x + 40, y: targetSection.position.y - 210 - existingSectionAgents * 190 };
     }
-    const phaseNode = map?.nodes.find((node) => node.id === `phase-${targetPhase}`);
-    const x = (phaseNode?.position.x || 0) + (targetPhase === "reporting" ? 120 : targetPhase === "fieldwork" ? 120 : 360);
+    const phaseNode = visibleMap?.nodes.find((node) => node.id === `phase-${targetPhase}`);
+    const xOffset = type === "objective_generator" ? 80 : targetPhase === "reporting" ? 120 : targetPhase === "fieldwork" ? 120 : 360;
+    const x = (phaseNode?.position.x || 0) + xOffset;
     const baseY = (phaseNode?.position.y || 0) - 220;
-    const existingAgentsInPhase = map?.nodes.filter((node) => {
+    const existingAgentsInPhase = visibleMap?.nodes.filter((node) => {
       if (node.type !== "agentNode") return false;
-      if (targetPhase === "planning") return node.position.x < (map.nodes.find((item) => item.id === "phase-fieldwork")?.position.x || 1500);
+      if (targetPhase === "planning") return true;
       if (targetPhase === "fieldwork") {
-        const fieldworkX = map.nodes.find((item) => item.id === "phase-fieldwork")?.position.x || 1500;
-        const reportingX = map.nodes.find((item) => item.id === "phase-reporting")?.position.x || 2550;
+        const fieldworkX = visibleMap.nodes.find((item) => item.id === "phase-fieldwork")?.position.x || 1500;
+        const reportingX = visibleMap.nodes.find((item) => item.id === "phase-reporting")?.position.x || 2550;
         return node.position.x >= fieldworkX && node.position.x < reportingX;
       }
-      return node.position.x >= (map.nodes.find((item) => item.id === "phase-reporting")?.position.x || 2550);
+      return node.position.x >= (visibleMap.nodes.find((item) => item.id === "phase-reporting")?.position.x || 2550);
     }).length || 0;
     return { x, y: baseY - existingAgentsInPhase * 190 };
   }
 
   async function addAgent() {
+    if (!PLANNING_AGENT_TYPES.has(agentTypeToAdd)) {
+      setError("This agent is not available in the planning workspace.");
+      return;
+    }
     const targetPhase = agentPhase(agentTypeToAdd);
     await run(() => agentsApi.create(projectId, agentTypeToAdd, agentPosition(agentTypeToAdd)));
     if (phaseFilter !== "all" && phaseFilter !== targetPhase && !(phaseFilter === "execution" && (targetPhase === "fieldwork" || targetPhase === "reporting"))) {
@@ -194,6 +231,10 @@ export function AuditWorkspace({
     const inputNodeIds = localInputNodeIds || map?.edges.filter((edge) => edge.target === agentId).map((edge) => edge.source) || [];
     const agentNode = map?.nodes.find((node) => node.id === agentId);
     const temporaryContent = temporaryAgentContentById[agentId] || "";
+    if (agentNode?.data.agentType && !PLANNING_AGENT_TYPES.has(String(agentNode.data.agentType))) {
+      setError("This agent is not available in the planning workspace.");
+      return;
+    }
     if (agentNode?.data.agentType === "report_draft_agent") {
       await prepareAgentRun(agentId, [], "", temporaryContent);
       return;
@@ -448,54 +489,21 @@ export function AuditWorkspace({
     }
   }
 
-  function countPlanningTests() {
-    return (
-      planning?.workstreams.reduce(
-        (total, workstream) =>
-          total +
-          workstream.objectives.reduce(
-            (objectiveTotal, objective) =>
-              objectiveTotal + objective.risks.reduce((riskTotal, risk) => riskTotal + risk.tests.length, 0),
-            0
-          ),
-        0
-      ) || 0
-    );
-  }
-
-  async function approvePlanning(createFieldwork: boolean, mode: FieldworkCreateMode = "missing") {
-    const beforeSources = new Set((fieldwork?.items || []).map((item) => item.source_test_id || item.test_id));
-    const totalTests = countPlanningTests();
+  async function completePlanning() {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await planningApi.approve(projectId);
-      let createdCount = 0;
-      if (createFieldwork) {
-        const nextFieldwork = await fieldworkApi.createFromPlanning(projectId, mode);
-        if (mode === "replace") {
-          createdCount = totalTests;
-        } else if (mode === "missing") {
-          createdCount = nextFieldwork.items.filter((item) => !beforeSources.has(item.source_test_id || item.test_id)).length;
-        }
-        setPhaseFilter("fieldwork");
-        setActiveScreen("Map");
-        const message = `Planning approved. Created ${createdCount} fieldwork item${createdCount === 1 ? "" : "s"}.`;
-        setNotice(message);
-      } else {
-        setNotice("Planning approved.");
-      }
+      setNotice("Planning complete.");
       setShowApprovePlanning(false);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to approve planning.");
+      setError(err instanceof Error ? err.message : "Unable to complete planning.");
     } finally {
       setBusy(false);
     }
   }
-
-  const hasFieldworkItems = Boolean(fieldwork?.items.length);
 
   return (
     <main className="workspace">
@@ -514,7 +522,7 @@ export function AuditWorkspace({
           </header>
 
           <nav className="workspace-tabs">
-            {["Map", "Audit Plan", "Fieldwork", "Reporting"].map((tab) => (
+            {PRIMARY_WORKSPACE_TABS.map((tab) => (
               <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
                 {tab}
               </button>
@@ -534,24 +542,14 @@ export function AuditWorkspace({
         <div className="map-command-bar">
           <div className="map-command-row map-command-row-primary">
             <label>
-              <span>Focus Phase</span>
-              <select value={phaseFilter} onChange={(event) => setPhaseFilter(event.target.value as PhaseFilter)}>
-                <option value="all">All phases</option>
-                <option value="planning">Planning</option>
-                <option value="fieldwork">Fieldwork</option>
-                <option value="execution">Fieldwork + Reporting</option>
-                <option value="reporting">Reporting</option>
-              </select>
-            </label>
-            <label>
               <span>Add Agent</span>
               <select value={agentTypeToAdd} onChange={(event) => setAgentTypeToAdd(event.target.value)}>
-                {agentTypes.map((agentType) => (
+                {visibleAgentTypes.map((agentType) => (
                   <option key={agentType.type} value={agentType.type}>{agentType.title}</option>
                 ))}
               </select>
             </label>
-            <Button variant="secondary" onClick={addAgent} disabled={busy || !agentTypes.length}>Add Agent Card</Button>
+            <Button variant="secondary" onClick={addAgent} disabled={busy || !visibleAgentTypes.length}>Add Agent Card</Button>
             <Button variant="ghost" className="map-expand-toggle" onClick={() => setMapExpanded((current) => !current)}>
               {mapExpanded ? "Exit full screen" : "Fit to screen"}
             </Button>
@@ -559,9 +557,9 @@ export function AuditWorkspace({
         </div>
         <section className="map-workspace">
           <AuditMapCanvas
-            map={map}
+            map={visibleMap}
             selectedNodeId={selectedNode?.id || null}
-            agentTypes={agentTypes}
+            agentTypes={visibleAgentTypes}
             onSelectNode={setSelectedNode}
             onSaveMap={saveMapState}
             onRunAgent={runAgent}
@@ -588,7 +586,7 @@ export function AuditWorkspace({
               <DetailPanel
                 node={selectedNode}
                 onClose={() => setSelectedNode(null)}
-                agentTypes={agentTypes}
+                agentTypes={visibleAgentTypes}
                 onSaveNode={saveNode}
                 onSaveAgent={saveAgent}
                 onConnectRelated={connectRelated}
@@ -615,34 +613,11 @@ export function AuditWorkspace({
           planning={planning}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
           onApprove={() => {
-            setFieldworkCreateMode("missing");
             setShowApprovePlanning(true);
           }}
           onReopen={() => run(() => planningApi.reopen(projectId))}
           agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
           agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
-        />
-      ) : null}
-      {activeScreen === "Fieldwork" && fieldwork ? (
-        <FieldworkScreen
-          planning={planning}
-          fieldwork={fieldwork}
-          findings={findings}
-          onChange={(next) => run(() => fieldworkApi.update(projectId, next))}
-          onRefineFinding={(description, itemId) => findingsApi.refine(projectId, description, itemId)}
-          onCreateFinding={(finding) => run(() => findingsApi.create(projectId, finding))}
-          onSaveFindings={(next) => run(() => findingsApi.update(projectId, next))}
-          onDeleteFinding={(findingId) => run(() => findingsApi.delete(projectId, findingId))}
-          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
-        />
-      ) : null}
-      {activeScreen === "Reporting" && report && findings ? (
-        <ReportingScreen
-          report={report}
-          findings={findings}
-          onGenerate={() => run(() => reportsApi.generateDraftReport(projectId))}
-          onOpenReport={openReportAttachment}
-          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
         />
       ) : null}
       {activeScreen === "Settings" && project ? (
@@ -776,48 +751,12 @@ export function AuditWorkspace({
         </Modal>
       ) : null}
       {showApprovePlanning ? (
-        <Modal title={hasFieldworkItems ? "Fieldwork items already exist for this planning" : "Approve planning and create fieldwork?"} onClose={() => setShowApprovePlanning(false)}>
+        <Modal title="Complete planning?" onClose={() => setShowApprovePlanning(false)}>
           <div className="modal-body">
-            {hasFieldworkItems ? (
-              <>
-                <p>Fieldwork items already exist for this planning.</p>
-                <label className="check-row">
-                  <input
-                    type="radio"
-                    checked={fieldworkCreateMode === "keep"}
-                    onChange={() => setFieldworkCreateMode("keep")}
-                  />
-                  <span>Keep existing fieldwork items</span>
-                </label>
-                <label className="check-row">
-                  <input
-                    type="radio"
-                    checked={fieldworkCreateMode === "missing"}
-                    onChange={() => setFieldworkCreateMode("missing")}
-                  />
-                  <span>Create only missing fieldwork items</span>
-                </label>
-                <label className="check-row">
-                  <input
-                    type="radio"
-                    checked={fieldworkCreateMode === "replace"}
-                    onChange={() => setFieldworkCreateMode("replace")}
-                  />
-                  <span>Replace fieldwork items created from planning</span>
-                </label>
-              </>
-            ) : (
-              <>
-                <p>This will create fieldwork items from all current test cards.</p>
-                <p>Your planning cards will remain unchanged. You can then focus on Fieldwork using the phase filters.</p>
-              </>
-            )}
+            <p>This marks the current audit plan as reviewed and complete. Your planning cards remain editable if you reopen planning later.</p>
             <div className="button-row modal-actions">
               <Button variant="ghost" onClick={() => setShowApprovePlanning(false)}>Cancel</Button>
-              <Button variant="secondary" onClick={() => approvePlanning(false)} disabled={busy}>Approve Only</Button>
-              <Button onClick={() => approvePlanning(true, hasFieldworkItems ? fieldworkCreateMode : "missing")} disabled={busy}>
-                Approve & Create Fieldwork
-              </Button>
+              <Button onClick={completePlanning} disabled={busy}>Complete Planning</Button>
             </div>
           </div>
         </Modal>

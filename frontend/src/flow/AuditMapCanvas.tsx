@@ -200,6 +200,7 @@ function InnerCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<FlowNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [saving, setSaving] = useState(false);
+  const [connectorsVisible, setConnectorsVisible] = useState(true);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const edgesRef = useRef<Edge[]>([]);
@@ -424,6 +425,7 @@ function InnerCanvas({
   );
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
   const visibleEdges = useMemo(() => {
+    if (!connectorsVisible) return [];
     const filteredEdges =
       phaseFilter === "all" && !hierarchyVisibleIds ? edges : edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
     return filteredEdges.map((edge) => {
@@ -434,7 +436,7 @@ function InnerCanvas({
         style: { ...(edge.style || {}), opacity: relatedToSelection ? 1 : 0.28 }
       };
     });
-  }, [edges, hierarchyVisibleIds, phaseFilter, selectedNodeId, visibleNodeIds]);
+  }, [connectorsVisible, edges, hierarchyVisibleIds, phaseFilter, selectedNodeId, visibleNodeIds]);
   const focusNodes = useMemo(() => {
     if (!hierarchyVisibleIds) return visibleNodes;
     const filteredCards = visibleNodes.filter((node) => node.type !== "phaseNode" && node.type !== "fieldworkSectionNode");
@@ -563,6 +565,12 @@ function InnerCanvas({
       >
         <Panel position="top-left" className="canvas-toolbar">
           <Button variant="ghost" onClick={() => reactFlow.fitView({ padding: 0.16, duration: 250 })}>Fit View</Button>
+          <Button
+            variant={connectorsVisible ? "ghost" : "secondary"}
+            onClick={() => setConnectorsVisible((current) => !current)}
+          >
+            {connectorsVisible ? "Hide Connectors" : "Show Connectors"}
+          </Button>
           <Button variant="secondary" onClick={onAutoLayout}>Auto Layout</Button>
           {saving ? <span className="saving-pill">Saving</span> : null}
         </Panel>

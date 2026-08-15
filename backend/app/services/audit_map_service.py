@@ -6,6 +6,8 @@ NODE_WIDTH = 560
 NODE_HEIGHT = 140
 AGENT_MIN_WIDTH = 560
 AGENT_MIN_HEIGHT = 160
+AUDIT_NODE_OUTSIDE_GAP = 140
+AUDIT_NODE_TOP_OFFSET = 120
 PHASE_PADDING = {"top": 100, "right": 120, "bottom": 120, "left": 80}
 SECTION_PADDING = {"top": 82, "right": 70, "bottom": 80, "left": 40}
 FIELDWORK_SECTION_GAP = 18
@@ -53,6 +55,23 @@ def calculate_required_node_size(data: dict, node_type: str, current_width: floa
 
 def edge(source: str, target: str, animated: bool = False) -> FlowEdge:
     return FlowEdge(id=f"{source}->{target}", source=source, target=target, animated=animated)
+
+
+def audit_node_position(planning_layout: PhaseLayout) -> dict[str, float]:
+    return {
+        "x": planning_layout.x - NODE_WIDTH - AUDIT_NODE_OUTSIDE_GAP,
+        "y": planning_layout.y + AUDIT_NODE_TOP_OFFSET,
+    }
+
+
+def move_legacy_audit_position_outside_planning(audit_id: str, planning_layout: PhaseLayout, map_state: MapState) -> None:
+    saved = map_state.nodePositions.get(audit_id)
+    if not saved:
+        return
+    x = saved.get("x", 0)
+    y = saved.get("y", 0)
+    if planning_layout.x <= x <= planning_layout.x + planning_layout.width and planning_layout.y <= y <= planning_layout.y + planning_layout.height:
+        map_state.nodePositions[audit_id] = audit_node_position(planning_layout)
 
 
 def apply_saved_position(node_item: FlowNode, map_state: MapState) -> FlowNode:
@@ -280,7 +299,9 @@ def agent_auto_layout_position(agent_type: str, layouts: dict[str, PhaseLayout],
 
     phase = "planning"
     x = columns["audit"]
-    if agent_type == "risk_generator":
+    if agent_type == "objective_generator":
+        x = columns["workstream"]
+    elif agent_type == "risk_generator":
         x = columns["objective"]
     elif agent_type == "test_generator":
         x = columns["risk"]
@@ -331,8 +352,9 @@ class AuditMapService:
             map_state.nodeDimensions[node_id] = {"width": min_width, "height": size["height"]}
             return map_state.nodeDimensions[node_id]
 
-        audit_size = place(audit.id, "auditNode", planning_layout.x + left, planning_layout.y + top, audit.title, audit.description)
-        cursor_y = planning_layout.y + top + audit_size["height"] + vertical_gap
+        audit_position = audit_node_position(planning_layout)
+        place(audit.id, "auditNode", audit_position["x"], audit_position["y"], audit.title, audit.description)
+        cursor_y = planning_layout.y + top
         max_planning_bottom = cursor_y
 
         workstream_x = planning_layout.x + left
@@ -423,7 +445,7 @@ class AuditMapService:
         reporting_layout.height = max(max_reporting_bottom - reporting_layout.y + PHASE_PADDING["bottom"], reporting_layout.height)
 
         agent_columns = {
-            "audit": planning_layout.x + left,
+            "audit": audit_position["x"],
             "workstream": workstream_x,
             "objective": objective_x,
             "risk": risk_x,
@@ -461,6 +483,7 @@ class AuditMapService:
         reporting_layout = layouts["reporting"]
         fieldwork_sections = anchored_fieldwork_section_layouts(fieldwork_layout, map_state)
         issues_section = fieldwork_sections["issues"]
+        move_legacy_audit_position_outside_planning(audit.id, planning_layout, map_state)
 
         nodes: list[FlowNode] = [
             phase_node("planning", planning_layout, "PLANNING", "Workstreams, objectives, risks, tests"),
@@ -468,7 +491,16 @@ class AuditMapService:
             phase_node("reporting", reporting_layout, "REPORTING", "Executive summary and report"),
             fieldwork_section_node("issues", issues_section, "Issues", "Findings, recommendations, and actions", map_state),
             board_node(
-                node(audit.id, "auditNode", planning_layout.x + 80, planning_layout.y + 110, audit.title, audit.description, "Draft", {"projectId": audit.id}),
+                node(
+                    audit.id,
+                    "auditNode",
+                    audit_node_position(planning_layout)["x"],
+                    audit_node_position(planning_layout)["y"],
+                    audit.title,
+                    audit.description,
+                    "Draft",
+                    {"projectId": audit.id},
+                ),
                 map_state,
             ),
         ]
