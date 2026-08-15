@@ -148,6 +148,31 @@ class ContextAwarenessTests(unittest.TestCase):
         nodes_by_id = {node.id: node for node in audit_map.nodes}
         self.assertEqual(nodes_by_id["fieldwork-section-issues"].data["phase"], "fieldwork")
 
+    def test_partial_phase_layouts_are_completed_for_map_compatibility(self) -> None:
+        project_dir = project_store.project_dir(self.project.id)
+        project_store.file_store.write_json(
+            project_dir / "map_state.json",
+            {
+                "phaseLayouts": {
+                    "planning": {"x": 10, "y": 20, "width": 2500, "height": 900},
+                },
+                "nodePositions": {},
+                "nodeDimensions": {},
+                "edges": [],
+                "agents": [],
+            },
+        )
+
+        map_state = project_store.load_map_state(self.project.id)
+        self.assertEqual(map_state.phaseLayouts["planning"].x, 10)
+        self.assertIn("fieldwork", map_state.phaseLayouts)
+        self.assertIn("reporting", map_state.phaseLayouts)
+
+        audit_map = audit_map_service.build(self.project.id)
+        node_ids = {node.id for node in audit_map.nodes}
+        self.assertIn("phase-fieldwork", node_ids)
+        self.assertIn("phase-reporting", node_ids)
+
     def test_risk_and_test_chain_include_report_sections(self) -> None:
         graph = audit_graph_service.build_graph(self.project.id)
 

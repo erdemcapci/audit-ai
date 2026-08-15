@@ -11,6 +11,7 @@ from app.models import (
     PlanningState,
     PlanningReadinessState,
     ReportState,
+    default_phase_layouts,
     utc_now,
 )
 from app.store.file_store import FileStore
@@ -19,6 +20,11 @@ from app.store.file_store import FileStore
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug or "audit"
+
+
+def complete_phase_layouts(map_state: MapState) -> MapState:
+    map_state.phaseLayouts = {**default_phase_layouts(), **map_state.phaseLayouts}
+    return map_state
 
 
 class ProjectStore:
@@ -123,9 +129,11 @@ class ProjectStore:
         return path
 
     def load_map_state(self, project_id: str) -> MapState:
-        return MapState.model_validate(self.file_store.read_json(self.project_dir(project_id) / "map_state.json", {}))
+        raw_state = self.file_store.read_json(self.project_dir(project_id) / "map_state.json", {})
+        return complete_phase_layouts(MapState.model_validate(raw_state))
 
     def save_map_state(self, project_id: str, map_state: MapState) -> MapState:
+        complete_phase_layouts(map_state)
         path = self.project_dir(project_id) / "map_state.json"
         existing = self.file_store.read_json(path, {}) if path.exists() else {}
         deleted_agent_ids = set(existing.get("deletedAgentIds", [])) | set(map_state.deletedAgentIds)
