@@ -11,6 +11,7 @@ from app.config import settings
 from app.agents.finding_agent import FindingAgent
 from app.agents.report_agent import report_to_markdown
 from app.context.context_pack_builder import context_pack_builder
+from app.context.policy import PLANNING_AGENT_TYPES
 from app.context.models import ContextPack, ContextPreviewRequest
 from app.llm.router import get_llm_provider
 from app.models import (
@@ -409,6 +410,9 @@ class AgentService:
                 )
             except Exception:
                 run_id = None
+            requested_inputs = self._dedupe(request.input_node_ids or [])
+            if agent.type in PLANNING_AGENT_TYPES and requested_inputs and context_pack.context_summary.selected_item_count == 0:
+                raise ValueError("Planning agents can only run with planning inputs. Connect this agent to an audit, workstream, objective, risk, or test.")
             if not input_node_ids and agent.type != "report_draft_agent":
                 raise ValueError("This agent has no inputs yet. Connect it to related cards first.")
             if request.run_mode == "replace":
@@ -973,6 +977,8 @@ class AgentService:
         requested_valid = self._filter_allowed_agent_inputs(project_id, agent, requested)
         if requested_valid:
             return requested_valid
+        if requested and self._has_known_disallowed_inputs(project_id, agent, requested):
+            return []
         return self._filter_allowed_agent_inputs(project_id, agent, connected)
 
     def _filter_allowed_agent_inputs(self, project_id: str, agent: AgentState, input_node_ids: list[str]) -> list[str]:
@@ -981,6 +987,11 @@ class AgentService:
             return input_node_ids
         node_types = {node.id: node.type for node in audit_map_service.build(project_id).nodes}
         return [node_id for node_id in input_node_ids if node_types.get(node_id) in allowed_types]
+
+    def _has_known_disallowed_inputs(self, project_id: str, agent: AgentState, input_node_ids: list[str]) -> bool:
+        allowed_types = set(AGENT_DEFINITIONS[agent.type].allowed_input_node_types)
+        node_types = {node.id: node.type for node in audit_map_service.build(project_id).nodes}
+        return any(node_id in node_types and node_types[node_id] not in allowed_types for node_id in input_node_ids)
 
     def _dedupe(self, values) -> list[str]:
         seen: set[str] = set()

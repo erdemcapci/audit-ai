@@ -5,6 +5,7 @@ from typing import Any
 
 from app.context.block_registry import ContextBlockRegistry, ContextBlockRequest
 from app.context.models import ContextBlock, ContextBlockMetadata
+from app.context.policy import context_policy_for_domain
 from app.services.audit_context_snapshot_service import audit_context_snapshot_service
 from app.services.audit_graph_service import DEFAULT_CONTEXT_RELATIONSHIPS
 
@@ -131,8 +132,25 @@ class GlobalAuditKnowledgeBlock(BaseContextBlock):
                 },
                 notes=["Snapshot missing."],
             )
-        notes = ["Snapshot stale: audit changed since last update."] if snapshot.stale else []
+        policy = context_policy_for_domain(request.recipe.context_domain)
+        notes = [] if policy.is_planning_only else (["Snapshot stale: audit changed since last update."] if snapshot.stale else [])
         structured = snapshot.structured_summary
+        if policy.is_planning_only:
+            projected = policy.project_global_summary(structured)
+            content = self._content_from_structured(
+                request,
+                projected,
+            )
+            if request.recipe.detail_mode == "full_with_limits":
+                content["project_id"] = snapshot.project_id
+                content["source_sections_used"] = policy.source_sections_used()
+            return self._block(
+                request,
+                content,
+                item_count=sum(projected.get("item_counts", {}).values()),
+                truncated=False,
+                notes=notes,
+            )
         content = {
             "stale": snapshot.stale,
             "generated_at": snapshot.generated_at,
@@ -167,6 +185,47 @@ class GlobalAuditKnowledgeBlock(BaseContextBlock):
             truncated=snapshot.truncated,
             notes=notes,
         )
+
+    def _content_from_structured(
+        self,
+        request: ContextBlockRequest,
+        structured: dict[str, Any],
+    ) -> dict[str, Any]:
+        content = {
+            "current_phase": structured.get("current_phase", ""),
+            "audit": structured.get("audit", {}),
+            "summary_text": self._summary_text(structured),
+            "item_counts": structured.get("item_counts", {}),
+            "planning": structured.get("planning_summary", {}),
+            "relationship_gaps": [self._gap_ref(gap) for gap in structured.get("relationship_gaps", [])],
+        }
+        if request.recipe.summary_mode in {"structured", "detailed"} or request.recipe.detail_mode in {"all_summary", "full_with_limits"}:
+            content["structured_summary"] = structured
+        return content
+
+    def _summary_text(self, structured: dict[str, Any]) -> str:
+        audit = structured.get("audit", {})
+        counts = structured.get("item_counts", {})
+        lines = [
+            f"Audit: {audit.get('title', '')}",
+            "Status/phase: planning",
+            f"Audit description: {audit.get('description') or 'No description provided.'}",
+            "Counts: "
+            + ", ".join(f"{item_type}={count}" for item_type, count in counts.items() if count)
+            if counts
+            else "Counts: no planning items recorded.",
+            f"Planning relationship warnings: {structured.get('relationship_gap_count', 0)}",
+        ]
+        if structured.get("warnings"):
+            lines.append("Important planning warnings:")
+            lines.extend(f"- {warning}" for warning in structured["warnings"][:5])
+        if structured.get("key_open_items"):
+            lines.append("Key open planning items:")
+            lines.extend(f"- {item['type']}: {item['title']}" for item in structured["key_open_items"][:5])
+        if structured.get("key_completed_items"):
+            lines.append("Key completed planning items:")
+            lines.extend(f"- {item['type']}: {item['title']}" for item in structured["key_completed_items"][:5])
+        return "\n".join(lines)
 
     def _gap_ref(self, gap: dict[str, Any]) -> dict[str, Any]:
         item = gap.get("item") or {}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.context.models import ContextOptions, ContextRecipe
+from app.context.policy import PLANNING_AGENT_TYPES, PLANNING_CONTEXT_DOMAIN
 
 
 GENERIC_RECIPE = ContextRecipe(
@@ -20,6 +21,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "workstream_generator": ContextRecipe(
         recipe_id="workstream_generator_default",
         agent_id="workstream_generator",
+        context_domain=PLANNING_CONTEXT_DOMAIN,
         blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="downstream",
@@ -28,6 +30,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "objective_generator": ContextRecipe(
         recipe_id="objective_generator_default",
         agent_id="objective_generator",
+        context_domain=PLANNING_CONTEXT_DOMAIN,
         blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="downstream",
@@ -36,6 +39,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "risk_generator": ContextRecipe(
         recipe_id="risk_generator_default",
         agent_id="risk_generator",
+        context_domain=PLANNING_CONTEXT_DOMAIN,
         blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="downstream",
@@ -44,6 +48,7 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
     "test_generator": ContextRecipe(
         recipe_id="test_generator_default",
         agent_id="test_generator",
+        context_domain=PLANNING_CONTEXT_DOMAIN,
         blocks=["global_audit_knowledge", "current_task"],
         relationship_depth=1,
         direction="upstream",
@@ -86,7 +91,11 @@ DEFAULT_RECIPES: dict[str, ContextRecipe] = {
 def get_context_recipe(agent_type: str) -> tuple[ContextRecipe, bool]:
     recipe = DEFAULT_RECIPES.get(agent_type)
     if recipe:
+        if agent_type in PLANNING_AGENT_TYPES and recipe.context_domain != PLANNING_CONTEXT_DOMAIN:
+            raise ValueError(f"Planning agent recipe must use planning context domain: {agent_type}")
         return recipe.model_copy(deep=True), False
+    if agent_type in PLANNING_AGENT_TYPES:
+        raise ValueError(f"Missing planning context recipe for planning agent: {agent_type}")
     fallback = GENERIC_RECIPE.model_copy(deep=True)
     fallback.agent_id = agent_type
     fallback.recipe_id = f"{agent_type}_fallback"

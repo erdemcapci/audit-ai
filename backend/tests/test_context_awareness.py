@@ -3,15 +3,21 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import asyncio
 from pathlib import Path
 
+from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings
 from app.context.context_pack_builder import context_pack_builder
+from app.context import recipes as context_recipes
+from app.context.models import ContextRecipe
+from app.context.policy import PLANNING_CONTEXT_DOMAIN
 from app.models import (
     AgentState,
+    AgentRunRequest,
     AuditCreate,
     FieldworkItem,
     FieldworkState,
@@ -27,6 +33,7 @@ from app.models import (
 )
 from app.services.audit_graph_service import audit_graph_service
 from app.services.audit_map_service import audit_map_service
+from app.services.audit_context_snapshot_service import audit_context_snapshot_service
 from app.services.agent_service import agent_service
 from app.store.file_store import FileStore
 from app.store.project_store import project_store
@@ -102,6 +109,29 @@ class ContextAwarenessTests(unittest.TestCase):
                 ],
             ),
         )
+
+    def assert_no_downstream_context(self, pack) -> None:
+        forbidden_terms = [
+            "fieldwork",
+            "finding",
+            "findings",
+            "reporting",
+            "report-main",
+            "executive-summary",
+            "report_without_findings",
+            "test_without_fieldwork",
+            "fieldwork_without_finding",
+            "finding_without_report",
+            "finding_without_recommendation",
+            "finding_without_impact",
+            "Missing approval evidence",
+            "Execute approval sample",
+            "Draft Report",
+            "Executive Summary",
+        ]
+        rendered = pack.rendered_context.lower()
+        for term in forbidden_terms:
+            self.assertNotIn(term.lower(), rendered)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -193,11 +223,216 @@ class ContextAwarenessTests(unittest.TestCase):
         current_task = next(block for block in pack.blocks if block.block_id == "current_task")
         objective_items = global_knowledge.content["planning"]["objective"]["items"]
         self.assertIn(self.objective.id, {item["id"] for item in objective_items})
+        self.assertNotIn("fieldwork", global_knowledge.content)
+        self.assertNotIn("findings", global_knowledge.content)
+        self.assertNotIn("reporting", global_knowledge.content)
+        self.assertNotIn("report", global_knowledge.content["item_counts"])
+        self.assertNotIn("fieldwork_item", global_knowledge.content["item_counts"])
+        self.assertNotIn("finding", global_knowledge.content["item_counts"])
+        self.assertNotIn("report_without_findings", {gap["gap_type"] for gap in global_knowledge.content["relationship_gaps"]})
+        self.assertIn("Audit description:", global_knowledge.content["summary_text"])
+        self.assertNotIn("Scope:", global_knowledge.content["summary_text"])
         self.assertEqual(current_task.content["focus_items"][0]["item"]["id"], self.objective.id)
         self.assertIn("# Audit Context Pack", pack.rendered_context)
         self.assertIn("## Global Audit Knowledge", pack.rendered_context)
         self.assertIn("## Current Task", pack.rendered_context)
         self.assertIn("## Instructions", pack.rendered_context)
+        self.assertNotIn('"reporting"', pack.rendered_context)
+        self.assertNotIn('"fieldwork"', pack.rendered_context)
+        self.assert_no_downstream_context(pack)
+
+    def test_all_planning_agents_receive_planning_only_global_context(self) -> None:
+        selected_by_agent = {
+            "workstream_generator": [self.project.id],
+            "objective_generator": [self.workstream.id],
+            "risk_generator": [self.objective.id],
+            "test_generator": [self.risk.id],
+        }
+        for agent_type, selected_ids in selected_by_agent.items():
+            with self.subTest(agent_type=agent_type):
+                agent = AgentState(id=f"agent_{agent_type}", type=agent_type, title=agent_type, prompt="Run planning agent.")
+                pack = context_pack_builder.build(self.project.id, agent, selected_ids)
+                global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+                self.assertEqual(global_knowledge.content["current_phase"], "planning")
+                self.assertNotIn("stale", global_knowledge.content)
+                self.assertNotIn("truncated", global_knowledge.content)
+                self.assertFalse(global_knowledge.metadata.truncated)
+                self.assert_no_downstream_context(pack)
+
+    def test_planning_agent_drops_downstream_selected_items(self) -> None:
+        report_agent = AgentState(id="agent_plan", type="risk_generator", title="Risk Generator", prompt="Generate risks.")
+        recipe = ContextRecipe(
+            recipe_id="planning_policy_test",
+            agent_id="risk_generator",
+            context_domain=PLANNING_CONTEXT_DOMAIN,
+            blocks=["global_audit_knowledge", "selected_items", "connected_items", "current_task"],
+        )
+        for selected_id in [self.fieldwork_item.id, "finding_missing_approval", "report-main", "executive-summary"]:
+            with self.subTest(selected_id=selected_id):
+                pack = context_pack_builder.build_with_recipe(self.project.id, report_agent, recipe, [selected_id])
+                current_task = next(block for block in pack.blocks if block.block_id == "current_task")
+                selected_items = next(block for block in pack.blocks if block.block_id == "selected_items")
+                connected_items = next(block for block in pack.blocks if block.block_id == "connected_items")
+                self.assertEqual(current_task.content["focus_items"], [])
+                self.assertEqual(selected_items.content["items"], [])
+                self.assertEqual(connected_items.content["items"], [])
+                self.assert_no_downstream_context(pack)
+
+    def test_planning_policy_omits_unsafe_blocks(self) -> None:
+        agent = AgentState(id="agent_plan", type="risk_generator", title="Risk Generator", prompt="Generate risks.")
+        recipe = ContextRecipe(
+            recipe_id="planning_unsafe_blocks_test",
+            agent_id="risk_generator",
+            context_domain=PLANNING_CONTEXT_DOMAIN,
+            blocks=[
+                "global_audit_knowledge",
+                "relationship_gaps",
+                "traceability_chain",
+                "workflow_state",
+                "fieldwork_summary",
+                "findings_summary",
+                "reporting_summary",
+                "current_task",
+            ],
+        )
+
+        pack = context_pack_builder.build_with_recipe(self.project.id, agent, recipe, [self.risk.id])
+
+        self.assertEqual(pack.context_summary.blocks, ["global_audit_knowledge", "current_task"])
+        self.assertNotIn("test_without_fieldwork", pack.rendered_context)
+        self.assertNotIn("fieldwork_items", pack.rendered_context)
+        self.assertNotIn("report_sections", pack.rendered_context)
+        self.assert_no_downstream_context(pack)
+
+    def test_planning_policy_removes_downstream_relationship_types_between_planning_nodes(self) -> None:
+        map_state = project_store.load_map_state(self.project.id)
+        map_state.edges.append(
+            FlowEdge(
+                id=f"{self.workstream.id}->{self.risk.id}",
+                source=self.workstream.id,
+                target=self.risk.id,
+                data={"relationship_type": "reported_in"},
+            )
+        )
+        project_store.save_map_state(self.project.id, map_state)
+        agent = AgentState(id="agent_plan", type="risk_generator", title="Risk Generator", prompt="Generate risks.")
+        recipe = ContextRecipe(
+            recipe_id="planning_relationship_type_test",
+            agent_id="risk_generator",
+            context_domain=PLANNING_CONTEXT_DOMAIN,
+            blocks=["connected_items"],
+            relationship_depth=1,
+            direction="downstream",
+        )
+
+        pack = context_pack_builder.build_with_recipe(self.project.id, agent, recipe, [self.workstream.id])
+
+        self.assertNotIn("reported_in", pack.rendered_context)
+        self.assert_no_downstream_context(pack)
+
+    def test_planning_agent_structured_and_all_summary_modes_are_planning_only(self) -> None:
+        agent = AgentState(id="agent_plan", type="risk_generator", title="Risk Generator", prompt="Generate risks.")
+        for options in [
+            {"summary_mode": "structured"},
+            {"detail_mode": "all_summary"},
+            {"summary_mode": "structured", "detail_mode": "all_summary"},
+        ]:
+            with self.subTest(options=options):
+                pack = context_pack_builder.build(self.project.id, agent, [self.objective.id], options)
+                global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+                structured = global_knowledge.content.get("structured_summary", {})
+                self.assertIn("structured_summary", global_knowledge.content)
+                self.assertNotIn("fieldwork_summary", structured)
+                self.assertNotIn("findings_summary", structured)
+                self.assertNotIn("reporting_summary", structured)
+                self.assert_no_downstream_context(pack)
+
+    def test_downstream_only_snapshot_stale_does_not_affect_planning_context(self) -> None:
+        audit_context_snapshot_service.rebuild(self.project.id)
+        before = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
+        before_global = next(block for block in before.blocks if block.block_id == "global_audit_knowledge").content
+        project_store.save_fieldwork(
+            self.project.id,
+            FieldworkState(
+                items=[
+                    self.fieldwork_item,
+                    FieldworkItem(id="fw_downstream_only", test_id=self.test.id, title="Downstream only item"),
+                ]
+            ),
+        )
+
+        pack = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
+        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        self.assertNotIn("stale", global_knowledge.content)
+        self.assertEqual(global_knowledge.metadata.notes, [])
+        self.assertEqual(before_global, global_knowledge.content)
+        self.assert_no_downstream_context(pack)
+
+    def test_downstream_only_snapshot_truncation_does_not_affect_planning_context(self) -> None:
+        project_store.save_fieldwork(
+            self.project.id,
+            FieldworkState(
+                items=[
+                    FieldworkItem(id=f"fw_downstream_{index}", test_id=self.test.id, title=f"Downstream item {index}")
+                    for index in range(20)
+                ]
+            ),
+        )
+        audit_context_snapshot_service.rebuild(self.project.id)
+
+        pack = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
+        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        self.assertNotIn("truncated", global_knowledge.content)
+        self.assertNotIn("generated_at", global_knowledge.content)
+        self.assertNotIn("generation_mode", global_knowledge.content)
+        self.assertFalse(global_knowledge.metadata.truncated)
+        self.assert_no_downstream_context(pack)
+
+    def test_known_planning_agents_have_planning_domain_recipes(self) -> None:
+        for agent_type in ["workstream_generator", "objective_generator", "risk_generator", "test_generator"]:
+            with self.subTest(agent_type=agent_type):
+                recipe, fallback = context_recipes.get_context_recipe(agent_type)
+                self.assertFalse(fallback)
+                self.assertEqual(recipe.context_domain, PLANNING_CONTEXT_DOMAIN)
+
+    def test_planning_run_with_only_downstream_inputs_fails_cleanly(self) -> None:
+        with self.assertRaises(HTTPException) as error:
+            asyncio.run(
+                agent_service.run(
+                    self.project.id,
+                    self.agent.id,
+                    AgentRunRequest(input_node_ids=[self.fieldwork_item.id]),
+                )
+            )
+
+        self.assertIn("Planning agents can only run with planning inputs", str(error.exception.detail))
+
+    def test_final_llm_request_for_planning_agent_is_downstream_free(self) -> None:
+        pack = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
+        rendered = agent_service._render_llm_request(
+            pack,
+            "Generate risks.",
+            {"selected_item_ids": [self.objective.id]},
+            {"risks": [{"title": "..."}]},
+        )
+
+        self.assert_no_downstream_context(type("Pack", (), {"rendered_context": rendered})())
+
+    def test_fieldwork_and_reporting_agents_keep_full_global_context(self) -> None:
+        finding_agent = AgentState(id="agent_finding", type="finding_draft_agent", title="Finding Draft Agent", prompt="Draft finding.")
+        report_agent = AgentState(id="agent_report", type="report_draft_agent", title="Report Draft Agent", prompt="Draft report.")
+
+        finding_pack = context_pack_builder.build(self.project.id, finding_agent, [self.fieldwork_item.id])
+        finding_global = next(block for block in finding_pack.blocks if block.block_id == "global_audit_knowledge")
+        self.assertIn("fieldwork", finding_global.content)
+        self.assertIn("findings", finding_global.content)
+        self.assertIn("reporting", finding_global.content)
+
+        report_pack = context_pack_builder.build(self.project.id, report_agent, [])
+        report_global = next(block for block in report_pack.blocks if block.block_id == "global_audit_knowledge")
+        self.assertIn("fieldwork", report_global.content)
+        self.assertIn("findings", report_global.content)
+        self.assertIn("reporting", report_global.content)
 
     def test_agent_input_resolution_falls_back_to_saved_connections(self) -> None:
         resolved = agent_service._resolve_agent_input_node_ids(

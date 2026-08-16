@@ -28,6 +28,7 @@ class ContextBlock(BaseModel):
 class ContextRecipe(BaseModel):
     recipe_id: str
     agent_id: str
+    context_domain: Literal["full", "planning"] = "full"
     blocks: list[str]
     relationship_depth: int = 1
     direction: ContextDirection = "both"

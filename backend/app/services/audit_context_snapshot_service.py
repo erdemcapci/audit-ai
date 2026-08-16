@@ -110,7 +110,7 @@ class AuditContextSnapshotService:
         lines = [
             f"Audit: {graph.audit.title}",
             f"Status/phase: {graph.audit.status} / {structured['current_phase']}",
-            f"Scope: {graph.audit.description or 'No description provided.'}",
+            f"Audit description: {graph.audit.description or 'No description provided.'}",
             "Counts: "
             + ", ".join(f"{item_type}={count}" for item_type, count in counts.items() if count)
             if counts

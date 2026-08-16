@@ -7,6 +7,7 @@ from typing import Any
 from app.context.block_registry import ContextBlockRequest, ContextBlockRegistry
 from app.context.blocks import default_context_block_registry
 from app.context.models import ContextBlock, ContextPack, ContextPackLimits, ContextPackSummary
+from app.context.policy import context_policy_for_domain
 from app.context.recipes import apply_context_options, get_context_recipe
 from app.models import AgentState
 from app.services.audit_graph_service import AuditGraphService, audit_graph_service
@@ -30,8 +31,22 @@ class ContextPackBuilder:
     ) -> ContextPack:
         base_recipe, fallback_recipe = get_context_recipe(agent.type)
         recipe = apply_context_options(base_recipe, context_options)
-        graph = self.graph_service.build_graph(project_id)
-        selected_ids = selected_item_ids or []
+        return self.build_with_recipe(project_id, agent, recipe, selected_item_ids, fallback_recipe=fallback_recipe)
+
+    def build_with_recipe(
+        self,
+        project_id: str,
+        agent: AgentState,
+        recipe,
+        selected_item_ids: list[str] | None = None,
+        *,
+        fallback_recipe: bool = False,
+    ) -> ContextPack:
+        source_graph = self.graph_service.build_graph(project_id)
+        policy = context_policy_for_domain(recipe.context_domain)
+        graph = policy.project_graph(source_graph)
+        selected_ids = policy.project_selected_ids(graph, selected_item_ids or [])
+        block_ids = policy.project_block_ids(recipe.blocks)
         block_request = ContextBlockRequest(
             project_id=project_id,
             agent=agent,
@@ -41,7 +56,7 @@ class ContextPackBuilder:
             graph_service=self.graph_service,
         )
         blocks: list[ContextBlock] = []
-        for block_id in recipe.blocks:
+        for block_id in block_ids:
             provider = self.registry.get(block_id)
             if not provider:
                 blocks.append(self._missing_block(block_id))

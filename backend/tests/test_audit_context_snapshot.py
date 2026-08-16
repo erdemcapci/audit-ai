@@ -72,11 +72,11 @@ class AuditContextSnapshotTests(unittest.TestCase):
         pack = context_pack_builder.build(self.project.id, project_store.load_map_state(self.project.id).agents[0] if project_store.load_map_state(self.project.id).agents else self._agent())
 
         block = next(item for item in pack.blocks if item.block_id == "global_audit_knowledge")
-        self.assertFalse(block.content["stale"])
+        self.assertNotIn("stale", block.content)
         self.assertIn("summary_text", block.content)
         self.assertIn("planning", block.content)
         self.assertEqual(block.content["planning"]["objective"]["items"][0]["id"], "obj_approval")
-        self.assertIn("truncated", block.content)
+        self.assertNotIn("truncated", block.content)
         self.assertNotIn("structured_summary", block.content)
 
     def _agent(self):
