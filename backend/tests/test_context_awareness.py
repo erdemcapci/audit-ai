@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.config import settings
 from app.context.context_pack_builder import context_pack_builder
 from app.context import recipes as context_recipes
-from app.context.models import ContextRecipe
+from app.context.models import ContextPreviewRequest, ContextRecipe
 from app.context.policy import PLANNING_CONTEXT_DOMAIN
 from app.models import (
     AgentState,
@@ -443,6 +443,68 @@ class ContextAwarenessTests(unittest.TestCase):
         )
 
         self.assertEqual(resolved, [self.objective.id])
+
+    def test_objective_generator_context_uses_connected_generated_workstreams(self) -> None:
+        planning = PlanningState(
+            stage="workstreams_generated",
+            workstreams=[
+                Workstream(id="ws_generated_1", name="Generated Workstream 1", description="First generated workstream"),
+                Workstream(id="ws_generated_2", name="Generated Workstream 2", description="Second generated workstream"),
+            ],
+        )
+        project_store.save_planning(self.project.id, planning)
+        stale_snapshot = audit_context_snapshot_service.rebuild(self.project.id)
+        planning.workstreams.append(Workstream(id="ws_generated_3", name="Generated Workstream 3", description="Third generated workstream"))
+        project_store.save_planning(self.project.id, planning)
+        map_state = project_store.load_map_state(self.project.id)
+        objective_agent = AgentState(id="agent_objective", type="objective_generator", title="Objective Generator", prompt="Generate objectives.")
+        map_state.agents.append(objective_agent)
+        map_state.edges = [
+            FlowEdge(id="ws_generated_1->agent_objective", source="ws_generated_1", target=objective_agent.id),
+            FlowEdge(id="ws_generated_2->agent_objective", source="ws_generated_2", target=objective_agent.id),
+        ]
+        project_store.save_map_state(self.project.id, map_state)
+
+        pack = agent_service.preview_context(self.project.id, objective_agent.id, ContextPreviewRequest())
+
+        self.assertEqual(stale_snapshot.structured_summary["planning_summary"]["workstream"]["count"], 2)
+        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        current_task = next(block for block in pack.blocks if block.block_id == "current_task")
+        self.assertEqual(global_knowledge.content["planning"]["workstream"]["count"], 3)
+        self.assertEqual(
+            [item["item"]["id"] for item in current_task.content["focus_items"]],
+            ["ws_generated_1", "ws_generated_2"],
+        )
+        self.assertEqual(pack.context_summary.selected_item_count, 2)
+
+    def test_risk_and_test_generator_context_preserve_parent_focus(self) -> None:
+        risk_agent = AgentState(id="agent_risk_focus", type="risk_generator", title="Risk Generator", prompt="Generate risks.")
+        test_agent = AgentState(id="agent_test_focus", type="test_generator", title="Test Generator", prompt="Generate tests.")
+        map_state = project_store.load_map_state(self.project.id)
+        map_state.agents.extend([risk_agent, test_agent])
+        map_state.edges.extend(
+            [
+                FlowEdge(id=f"{self.objective.id}->{risk_agent.id}", source=self.objective.id, target=risk_agent.id),
+                FlowEdge(id=f"{self.risk.id}->{test_agent.id}", source=self.risk.id, target=test_agent.id),
+            ]
+        )
+        project_store.save_map_state(self.project.id, map_state)
+
+        risk_pack = agent_service.preview_context(self.project.id, risk_agent.id, ContextPreviewRequest())
+        risk_current_task = next(block for block in risk_pack.blocks if block.block_id == "current_task")
+        self.assertEqual(risk_current_task.content["focus_items"][0]["item"]["id"], self.objective.id)
+        self.assertEqual(
+            [item["type"] for item in risk_current_task.content["focus_items"][0]["parent_hierarchy"]],
+            ["audit", "workstream"],
+        )
+
+        test_pack = agent_service.preview_context(self.project.id, test_agent.id, ContextPreviewRequest())
+        test_current_task = next(block for block in test_pack.blocks if block.block_id == "current_task")
+        self.assertEqual(test_current_task.content["focus_items"][0]["item"]["id"], self.risk.id)
+        self.assertEqual(
+            [item["type"] for item in test_current_task.content["focus_items"][0]["parent_hierarchy"]],
+            ["audit", "workstream", "objective"],
+        )
 
     def test_traceability_chain_block_and_existing_outputs(self) -> None:
         test_agent = AgentState(

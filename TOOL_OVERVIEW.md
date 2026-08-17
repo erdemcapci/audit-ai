@@ -1,14 +1,14 @@
-# Assurance Graph Tool Overview
+# Assurenodia Tool Overview
 
-This document explains what Assurance Graph does, how it supports an audit, and where AI can help during the audit lifecycle.
+This document explains what Assurenodia does, how it supports an audit, and where AI can help during the audit lifecycle.
 
-Assurance Graph is an open-source visual AI audit workspace. It is designed to help auditors think through an audit from a simple title and description, then turn that starting point into a structured audit map.
+Assurenodia is an open-source visual AI audit workspace. It is designed to help auditors think through an audit from a simple title and description, then turn that starting point into a structured audit map.
 
 It is not a GRC system, audit issue tracker, approval workflow, or enterprise audit management platform. It is a local-first thinking, planning, drafting, and documentation aid for auditors.
 
-## What Assurance Graph Does
+## What Assurenodia Does
 
-Assurance Graph helps an auditor move from:
+Assurenodia helps an auditor move from:
 
 ```text
 Audit idea -> Objectives -> Risks -> Tests -> Fieldwork -> Findings -> Report
@@ -26,7 +26,7 @@ The purpose is to make the audit journey visible. Instead of managing audit plan
 
 ## Core Principles
 
-Assurance Graph is built around these principles:
+Assurenodia is built around these principles:
 
 - Local-first: project files are stored locally on the user's computer.
 - Visual-first: the audit map is the main workspace.
@@ -37,7 +37,7 @@ Assurance Graph is built around these principles:
 
 ## Main Audit Phases
 
-Assurance Graph organizes the map into three high-level phase areas:
+Assurenodia organizes the map into three high-level phase areas:
 
 - Planning
 - Fieldwork
@@ -320,9 +320,9 @@ The auditor can click cards and edit fields directly in the inspector overlay. T
 
 The review process is intentionally built into the map. The auditor does not need a separate review screen for every object.
 
-## What Assurance Graph Does Not Do
+## What Assurenodia Does Not Do
 
-Assurance Graph does not:
+Assurenodia does not:
 
 - Replace auditor judgment
 - Validate evidence automatically
@@ -337,7 +337,7 @@ It is a planning, thinking, drafting, and mapping tool.
 
 ## Local Data and Privacy
 
-Assurance Graph stores projects in local files under the `projects` folder.
+Assurenodia stores projects in local files under the `projects` folder.
 
 If demo mode or Ollama is used, the app can run without sending prompts to OpenAI or Claude.
 
@@ -345,7 +345,7 @@ If OpenAI or Claude is configured, prompts are sent to the selected external pro
 
 ## Recommended Way to Use the Tool
 
-Use Assurance Graph as an audit assistant, not as an automatic audit author.
+Use Assurenodia as an audit assistant, not as an automatic audit author.
 
 A practical workflow is:
 
@@ -377,4 +377,4 @@ Users remain responsible for:
 - Organizational policy compliance
 - Final report quality
 
-Assurance Graph can accelerate thinking and drafting, but the auditor remains accountable for the audit work.
+Assurenodia can accelerate thinking and drafting, but the auditor remains accountable for the audit work.

@@ -1,18 +1,18 @@
-import { FormEvent, useEffect, useState } from "react";
-import { projectsApi } from "../api/projectsApi";
+import { FormEvent, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { LoadingState } from "../components/LoadingState";
 import { TextArea } from "../components/TextArea";
 import { TextInput } from "../components/TextInput";
-import type { AuditProject } from "../types";
 
 export function StartScreen({
   onStart,
-  onOpenExisting
+  onOpenExisting,
+  onHome
 }: {
   onStart: (payload: { title: string; description: string; process_area: string; initial_concern: string; extra_context: string }) => Promise<void>;
-  onOpenExisting: (projectId: string) => void;
+  onOpenExisting: () => void;
+  onHome: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -22,11 +22,6 @@ export function StartScreen({
   const [showOptional, setShowOptional] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [projects, setProjects] = useState<AuditProject[]>([]);
-
-  useEffect(() => {
-    projectsApi.list().then(setProjects).catch(() => setProjects([]));
-  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -43,12 +38,17 @@ export function StartScreen({
 
   return (
     <main className="start-screen">
-      <section className="start-hero">
+      <section className="start-hero new-audit-page">
         <div>
+          <p className="eyebrow">New workspace</p>
           <h1>Start a new audit</h1>
           <p className="hero-copy">
-            Create a local audit workspace, then generate objectives, risks, and tests when you are ready.
+            Create a focused local audit workspace. Add the audit title and description, then move into the planning canvas.
           </p>
+          <div className="button-row">
+            <Button type="button" variant="ghost" onClick={onHome}>Home</Button>
+            <Button type="button" variant="secondary" onClick={onOpenExisting}>Open Existing Audit</Button>
+          </div>
         </div>
         <Card className="start-card">
           <form onSubmit={submit}>
@@ -79,19 +79,6 @@ export function StartScreen({
           </form>
         </Card>
       </section>
-      {projects.length ? (
-        <section className="recent-projects">
-          <h2>Recent local audits</h2>
-          <div className="recent-grid">
-            {projects.map((project) => (
-              <button key={project.id} className="recent-card" onClick={() => onOpenExisting(project.id)}>
-                <strong>{project.title}</strong>
-                <span>{project.description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </main>
   );
 }

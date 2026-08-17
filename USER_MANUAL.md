@@ -1,10 +1,10 @@
-# Assurance Graph User Manual
+# Assurenodia User Manual
 
-This manual is for auditors and non-technical users who want to start Assurance Graph and use it for an audit.
+This manual is for auditors and non-technical users who want to start Assurenodia and use it for an audit.
 
-Assurance Graph runs locally on your computer. Your audit project files are stored in the local `projects` folder.
+Assurenodia runs locally on your computer. Your audit project files are stored in the local `projects` folder.
 
-You do not need to know programming to use Assurance Graph. Some setup steps require copying and pasting commands into a terminal, but the commands are provided exactly as you need them.
+You do not need to know programming to use Assurenodia. Some setup steps require copying and pasting commands into a terminal, but the commands are provided exactly as you need them.
 
 ## Quick Answer: How Long Will Setup Take?
 
@@ -19,19 +19,19 @@ The slowest parts are installing Docker Desktop and waiting for the first build.
 
 ## Table of Contents
 
-- [What Assurance Graph Does](#what-assurance-graph-does)
+- [What Assurenodia Does](#what-assurenodia-does)
 - [Before You Start](#before-you-start)
 - [Option 1: Start with Docker Desktop](#option-1-start-with-docker-desktop)
 - [Option 2: Use Local AI with Ollama](#option-2-use-local-ai-with-ollama)
 - [Option 3: Use OpenAI or Claude](#option-3-use-openai-or-claude)
-- [How to Use Assurance Graph](#how-to-use-assurance-graph)
+- [How to Use Assurenodia](#how-to-use-assurenodia)
 - [Deleting Cards](#deleting-cards)
 - [Where Your Data Is Stored](#where-your-data-is-stored)
 - [Troubleshooting](#troubleshooting)
 
-## What Assurance Graph Does
+## What Assurenodia Does
 
-Assurance Graph helps you turn a short audit description into a visual audit map:
+Assurenodia helps you turn a short audit description into a visual audit map:
 
 ```text
 Planning -> Fieldwork -> Findings -> Reporting
@@ -52,7 +52,7 @@ AI output is a draft. You remain responsible for reviewing, editing, validating,
 
 For a more detailed explanation of the tool, the audit steps, and where AI can support the process, see:
 
-[Assurance Graph Tool Overview](TOOL_OVERVIEW.md)
+[Assurenodia Tool Overview](TOOL_OVERVIEW.md)
 
 ## Before You Start
 
@@ -60,13 +60,13 @@ For the easiest setup, you need:
 
 - A computer running Windows, macOS, or Linux
 - Docker Desktop installed
-- The Assurance Graph project folder
+- The Assurenodia project folder
 
 You do not need an AI account to try the app. Demo mode is enabled by default.
 
 ### What Is Docker Desktop?
 
-Docker Desktop is the easiest way to run Assurance Graph without installing developer tools one by one.
+Docker Desktop is the easiest way to run Assurenodia without installing developer tools one by one.
 
 Instead of asking you to install Python, Node.js, frontend dependencies, and backend dependencies separately, Docker starts the full app for you.
 
@@ -96,11 +96,11 @@ Install it and open Docker Desktop.
 
 Wait until Docker Desktop says it is running.
 
-### Step 2: Get Assurance Graph
+### Step 2: Get Assurenodia
 
 If you are using GitHub and do not know Git:
 
-1. Open the Assurance Graph GitHub page:
+1. Open the Assurenodia GitHub page:
 
 ```text
 https://github.com/erdemcapci/audit-ai
@@ -121,17 +121,17 @@ git clone https://github.com/erdemcapci/audit-ai.git
 
 ### Step 3: Open a terminal in the project folder
 
-You need to run two commands from the Assurance Graph folder.
+You need to run two commands from the Assurenodia folder.
 
 On macOS:
 
-1. Open the Assurance Graph folder in Finder.
+1. Open the Assurenodia folder in Finder.
 2. Right-click the folder area.
 3. Choose `New Terminal at Folder` if available.
 
 On Windows:
 
-1. Open the Assurance Graph folder in File Explorer.
+1. Open the Assurenodia folder in File Explorer.
 2. Click the address bar.
 3. Type `cmd`.
 4. Press Enter.
@@ -176,7 +176,7 @@ When it is running, open your browser and go to:
 http://localhost:3000
 ```
 
-Leave the terminal window open while using Assurance Graph. If you close it, the app may stop.
+Leave the terminal window open while using Assurenodia. If you close it, the app may stop.
 
 ### Step 6: Stop the app
 
@@ -199,7 +199,7 @@ docker compose up
 After the first setup, you normally only need to:
 
 1. Open Docker Desktop.
-2. Open a terminal in the Assurance Graph folder.
+2. Open a terminal in the Assurenodia folder.
 3. Run:
 
 ```bash
@@ -216,7 +216,7 @@ http://localhost:3000
 
 This is optional.
 
-By default, Assurance Graph uses demo mode, so it can work without Ollama or API keys.
+By default, Assurenodia uses demo mode, so it can work without Ollama or API keys.
 
 If you want local AI:
 
@@ -287,7 +287,7 @@ ANTHROPIC_API_KEY=your_key_here
 
 Restart the app after changing `.env`.
 
-## How to Use Assurance Graph
+## How to Use Assurenodia
 
 ### 1. Start a New Audit
 
@@ -310,7 +310,7 @@ Click:
 Build my audit map
 ```
 
-Assurance Graph creates a local project and opens the audit workspace.
+Assurenodia creates a local project and opens the audit workspace.
 
 ### 2. Understand the Main Map
 
@@ -387,7 +387,7 @@ Typical use:
 3. Configure the agent in the inspector overlay.
 4. Run the agent from the agent card on the map.
 
-If the connected cards already have outputs, Assurance Graph asks whether you want to:
+If the connected cards already have outputs, Assurenodia asks whether you want to:
 
 - Cancel
 - Delete old outputs and create new ones
@@ -574,12 +574,12 @@ Check:
 
 ## Important Disclaimer
 
-Assurance Graph provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
+Assurenodia provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
 
 AI-generated outputs may be incomplete or inaccurate. Users remain responsible for professional judgment, validation, regulatory compliance, and compliance with their organization’s policies.
 
 ## Feedback
 
-Assurance Graph was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
+Assurenodia was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 For feedback, questions, suggestions, or collaboration, feel free to reach out on LinkedIn.

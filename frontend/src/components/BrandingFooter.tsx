@@ -36,7 +36,7 @@ export function FeedbackLink({ children = "Feedback" }: { children?: string }) {
 export function BrandingFooter() {
   return (
     <footer className="app-footer">
-      <span>Assurance Graph</span>
+      <span>Assurenodia</span>
       <span>Created by <CreatorLink /></span>
     </footer>
   );

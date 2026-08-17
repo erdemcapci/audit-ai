@@ -173,10 +173,6 @@ function currentModelLabel(settings: LlmSettings | null): string {
   return settings.model;
 }
 
-function contextBlockLabel(blockId: string): string {
-  return blockId.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 export function DetailPanel({
   node,
   onClose,
@@ -367,32 +363,6 @@ export function DetailPanel({
             <dd>{currentModelLabel(llmSettings)}</dd>
           </dl>
           <div className="agent-context-summary">
-            <h3>This agent will use:</h3>
-            {contextPreview ? (
-              <>
-                <ul>
-                  {contextPreview.context_summary.blocks.map((blockId) => (
-                    <li key={blockId}>{contextBlockLabel(blockId)}</li>
-                  ))}
-                </ul>
-                <dl>
-                  <dt>Selected items</dt>
-                  <dd>{contextPreview.context_summary.selected_item_count}</dd>
-                  <dt>Related items</dt>
-                  <dd>{contextPreview.context_summary.related_item_count}</dd>
-                  <dt>Context tokens</dt>
-                  <dd>{contextPreview.limits.estimated_tokens} / {contextPreview.limits.max_context_tokens}</dd>
-                  <dt>Truncated</dt>
-                  <dd>{contextPreview.limits.truncated ? "Yes" : "No"}</dd>
-                </dl>
-              </>
-            ) : (
-              <ul>
-                {((agentDefinition?.default_config.context_blocks as string[] | undefined) || ["audit_overview", "workflow_state", "selected_items", "traceability_chain", "connected_items", "existing_outputs"]).map((blockId) => (
-                  <li key={blockId}>{contextBlockLabel(blockId)}</li>
-                ))}
-              </ul>
-            )}
             {contextPreviewError ? <p className="message-text">{contextPreviewError}</p> : null}
             <Button variant="ghost" onClick={previewContext} disabled={contextPreviewLoading || !node.data.projectId}>
               {contextPreviewLoading ? "Previewing..." : "Preview context"}

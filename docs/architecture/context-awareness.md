@@ -1,6 +1,6 @@
 # Context Awareness
 
-Assurance Graph agents do not run as isolated prompt boxes. They receive structured audit context built from the current audit map, project files, and agent connections. The goal is transparency: a user should be able to understand what an agent knew, why it used that context, and how developers can extend the system without adding custom context collection code inside every agent.
+Assurenodia agents do not run as isolated prompt boxes. They receive structured audit context built from the current audit map, project files, and agent connections. The goal is transparency: a user should be able to understand what an agent knew, why it used that context, and how developers can extend the system without adding custom context collection code inside every agent.
 
 The current architecture uses a hybrid model:
 
@@ -21,7 +21,7 @@ The snapshot service does not replace `ContextPackBuilder`. It feeds the `global
 
 ## User View
 
-When you run an agent, Assurance Graph builds a context pack before it calls the language model. The default generation context includes:
+When you run an agent, Assurenodia builds a context pack before it calls the language model. The default generation context includes:
 
 - Global audit knowledge for broad awareness.
 - Current task/focus references and parent hierarchy.

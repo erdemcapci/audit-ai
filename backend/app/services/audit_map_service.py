@@ -158,7 +158,9 @@ def phase_for_node(node_item: FlowNode, layouts: dict[str, PhaseLayout]) -> str 
         return None
     if node_item.type == "fieldworkSectionNode":
         return "fieldwork"
-    if node_item.type in {"auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode"}:
+    if node_item.type == "auditNode":
+        return None
+    if node_item.type in {"workstreamNode", "objectiveNode", "riskNode", "testNode"}:
         return "planning"
     if node_item.type in {"fieldworkItemNode", "findingNode"}:
         return "fieldwork"
@@ -299,6 +301,8 @@ def agent_auto_layout_position(agent_type: str, layouts: dict[str, PhaseLayout],
 
     phase = "planning"
     x = columns["audit"]
+    if agent_type == "workstream_generator":
+        x = audit_node_position(planning_layout)["x"]
     if agent_type == "objective_generator":
         x = columns["workstream"]
     elif agent_type == "risk_generator":

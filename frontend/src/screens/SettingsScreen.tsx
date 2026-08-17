@@ -205,10 +205,10 @@ export function SettingsScreen({
       <Card className="settings-card about-card">
         <div>
           <p className="eyebrow">About</p>
-          <h2>Assurance Graph</h2>
+          <h2>Assurenodia</h2>
         </div>
         <p>
-          Assurance Graph is an open-source visual AI audit workspace currently focused on audit planning.
+          Assurenodia is an open-source visual AI audit workspace currently focused on audit planning.
         </p>
         <p>
           It helps auditors generate and refine audit workstreams, objectives, risks, and tests using local or user-configured AI providers.

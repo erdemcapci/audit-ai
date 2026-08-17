@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2026 Erdem Capci
  *
- * This file is part of Assurance Graph and is licensed under AGPLv3-or-later.
+ * This file is part of Assurenodia and is licensed under AGPLv3-or-later.
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
       <main className="error-fallback">
         <section>
           <p className="eyebrow">Application Error</p>
-          <h1>Assurance Graph could not render this screen.</h1>
+          <h1>Assurenodia could not render this screen.</h1>
           <p>{this.state.error.message || "An unexpected frontend error occurred."}</p>
           <button type="button" onClick={() => window.location.reload()}>
             Reload

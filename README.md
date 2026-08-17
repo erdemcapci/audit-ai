@@ -1,4 +1,4 @@
-# Assurance Graph
+# Assurenodia
 
 Open-source visual AI audit workspace for planning, testing, findings, and reporting.
 
@@ -6,13 +6,13 @@ Created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 For feedback, questions, ideas, or collaboration, feel free to reach out on LinkedIn.
 
-Assurance Graph helps auditors turn a simple audit title and description into a visual audit map: Audit -> Planning -> Fieldwork -> Reporting. It is an AI-native audit thinking and planning tool, not a GRC platform.
+Assurenodia helps auditors turn a simple audit title and description into a visual audit map: Audit -> Planning -> Fieldwork -> Reporting. It is an AI-native audit thinking and planning tool, not a GRC platform.
 
 GitHub repository: [https://github.com/erdemcapci/audit-ai](https://github.com/erdemcapci/audit-ai)
 
 ## Who It Is For
 
-Assurance Graph is for auditors who want a local-first workspace to think through an audit visually.
+Assurenodia is for auditors who want a local-first workspace to think through an audit visually.
 
 It helps with:
 
@@ -35,7 +35,7 @@ Typical first-time setup with Docker Desktop takes about 15-30 minutes, dependin
 
 For a detailed explanation of what the tool does and where AI supports the audit process, read:
 
-[Assurance Graph Tool Overview](TOOL_OVERVIEW.md)
+[Assurenodia Tool Overview](TOOL_OVERVIEW.md)
 
 ## Quickstart
 
@@ -69,7 +69,7 @@ By default, Docker Compose publishes the app only on your own computer using `HO
 
 ## Optional Local AI
 
-Assurance Graph supports:
+Assurenodia supports:
 
 - Ollama
 - OpenAI
@@ -97,7 +97,7 @@ OpenAI and Claude require API keys in `.env`.
 
 ## Deployment Modes
 
-Assurance Graph supports two runtime modes:
+Assurenodia supports two runtime modes:
 
 - `DEPLOYMENT_MODE=local`: local downloaded version. Users can run AI agents when Ollama, OpenAI, Claude, or demo mode is configured.
 - `DEPLOYMENT_MODE=hosted`: hosted showcase version. Public visitors can view the app, but only an authenticated admin can run AI agents.
@@ -164,22 +164,22 @@ No database is required for v0.1.
 
 ## License
 
-Assurance Graph is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
+Assurenodia is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
 
 You may use, modify, and self-host this software under the terms of the AGPLv3.
 
-If you modify Assurance Graph and provide it as a network service, you must make the modified source code available under the same license.
+If you modify Assurenodia and provide it as a network service, you must make the modified source code available under the same license.
 
 Copyright (C) 2026 Erdem Capci
 
 ## Disclaimer
 
-Assurance Graph provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
+Assurenodia provides AI-assisted audit planning, fieldwork, finding drafting, and reporting support.
 
 AI-generated outputs may be incomplete or inaccurate. Users remain responsible for professional judgment, validation, regulatory compliance, and compliance with their organization’s policies.
 
 ## Creator
 
-Assurance Graph was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
+Assurenodia was created by [Erdem Capci](https://www.linkedin.com/in/erdemcapci/).
 
 If you use the project, find it useful, or have feedback, I’d be happy to hear from you.

@@ -122,6 +122,24 @@ class GlobalAuditKnowledgeBlock(BaseContextBlock):
     title = "Global Audit Knowledge"
 
     def build(self, request: ContextBlockRequest) -> ContextBlock:
+        policy = context_policy_for_domain(request.recipe.context_domain)
+        if policy.is_planning_only:
+            structured = audit_context_snapshot_service.structured_summary_for_graph(request.graph)
+            projected = policy.project_global_summary(structured)
+            content = self._content_from_structured(
+                request,
+                projected,
+            )
+            if request.recipe.detail_mode == "full_with_limits":
+                content["project_id"] = request.graph.project_id
+                content["source_sections_used"] = policy.source_sections_used()
+            return self._block(
+                request,
+                content,
+                item_count=sum(projected.get("item_counts", {}).values()),
+                truncated=False,
+            )
+
         snapshot = audit_context_snapshot_service.get_snapshot(request.project_id, build_if_missing=True)
         if not snapshot:
             return self._block(
@@ -132,25 +150,8 @@ class GlobalAuditKnowledgeBlock(BaseContextBlock):
                 },
                 notes=["Snapshot missing."],
             )
-        policy = context_policy_for_domain(request.recipe.context_domain)
-        notes = [] if policy.is_planning_only else (["Snapshot stale: audit changed since last update."] if snapshot.stale else [])
+        notes = ["Snapshot stale: audit changed since last update."] if snapshot.stale else []
         structured = snapshot.structured_summary
-        if policy.is_planning_only:
-            projected = policy.project_global_summary(structured)
-            content = self._content_from_structured(
-                request,
-                projected,
-            )
-            if request.recipe.detail_mode == "full_with_limits":
-                content["project_id"] = snapshot.project_id
-                content["source_sections_used"] = policy.source_sections_used()
-            return self._block(
-                request,
-                content,
-                item_count=sum(projected.get("item_counts", {}).values()),
-                truncated=False,
-                notes=notes,
-            )
         content = {
             "stale": snapshot.stale,
             "generated_at": snapshot.generated_at,

@@ -31,7 +31,7 @@ class AuditContextSnapshotService:
     def rebuild(self, project_id: str) -> AuditContextSnapshot:
         graph = self.graph_service.build_graph(project_id)
         fingerprint = self.source_fingerprint(project_id)
-        structured = self._structured_summary(graph)
+        structured = self.structured_summary_for_graph(graph)
         summary_text = self._summary_text(graph, structured)
         snapshot = AuditContextSnapshot(
             project_id=graph.audit.id,
@@ -67,7 +67,7 @@ class AuditContextSnapshotService:
         path = project_store.project_dir(snapshot.project_id) / SNAPSHOT_FILE
         project_store.file_store.write_json(path, snapshot.model_dump())
 
-    def _structured_summary(self, graph: AuditGraph) -> dict[str, Any]:
+    def structured_summary_for_graph(self, graph: AuditGraph) -> dict[str, Any]:
         items_by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for item in graph.items.values():
             if item.type == "agent":
