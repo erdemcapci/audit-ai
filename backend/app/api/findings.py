@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 
 from app.models import Finding, FindingDraftRequest, FindingsState
-from app.runtime import ensure_agent_execution_allowed
+from app.runtime import ensure_agent_execution_allowed, ensure_project_write_allowed
 from app.services.finding_service import finding_service
 from app.store.project_store import project_store
 
@@ -11,18 +11,21 @@ router = APIRouter(prefix="/api/projects/{project_id}/findings", tags=["findings
 
 @router.post("/draft", response_model=Finding)
 async def draft_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
+    ensure_project_write_allowed(request, project_id)
     ensure_agent_execution_allowed(request)
     return await finding_service.draft(project_id, payload)
 
 
 @router.post("/refine", response_model=Finding)
 async def refine_finding(project_id: str, request: Request, payload: FindingDraftRequest) -> Finding:
+    ensure_project_write_allowed(request, project_id)
     ensure_agent_execution_allowed(request)
     return await finding_service.refine(project_id, payload)
 
 
 @router.post("", response_model=Finding)
-def create_finding(project_id: str, finding: Finding) -> Finding:
+def create_finding(request: Request, project_id: str, finding: Finding) -> Finding:
+    ensure_project_write_allowed(request, project_id)
     return finding_service.create(project_id, finding)
 
 
@@ -32,11 +35,13 @@ def get_findings(project_id: str) -> FindingsState:
 
 
 @router.put("", response_model=FindingsState)
-def update_findings(project_id: str, findings: FindingsState) -> FindingsState:
+def update_findings(request: Request, project_id: str, findings: FindingsState) -> FindingsState:
+    ensure_project_write_allowed(request, project_id)
     return project_store.save_findings(project_id, findings)
 
 
 @router.delete("/{finding_id}")
-def delete_finding(project_id: str, finding_id: str) -> dict[str, str]:
+def delete_finding(request: Request, project_id: str, finding_id: str) -> dict[str, str]:
+    ensure_project_write_allowed(request, project_id)
     finding_service.delete(project_id, finding_id)
     return {"status": "deleted"}

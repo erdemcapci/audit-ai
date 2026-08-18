@@ -47,6 +47,9 @@ class AuditProject(BaseModel):
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
     status: str = "planning"
+    locked: bool = False
+    locked_at: str = ""
+    locked_by: str = ""
 
 
 class Risk(BaseModel):

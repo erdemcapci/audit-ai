@@ -629,6 +629,38 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.admin-projects-card {
+  grid-column: 1 / -1;
+}
+
+.admin-project-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-project-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.admin-project-row strong,
+.admin-project-row span {
+  display: block;
+}
+
+.admin-project-row span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .runtime-list {
   display: grid;
   grid-template-columns: auto 1fr;

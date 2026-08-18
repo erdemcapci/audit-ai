@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 from app.models import AuditMap, AutoLayoutRequest, BulkDeleteRequest, MapState, MapStateUpdate, NodeUpdateRequest
+from app.runtime import ensure_project_write_allowed
 from app.services.audit_map_service import audit_map_service
 from app.services.agent_service import agent_service
 from app.store.project_store import project_store
@@ -15,7 +16,8 @@ def get_audit_map(project_id: str) -> AuditMap:
 
 
 @router.put("", response_model=MapState)
-def update_audit_map(project_id: str, update: MapStateUpdate) -> MapState:
+def update_audit_map(request: Request, project_id: str, update: MapStateUpdate) -> MapState:
+    ensure_project_write_allowed(request, project_id)
     state = project_store.load_map_state(project_id)
     if update.phaseLayouts is not None:
         state.phaseLayouts = update.phaseLayouts
@@ -31,29 +33,34 @@ def update_audit_map(project_id: str, update: MapStateUpdate) -> MapState:
 
 
 @router.post("/auto-layout", response_model=AuditMap)
-def auto_layout(project_id: str, request: AutoLayoutRequest = Body(default_factory=AutoLayoutRequest)) -> AuditMap:
-    return audit_map_service.auto_layout(project_id, request)
+def auto_layout(request: Request, project_id: str, payload: AutoLayoutRequest = Body(default_factory=AutoLayoutRequest)) -> AuditMap:
+    ensure_project_write_allowed(request, project_id)
+    return audit_map_service.auto_layout(project_id, payload)
 
 
 @router.post("/bulk-delete", response_model=AuditMap)
-def bulk_delete(project_id: str, request: BulkDeleteRequest) -> AuditMap:
-    agent_service.delete_dimension(project_id, request.phase, request.dimension)
+def bulk_delete(request: Request, project_id: str, payload: BulkDeleteRequest) -> AuditMap:
+    ensure_project_write_allowed(request, project_id)
+    agent_service.delete_dimension(project_id, payload.phase, payload.dimension)
     return audit_map_service.build(project_id)
 
 
 @router.put("/nodes/{node_id}", response_model=AuditMap)
-def update_node(project_id: str, node_id: str, request: NodeUpdateRequest) -> AuditMap:
-    agent_service.update_node(project_id, node_id, request)
+def update_node(request: Request, project_id: str, node_id: str, payload: NodeUpdateRequest) -> AuditMap:
+    ensure_project_write_allowed(request, project_id)
+    agent_service.update_node(project_id, node_id, payload)
     return audit_map_service.build(project_id)
 
 
 @router.delete("/nodes/{node_id}", response_model=AuditMap)
-def delete_node(project_id: str, node_id: str) -> AuditMap:
+def delete_node(request: Request, project_id: str, node_id: str) -> AuditMap:
+    ensure_project_write_allowed(request, project_id)
     agent_service.delete_node(project_id, node_id)
     return audit_map_service.build(project_id)
 
 
 @router.delete("/nodes/{node_id}/outputs", response_model=AuditMap)
-def delete_node_outputs(project_id: str, node_id: str) -> AuditMap:
+def delete_node_outputs(request: Request, project_id: str, node_id: str) -> AuditMap:
+    ensure_project_write_allowed(request, project_id)
     agent_service.delete_outputs(project_id, node_id)
     return audit_map_service.build(project_id)

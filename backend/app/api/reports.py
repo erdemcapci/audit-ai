@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Response
 
 from app.models import ReportState
-from app.runtime import ensure_agent_execution_allowed
+from app.runtime import ensure_agent_execution_allowed, ensure_project_write_allowed
 from app.services.export_service import export_service
 from app.services.report_service import report_service
 from app.store.project_store import project_store
@@ -12,12 +12,14 @@ router = APIRouter(prefix="/api/projects/{project_id}/reports", tags=["reports"]
 
 @router.post("/generate-executive-summary", response_model=ReportState)
 async def generate_executive_summary(project_id: str, request: Request) -> ReportState:
+    ensure_project_write_allowed(request, project_id)
     ensure_agent_execution_allowed(request)
     return await report_service.generate(project_id)
 
 
 @router.post("/generate-draft-report", response_model=ReportState)
 async def generate_draft_report(project_id: str, request: Request) -> ReportState:
+    ensure_project_write_allowed(request, project_id)
     ensure_agent_execution_allowed(request)
     return await report_service.generate(project_id)
 
@@ -28,7 +30,8 @@ def get_report(project_id: str) -> ReportState:
 
 
 @router.put("", response_model=ReportState)
-def update_report(project_id: str, report: ReportState) -> ReportState:
+def update_report(request: Request, project_id: str, report: ReportState) -> ReportState:
+    ensure_project_write_allowed(request, project_id)
     return project_store.save_report(project_id, report)
 
 

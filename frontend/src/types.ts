@@ -18,6 +18,9 @@ export type AuditProject = {
   status: string;
   created_at: string;
   updated_at: string;
+  locked: boolean;
+  locked_at: string;
+  locked_by: string;
 };
 
 export type AuditCreate = {

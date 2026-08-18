@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.models import AuditCreate, AuditProject, MessageResponse
+from app.runtime import ensure_project_write_allowed
 from app.store.project_store import project_store
 
 
@@ -29,7 +30,8 @@ def get_project(project_id: str) -> AuditProject:
 
 
 @router.delete("/{project_id}", response_model=MessageResponse)
-def delete_project(project_id: str) -> MessageResponse:
+def delete_project(request: Request, project_id: str) -> MessageResponse:
+    ensure_project_write_allowed(request, project_id)
     try:
         project_store.delete_project(project_id)
     except FileNotFoundError as exc:

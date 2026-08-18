@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { adminApi, type AdminMe, type DemoJobStatus } from "../api/adminApi";
 import type { RuntimeSettings } from "../api/settingsApi";
+import type { AuditProject } from "../types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { TextArea } from "../components/TextArea";
@@ -23,13 +24,20 @@ export function AdminScreen({
   const [initialConcern, setInitialConcern] = useState("Potential inconsistent approval evidence and vendor due diligence.");
   const [runFullDemo, setRunFullDemo] = useState(true);
   const [job, setJob] = useState<DemoJobStatus | null>(null);
+  const [projects, setProjects] = useState<AuditProject[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function loadProjects() {
+    const next = await adminApi.projects();
+    setProjects(Array.isArray(next) ? next : []);
+  }
 
   useEffect(() => {
     adminApi.me().then((next) => {
       setMe(next);
       onRuntimeChange(next.runtime);
+      if (next.isAdmin) loadProjects().catch(() => undefined);
     }).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load admin status."));
   }, [onRuntimeChange]);
 
@@ -54,6 +62,7 @@ export function AdminScreen({
       const next = await adminApi.login(secret);
       setMe(next);
       onRuntimeChange(next.runtime);
+      await loadProjects();
       setSecret("");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Login failed.");
@@ -65,6 +74,7 @@ export function AdminScreen({
   async function logout() {
     const next = await adminApi.logout();
     setMe(next);
+    setProjects([]);
     onRuntimeChange(next.runtime);
   }
 
@@ -74,8 +84,22 @@ export function AdminScreen({
     try {
       const next = await adminApi.createDemo({ title, description, processArea, initialConcern, runFullDemo });
       setJob(next);
+      await loadProjects();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to create demo audit.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleProjectLock(project: AuditProject) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await (project.locked ? adminApi.unlockProject(project.id) : adminApi.lockProject(project.id));
+      await loadProjects();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to update project lock.");
     } finally {
       setBusy(false);
     }
@@ -136,6 +160,28 @@ export function AdminScreen({
             <Button onClick={createDemo} disabled={busy || !title.trim() || !description.trim() || runtime?.agentExecutionEnabled === false}>
               Create Demo Audit
             </Button>
+          </Card>
+
+          <Card className="admin-card admin-projects-card">
+            <h2>Audit locks</h2>
+            <p className="muted">Locked audits remain viewable, but hosted visitors cannot save changes. Admins can still edit them.</p>
+            <div className="admin-project-list">
+              {projects.map((project) => (
+                <div key={project.id} className="admin-project-row">
+                  <div>
+                    <strong>{project.title}</strong>
+                    <span>{project.locked ? "Locked" : "Editable"} · {project.slug}</span>
+                  </div>
+                  <div className="button-row">
+                    <Button variant="ghost" onClick={() => onOpenProject(project.id)}>Open</Button>
+                    <Button variant={project.locked ? "secondary" : "danger"} onClick={() => toggleProjectLock(project)} disabled={busy}>
+                      {project.locked ? "Unlock" : "Lock"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {!projects.length ? <p className="muted">No audits found yet.</p> : null}
+            </div>
           </Card>
 
           {job ? (

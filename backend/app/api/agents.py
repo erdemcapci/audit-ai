@@ -11,7 +11,7 @@ from app.models import (
     MessageResponse,
 )
 from app.context.models import ContextPack, ContextPreviewRequest
-from app.runtime import actor_id_for_request, ensure_agent_execution_allowed
+from app.runtime import actor_id_for_request, ensure_agent_execution_allowed, ensure_project_write_allowed
 from app.services.agent_service import agent_service
 
 
@@ -25,13 +25,15 @@ def list_agent_types() -> list[AgentDefinition]:
 
 
 @project_router.post("", response_model=AgentState)
-def create_agent(project_id: str, request: AgentCreateRequest) -> AgentState:
-    return agent_service.create(project_id, request)
+def create_agent(request: Request, project_id: str, payload: AgentCreateRequest) -> AgentState:
+    ensure_project_write_allowed(request, project_id)
+    return agent_service.create(project_id, payload)
 
 
 @project_router.put("/{agent_id}", response_model=AgentState)
-def update_agent(project_id: str, agent_id: str, request: AgentUpdateRequest) -> AgentState:
-    return agent_service.update(project_id, agent_id, request)
+def update_agent(request: Request, project_id: str, agent_id: str, payload: AgentUpdateRequest) -> AgentState:
+    ensure_project_write_allowed(request, project_id)
+    return agent_service.update(project_id, agent_id, payload)
 
 
 @project_router.post("/{agent_id}/output-check", response_model=AgentOutputCheckResponse)
@@ -46,11 +48,13 @@ def preview_agent_context(project_id: str, agent_id: str, payload: ContextPrevie
 
 @project_router.post("/{agent_id}/run", response_model=AgentRunResponse)
 async def run_agent(project_id: str, agent_id: str, request: Request, payload: AgentRunRequest) -> AgentRunResponse:
+    ensure_project_write_allowed(request, project_id)
     ensure_agent_execution_allowed(request)
     return await agent_service.run(project_id, agent_id, payload, actor_id=actor_id_for_request(request))
 
 
 @project_router.delete("/{agent_id}", response_model=MessageResponse)
-def delete_agent(project_id: str, agent_id: str) -> MessageResponse:
+def delete_agent(request: Request, project_id: str, agent_id: str) -> MessageResponse:
+    ensure_project_write_allowed(request, project_id)
     agent_service.delete(project_id, agent_id)
     return MessageResponse(message="Agent deleted")

@@ -9,6 +9,7 @@ from app.config import settings
 from app.models import (
     AdminLoginRequest,
     AdminMe,
+    AuditProject,
     AuditCreate,
     AutoLayoutRequest,
     DemoCreateRequest,
@@ -16,6 +17,7 @@ from app.models import (
     DemoJobStep,
     FieldworkCreateFromPlanningRequest,
     FindingDraftRequest,
+    utc_now,
 )
 from app.runtime import (
     clear_admin_cookie,
@@ -179,3 +181,32 @@ def get_demo_job(request: Request, job_id: str) -> DemoJobStatus:
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Demo job not found.")
     return jobs[job_id]
+
+
+@router.get("/projects", response_model=list[AuditProject])
+def list_admin_projects(request: Request) -> list[AuditProject]:
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required.")
+    return project_store.list_projects()
+
+
+@router.post("/projects/{project_id}/lock", response_model=AuditProject)
+def lock_project(request: Request, project_id: str) -> AuditProject:
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required.")
+    audit = project_store.get_project(project_id)
+    audit.locked = True
+    audit.locked_at = audit.locked_at or utc_now()
+    audit.locked_by = "admin"
+    return project_store.save_project(audit)
+
+
+@router.post("/projects/{project_id}/unlock", response_model=AuditProject)
+def unlock_project(request: Request, project_id: str) -> AuditProject:
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="Admin login is required.")
+    audit = project_store.get_project(project_id)
+    audit.locked = False
+    audit.locked_at = ""
+    audit.locked_by = ""
+    return project_store.save_project(audit)

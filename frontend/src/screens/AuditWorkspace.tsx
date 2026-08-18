@@ -536,6 +536,9 @@ export function AuditWorkspace({
       {runtime?.deploymentMode === "hosted" && !runtime.agentExecutionEnabled ? (
         <div className="message-text">AI agent execution is disabled in this hosted showcase.</div>
       ) : null}
+      {runtime?.deploymentMode === "hosted" && !runtime.isAdmin && project?.locked ? (
+        <div className="message-text">This demo audit is locked. You can explore it, but only an admin can save changes.</div>
+      ) : null}
 
       {activeScreen === "Map" ? (
         <>

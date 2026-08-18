@@ -92,6 +92,16 @@ def ensure_agent_execution_allowed(request: Request) -> None:
     raise HTTPException(status_code=403, detail="AI agent execution is not available.")
 
 
+def ensure_project_write_allowed(request: Request, project_id: str) -> None:
+    if deployment_mode() == "local" or is_admin_request(request):
+        return
+    from app.store.project_store import project_store
+
+    audit = project_store.get_project(project_id)
+    if audit.locked:
+        raise HTTPException(status_code=423, detail="This audit is locked. Visitors can view it, but only an admin can save changes.")
+
+
 def ensure_agent_log_access(request: Request, *, modify: bool = False) -> None:
     if deployment_mode() == "local":
         return
