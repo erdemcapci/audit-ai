@@ -34,7 +34,9 @@ def get_llm_settings() -> LLMSettings:
 
 
 @router.put("", response_model=LLMSettings)
-def update_llm_settings(update: LLMSettingsUpdate) -> LLMSettings:
+def update_llm_settings(request: Request, update: LLMSettingsUpdate) -> LLMSettings:
+    if deployment_mode() == "hosted" and not is_admin_request(request):
+        raise HTTPException(status_code=403, detail="LLM settings are locked in the hosted showcase.")
     settings.llm_provider = update.provider
     if update.demo_mode is not None:
         settings.demo_mode = update.demo_mode

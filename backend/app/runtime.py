@@ -20,7 +20,7 @@ def deployment_mode() -> str:
 
 
 def llm_provider_configured() -> bool:
-    if deployment_mode() == "local" and settings.demo_mode:
+    if settings.demo_mode:
         return True
     if settings.llm_provider == "openai":
         return bool(settings.openai_api_key)
@@ -66,6 +66,8 @@ def runtime_settings(request: Request) -> RuntimeSettings:
     provider_configured = llm_provider_configured()
     if mode == "local":
         execution_enabled = provider_configured
+    elif settings.demo_mode:
+        execution_enabled = True
     else:
         execution_enabled = admin_enabled and is_admin and provider_configured
     return RuntimeSettings(

@@ -98,6 +98,7 @@ export function SettingsScreen({
         ? "Claude"
         : "Ollama";
   const activeModelLabel = settings.demo_mode ? "Demo data" : settings.model;
+  const hostedVisitor = runtime?.deploymentMode === "hosted" && !runtime.isAdmin;
 
   return (
     <section className="screen-panel">
@@ -108,17 +109,18 @@ export function SettingsScreen({
         </div>
       </header>
       <Card className="settings-card">
-        <Select label="Provider" value={settings.provider} onChange={(event) => setSettings({ ...settings, provider: event.target.value })}>
+        <Select label="Provider" value={settings.provider} disabled={hostedVisitor} onChange={(event) => setSettings({ ...settings, provider: event.target.value })}>
           <option value="ollama">Ollama</option>
           <option value="openai">OpenAI</option>
           <option value="claude">Claude</option>
         </Select>
-        <TextInput label="Model" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} />
+        <TextInput label="Model" value={settings.model} disabled={hostedVisitor} onChange={(event) => setSettings({ ...settings, model: event.target.value })} />
         {settings.provider === "openai" ? (
           <TextInput
             label="OpenAI API key"
             type="password"
             value={openaiApiKey}
+            disabled={hostedVisitor}
             placeholder={settings.openai_configured ? "OpenAI key is configured. Enter a new key to replace it." : "sk-..."}
             onChange={(event) => setOpenaiApiKey(event.target.value)}
           />
@@ -128,14 +130,16 @@ export function SettingsScreen({
             label="Claude API key"
             type="password"
             value={anthropicApiKey}
+            disabled={hostedVisitor}
             placeholder={settings.anthropic_configured ? "Claude key is configured. Enter a new key to replace it." : "sk-ant-..."}
             onChange={(event) => setAnthropicApiKey(event.target.value)}
           />
         ) : null}
         <label className="check-row">
-          <input type="checkbox" checked={settings.demo_mode} onChange={(event) => setSettings({ ...settings, demo_mode: event.target.checked })} />
+          <input type="checkbox" checked={settings.demo_mode} disabled={hostedVisitor} onChange={(event) => setSettings({ ...settings, demo_mode: event.target.checked })} />
           <span>Demo mode deterministic audit data</span>
         </label>
+        {hostedVisitor ? <p className="muted">Demo mode is locked on for the hosted showcase so visitors can try agents safely without external AI provider access.</p> : null}
         <p className="muted">Ollama URL: {settings.ollama_base_url}</p>
         <p className="muted">Current AI mode: {activeProviderLabel} - {activeModelLabel}</p>
         <p className="muted">OpenAI configured: {settings.openai_configured ? "yes" : "no"} | Claude configured: {settings.anthropic_configured ? "yes" : "no"}</p>
@@ -143,7 +147,7 @@ export function SettingsScreen({
           API keys entered here are used by the running backend session. To make them available after restarting Docker, add them to your local <code>.env</code> file.
         </p>
         <div className="button-row">
-          <Button onClick={save}>Save Settings</Button>
+          <Button onClick={save} disabled={hostedVisitor}>Save Settings</Button>
           <Button variant="secondary" onClick={test}>Test Provider</Button>
         </div>
         {message ? <p className="message-text">{message}</p> : null}
