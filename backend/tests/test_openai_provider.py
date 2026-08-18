@@ -28,7 +28,7 @@ class FakeAsyncClient:
         return None
 
     async def post(self, _: str, json: dict, headers: dict) -> httpx.Response:
-        self.last_post_payload = json
+        FakeAsyncClient.last_post_payload = json
         assert headers["Authorization"] == f"Bearer {settings.openai_api_key}"
         assert self.response is not None
         return self.response
@@ -54,6 +54,8 @@ class OpenAIProviderTests(unittest.IsolatedAsyncioTestCase):
         for key, value in self.original.items():
             setattr(settings, key, value)
         openai_provider.httpx.AsyncClient = self.original_client
+        FakeAsyncClient.response = None
+        FakeAsyncClient.last_post_payload = None
 
     async def test_http_status_error_surfaces_openai_error_body(self) -> None:
         FakeAsyncClient.response = httpx.Response(
@@ -90,6 +92,18 @@ class OpenAIProviderTests(unittest.IsolatedAsyncioTestCase):
             await OpenAIProvider().generate("Return JSON only.", '{"status":"ok"}')
 
         self.assertIn("500 Internal Server Error: upstream unavailable", str(raised.exception))
+
+    async def test_generate_uses_model_default_temperature(self) -> None:
+        FakeAsyncClient.response = httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '{"status":"ok"}'}}]},
+            request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+        )
+
+        await OpenAIProvider().generate("Return JSON only.", '{"status":"ok"}')
+
+        self.assertIsNotNone(FakeAsyncClient.last_post_payload)
+        self.assertNotIn("temperature", FakeAsyncClient.last_post_payload or {})
 
     async def test_list_models_returns_sorted_model_ids(self) -> None:
         FakeAsyncClient.response = httpx.Response(

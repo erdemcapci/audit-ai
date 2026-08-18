@@ -59,7 +59,6 @@ class OpenAIProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         json_mode: bool = True,
-        temperature: float = 0.2,
     ) -> LLMResponse:
         if not settings.openai_api_key:
             raise LLMProviderError("OPENAI_API_KEY is not configured.")
@@ -69,7 +68,6 @@ class OpenAIProvider(LLMProvider):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": temperature,
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}

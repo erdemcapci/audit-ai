@@ -402,7 +402,7 @@ class PlanningReadinessService:
                 json.dumps(response_shape, indent=2),
             ]
         )
-        response = await get_llm_provider().generate(system_prompt, user_prompt, json_mode=True, temperature=0.1)
+        response = await get_llm_provider().generate(system_prompt, user_prompt, json_mode=True)
         data, warning = parse_or_warn(response.content)
         if not data:
             raise ValueError(warning)

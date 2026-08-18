@@ -1032,7 +1032,6 @@ class AgentService:
             system_prompt,
             user_prompt,
             json_mode=True,
-            temperature=0.2,
         )
         if capture is not None:
             capture["provider"] = response.provider

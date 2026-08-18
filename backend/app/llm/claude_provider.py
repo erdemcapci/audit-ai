@@ -17,14 +17,12 @@ class ClaudeProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         json_mode: bool = True,
-        temperature: float = 0.2,
     ) -> LLMResponse:
         if not settings.anthropic_api_key:
             raise LLMProviderError("ANTHROPIC_API_KEY is not configured.")
         payload = {
             "model": settings.anthropic_model,
             "max_tokens": 4000,
-            "temperature": temperature,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
         }

@@ -17,7 +17,6 @@ class OllamaProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         json_mode: bool = True,
-        temperature: float = 0.2,
     ) -> LLMResponse:
         payload = {
             "model": settings.ollama_model,
@@ -26,7 +25,6 @@ class OllamaProvider(LLMProvider):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "options": {"temperature": temperature},
         }
         if json_mode:
             payload["format"] = "json"
