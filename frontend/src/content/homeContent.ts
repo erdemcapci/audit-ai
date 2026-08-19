@@ -15,7 +15,7 @@ export const homeContent: {
 } = {
   buildLog: [],
   github: {
-    url: "https://github.com/erdemcapci/assurenodia",
+    url: "https://github.com/erdemcapci/audit-ai/",
     label: "View GitHub repository"
   }
 };
