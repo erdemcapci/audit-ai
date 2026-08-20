@@ -67,15 +67,14 @@ class AuditContextSnapshotTests(unittest.TestCase):
         self.assertNotEqual(snapshot.source_fingerprint, self.service.source_fingerprint(self.project.id))
         self.assertTrue(loaded.stale)
 
-    def test_context_pack_can_include_snapshot_block(self) -> None:
+    def test_planning_context_pack_uses_live_planning_context_not_snapshot_block(self) -> None:
         self.service.rebuild(self.project.id)
         pack = context_pack_builder.build(self.project.id, project_store.load_map_state(self.project.id).agents[0] if project_store.load_map_state(self.project.id).agents else self._agent())
 
-        block = next(item for item in pack.blocks if item.block_id == "global_audit_knowledge")
+        block = next(item for item in pack.blocks if item.block_id == "planning_context")
         self.assertNotIn("stale", block.content)
-        self.assertIn("summary_text", block.content)
         self.assertIn("planning", block.content)
-        self.assertEqual(block.content["planning"]["objective"]["items"][0]["id"], "obj_approval")
+        self.assertEqual(block.content["planning"]["workstreams"][0]["objectives"][0]["id"], "obj_approval")
         self.assertNotIn("truncated", block.content)
         self.assertNotIn("structured_summary", block.content)
 

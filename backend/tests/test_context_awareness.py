@@ -217,24 +217,29 @@ class ContextAwarenessTests(unittest.TestCase):
 
         self.assertEqual(pack.recipe_id, "risk_generator_default")
         self.assertEqual(pack.context_summary.selected_item_count, 1)
-        self.assertEqual(pack.context_summary.blocks, ["global_audit_knowledge", "current_task"])
+        self.assertEqual(pack.context_summary.blocks, ["planning_context", "current_task"])
         self.assertNotIn("connected_items", pack.context_summary.blocks)
-        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
         current_task = next(block for block in pack.blocks if block.block_id == "current_task")
-        objective_items = global_knowledge.content["planning"]["objective"]["items"]
-        self.assertIn(self.objective.id, {item["id"] for item in objective_items})
-        self.assertNotIn("fieldwork", global_knowledge.content)
-        self.assertNotIn("findings", global_knowledge.content)
-        self.assertNotIn("reporting", global_knowledge.content)
-        self.assertNotIn("report", global_knowledge.content["item_counts"])
-        self.assertNotIn("fieldwork_item", global_knowledge.content["item_counts"])
-        self.assertNotIn("finding", global_knowledge.content["item_counts"])
-        self.assertNotIn("report_without_findings", {gap["gap_type"] for gap in global_knowledge.content["relationship_gaps"]})
-        self.assertIn("Audit description:", global_knowledge.content["summary_text"])
-        self.assertNotIn("Scope:", global_knowledge.content["summary_text"])
+        self.assertEqual(planning_context.content["domain"], "planning")
+        self.assertEqual(planning_context.content["audit"]["description"], self.project.description)
+        objective_ids = {
+            objective["id"]
+            for workstream in planning_context.content["planning"]["workstreams"]
+            for objective in workstream["objectives"]
+        }
+        self.assertIn(self.objective.id, objective_ids)
+        self.assertNotIn("fieldwork", planning_context.content)
+        self.assertNotIn("findings", planning_context.content)
+        self.assertNotIn("reporting", planning_context.content)
+        self.assertNotIn("report", planning_context.content["item_counts"])
+        self.assertNotIn("fieldwork_item", planning_context.content["item_counts"])
+        self.assertNotIn("finding", planning_context.content["item_counts"])
+        self.assertNotIn("report_without_findings", {gap["gap_type"] for gap in planning_context.content["relationship_gaps"]})
         self.assertEqual(current_task.content["focus_items"][0]["item"]["id"], self.objective.id)
+        self.assertEqual(current_task.content["focus_items"][0]["item"]["data"]["description"], self.objective.description)
         self.assertIn("# Audit Context Pack", pack.rendered_context)
-        self.assertIn("## Global Audit Knowledge", pack.rendered_context)
+        self.assertIn("## Planning Context", pack.rendered_context)
         self.assertIn("## Current Task", pack.rendered_context)
         self.assertIn("## Instructions", pack.rendered_context)
         self.assertNotIn('"reporting"', pack.rendered_context)
@@ -252,11 +257,11 @@ class ContextAwarenessTests(unittest.TestCase):
             with self.subTest(agent_type=agent_type):
                 agent = AgentState(id=f"agent_{agent_type}", type=agent_type, title=agent_type, prompt="Run planning agent.")
                 pack = context_pack_builder.build(self.project.id, agent, selected_ids)
-                global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
-                self.assertEqual(global_knowledge.content["current_phase"], "planning")
-                self.assertNotIn("stale", global_knowledge.content)
-                self.assertNotIn("truncated", global_knowledge.content)
-                self.assertFalse(global_knowledge.metadata.truncated)
+                planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
+                self.assertEqual(planning_context.content["domain"], "planning")
+                self.assertNotIn("stale", planning_context.content)
+                self.assertNotIn("truncated", planning_context.content)
+                self.assertFalse(planning_context.metadata.truncated)
                 self.assert_no_downstream_context(pack)
 
     def test_planning_agent_drops_downstream_selected_items(self) -> None:
@@ -270,12 +275,9 @@ class ContextAwarenessTests(unittest.TestCase):
         for selected_id in [self.fieldwork_item.id, "finding_missing_approval", "report-main", "executive-summary"]:
             with self.subTest(selected_id=selected_id):
                 pack = context_pack_builder.build_with_recipe(self.project.id, report_agent, recipe, [selected_id])
+                self.assertEqual(pack.context_summary.blocks, ["planning_context", "current_task"])
                 current_task = next(block for block in pack.blocks if block.block_id == "current_task")
-                selected_items = next(block for block in pack.blocks if block.block_id == "selected_items")
-                connected_items = next(block for block in pack.blocks if block.block_id == "connected_items")
                 self.assertEqual(current_task.content["focus_items"], [])
-                self.assertEqual(selected_items.content["items"], [])
-                self.assertEqual(connected_items.content["items"], [])
                 self.assert_no_downstream_context(pack)
 
     def test_planning_policy_omits_unsafe_blocks(self) -> None:
@@ -298,7 +300,7 @@ class ContextAwarenessTests(unittest.TestCase):
 
         pack = context_pack_builder.build_with_recipe(self.project.id, agent, recipe, [self.risk.id])
 
-        self.assertEqual(pack.context_summary.blocks, ["global_audit_knowledge", "current_task"])
+        self.assertEqual(pack.context_summary.blocks, ["planning_context", "current_task"])
         self.assertNotIn("test_without_fieldwork", pack.rendered_context)
         self.assertNotIn("fieldwork_items", pack.rendered_context)
         self.assertNotIn("report_sections", pack.rendered_context)
@@ -339,18 +341,15 @@ class ContextAwarenessTests(unittest.TestCase):
         ]:
             with self.subTest(options=options):
                 pack = context_pack_builder.build(self.project.id, agent, [self.objective.id], options)
-                global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
-                structured = global_knowledge.content.get("structured_summary", {})
-                self.assertIn("structured_summary", global_knowledge.content)
-                self.assertNotIn("fieldwork_summary", structured)
-                self.assertNotIn("findings_summary", structured)
-                self.assertNotIn("reporting_summary", structured)
+                planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
+                self.assertNotIn("structured_summary", planning_context.content)
+                self.assertEqual(planning_context.content["planning"]["workstreams"][0]["objectives"][0]["risks"][0]["tests"][0]["id"], self.test.id)
                 self.assert_no_downstream_context(pack)
 
     def test_downstream_only_snapshot_stale_does_not_affect_planning_context(self) -> None:
         audit_context_snapshot_service.rebuild(self.project.id)
         before = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
-        before_global = next(block for block in before.blocks if block.block_id == "global_audit_knowledge").content
+        before_context = next(block for block in before.blocks if block.block_id == "planning_context").content
         project_store.save_fieldwork(
             self.project.id,
             FieldworkState(
@@ -362,10 +361,10 @@ class ContextAwarenessTests(unittest.TestCase):
         )
 
         pack = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
-        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
-        self.assertNotIn("stale", global_knowledge.content)
-        self.assertEqual(global_knowledge.metadata.notes, [])
-        self.assertEqual(before_global, global_knowledge.content)
+        planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
+        self.assertNotIn("stale", planning_context.content)
+        self.assertEqual(planning_context.metadata.notes, [])
+        self.assertEqual(before_context, planning_context.content)
         self.assert_no_downstream_context(pack)
 
     def test_downstream_only_snapshot_truncation_does_not_affect_planning_context(self) -> None:
@@ -381,11 +380,11 @@ class ContextAwarenessTests(unittest.TestCase):
         audit_context_snapshot_service.rebuild(self.project.id)
 
         pack = context_pack_builder.build(self.project.id, self.agent, [self.objective.id])
-        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
-        self.assertNotIn("truncated", global_knowledge.content)
-        self.assertNotIn("generated_at", global_knowledge.content)
-        self.assertNotIn("generation_mode", global_knowledge.content)
-        self.assertFalse(global_knowledge.metadata.truncated)
+        planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
+        self.assertNotIn("truncated", planning_context.content)
+        self.assertNotIn("generated_at", planning_context.content)
+        self.assertNotIn("generation_mode", planning_context.content)
+        self.assertFalse(planning_context.metadata.truncated)
         self.assert_no_downstream_context(pack)
 
     def test_known_planning_agents_have_planning_domain_recipes(self) -> None:
@@ -468,9 +467,9 @@ class ContextAwarenessTests(unittest.TestCase):
         pack = agent_service.preview_context(self.project.id, objective_agent.id, ContextPreviewRequest())
 
         self.assertEqual(stale_snapshot.structured_summary["planning_summary"]["workstream"]["count"], 2)
-        global_knowledge = next(block for block in pack.blocks if block.block_id == "global_audit_knowledge")
+        planning_context = next(block for block in pack.blocks if block.block_id == "planning_context")
         current_task = next(block for block in pack.blocks if block.block_id == "current_task")
-        self.assertEqual(global_knowledge.content["planning"]["workstream"]["count"], 3)
+        self.assertEqual(len(planning_context.content["planning"]["workstreams"]), 3)
         self.assertEqual(
             [item["item"]["id"] for item in current_task.content["focus_items"]],
             ["ws_generated_1", "ws_generated_2"],

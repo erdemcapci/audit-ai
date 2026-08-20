@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
 
 from app.services.audit_graph_service import AuditGraph, AuditGraphItem
 
@@ -12,15 +11,8 @@ FULL_CONTEXT_DOMAIN = "full"
 PLANNING_ITEM_TYPES = {"audit", "workstream", "objective", "risk", "test"}
 PLANNING_AGENT_TYPES = {"workstream_generator", "objective_generator", "risk_generator", "test_generator"}
 PLANNING_BLOCK_IDS = {
-    "audit_overview",
-    "global_audit_knowledge",
+    "planning_context",
     "current_task",
-    "selected_items",
-    "connected_items",
-    "upstream_items",
-    "downstream_items",
-    "existing_outputs",
-    "planning_summary",
 }
 PLANNING_GAP_TYPES = {
     "objective_without_risk",
@@ -74,46 +66,6 @@ class ContextPolicy:
             if (item := graph.items.get(item_id)) and item.type in PLANNING_ITEM_TYPES
         ]
 
-    def project_global_summary(self, structured: dict[str, Any]) -> dict[str, Any]:
-        if not self.is_planning_only:
-            return structured
-        item_counts = {
-            item_type: count
-            for item_type, count in structured.get("item_counts", {}).items()
-            if item_type in PLANNING_ITEM_TYPES - {"audit"}
-        }
-        relationship_gaps = [
-            gap
-            for gap in structured.get("relationship_gaps", [])
-            if gap.get("gap_type") in PLANNING_GAP_TYPES
-        ]
-        return {
-            "audit": structured.get("audit", {}),
-            "current_phase": "planning",
-            "item_counts": item_counts,
-            "planning_summary": structured.get("planning_summary", {}),
-            "workstreams_summary": structured.get("workstreams_summary", []),
-            "objectives_summary": structured.get("objectives_summary", []),
-            "risks_summary": structured.get("risks_summary", []),
-            "tests_summary": structured.get("tests_summary", []),
-            "relationship_gaps": relationship_gaps,
-            "relationship_gap_count": len(relationship_gaps),
-            "key_open_items": self._planning_status_items(structured.get("key_open_items", [])),
-            "key_completed_items": self._planning_status_items(structured.get("key_completed_items", [])),
-            "warnings": self._planning_warnings(relationship_gaps),
-        }
-
-    def source_sections_used(self) -> list[str]:
-        if not self.is_planning_only:
-            return []
-        return [
-            "audit",
-            "planning_summary",
-            "relationship_gaps",
-            "key_open_items",
-            "key_completed_items",
-        ]
-
     def _copy_item(self, item: AuditGraphItem) -> AuditGraphItem:
         return AuditGraphItem(
             id=item.id,
@@ -125,17 +77,6 @@ class ContextPolicy:
             data=deepcopy(item.data),
             metadata=deepcopy(item.metadata),
         )
-
-    def _planning_status_items(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [item for item in items if item.get("type") in PLANNING_ITEM_TYPES]
-
-    def _planning_warnings(self, gaps: list[dict[str, Any]]) -> list[str]:
-        warnings: list[str] = []
-        for gap in gaps:
-            gap_type = str(gap.get("gap_type", "")).replace("_", " ")
-            message = str(gap.get("message", "")).strip()
-            warnings.append(f"{gap_type}: {message}" if message else gap_type)
-        return warnings
 
 
 def context_policy_for_domain(domain: str) -> ContextPolicy:

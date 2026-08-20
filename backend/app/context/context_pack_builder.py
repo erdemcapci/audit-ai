@@ -44,9 +44,12 @@ class ContextPackBuilder:
     ) -> ContextPack:
         source_graph = self.graph_service.build_graph(project_id)
         policy = context_policy_for_domain(recipe.context_domain)
+        planning_only = policy.is_planning_only
         graph = policy.project_graph(source_graph)
         selected_ids = policy.project_selected_ids(graph, selected_item_ids or [])
         block_ids = policy.project_block_ids(recipe.blocks)
+        if planning_only and "planning_context" not in block_ids:
+            block_ids = ["planning_context", *block_ids]
         block_request = ContextBlockRequest(
             project_id=project_id,
             agent=agent,
@@ -66,22 +69,20 @@ class ContextPackBuilder:
         rendered_context = self._render_context(agent, recipe.recipe_id, blocks)
         estimated_tokens = self._estimate_tokens(rendered_context)
         truncated = any(block.metadata.truncated for block in blocks)
-        if estimated_tokens > recipe.max_context_tokens:
+        if not planning_only and estimated_tokens > recipe.max_context_tokens:
             rendered_context = self._truncate_rendered_context(rendered_context, recipe.max_context_tokens)
             estimated_tokens = self._estimate_tokens(rendered_context)
             truncated = True
             for block in blocks:
-                if block.block_id != "audit_overview":
-                    block.metadata.truncated = True
-                    if "Final rendered context was truncated by max_context_tokens." not in block.metadata.notes:
-                        block.metadata.notes.append("Final rendered context was truncated by max_context_tokens.")
+                block.metadata.truncated = True
+                if "Final rendered context was truncated by max_context_tokens." not in block.metadata.notes:
+                    block.metadata.notes.append("Final rendered context was truncated by max_context_tokens.")
 
-        related_count = sum(block.metadata.item_count for block in blocks if block.block_id in {"connected_items", "upstream_items", "downstream_items", "traceability_chain"})
         summary = ContextPackSummary(
             audit_title=graph.audit.title,
             phase=self._phase_from_blocks(blocks),
             selected_item_count=len([item_id for item_id in selected_ids if item_id in graph.items]),
-            related_item_count=related_count,
+            related_item_count=0,
             blocks=[block.block_id for block in blocks],
             recipe_id=recipe.recipe_id,
             fallback_recipe=fallback_recipe,
@@ -163,7 +164,7 @@ class ContextPackBuilder:
             [
                 "## Instructions",
                 "",
-                "Use Global Audit Knowledge for broad audit awareness.",
+                "Use the supplied context blocks for broad audit awareness.",
                 "Use Current Task as the source of focus.",
                 "Avoid duplicates across the whole audit.",
                 "Respect existing hierarchy and relationships.",
@@ -173,11 +174,11 @@ class ContextPackBuilder:
 
     def _phase_from_blocks(self, blocks: list[ContextBlock]) -> str:
         for block in blocks:
-            if block.block_id == "workflow_state":
-                phase = block.content.get("current_phase")
-                if isinstance(phase, str):
-                    return phase
-            if block.block_id in {"global_audit_knowledge", "audit_context_snapshot"}:
+            if block.block_id == "planning_context":
+                domain = block.content.get("domain")
+                if domain == "planning":
+                    return "planning"
+            if block.block_id == "global_audit_knowledge":
                 phase = block.content.get("current_phase")
                 if isinstance(phase, str):
                     return phase
