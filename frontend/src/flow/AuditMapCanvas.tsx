@@ -166,6 +166,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+// Leave room for the existing 400px inspector and its insets when opening
+// a readiness finding. Ordinary map fit and selection retain their behavior.
+const readinessFocusPadding = { top: "24px", bottom: "24px", left: "24px", right: "436px" } as const;
+
 function InnerCanvas({
   map,
   selectedNodeId,
@@ -332,7 +336,7 @@ function InnerCanvas({
     setEdges(nextEdges);
     window.requestAnimationFrame(() => {
       const target = readinessFocusRef.current;
-      reactFlow.fitView({ padding: 0.16, duration: 250, nodes: target ? [{ id: target }] : undefined, maxZoom: target ? 1 : undefined });
+      reactFlow.fitView({ padding: target ? readinessFocusPadding : 0.16, duration: 250, nodes: target ? [{ id: target }] : undefined, maxZoom: target ? 1 : undefined });
     });
   }, [agentExecutionEnabled, agentExecutionMessage, handleNodeResize, handlePhaseResize, map, reactFlow, setEdges, setNodes]);
 
@@ -530,7 +534,7 @@ function InnerCanvas({
         edges={visibleEdges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : undefined, maxZoom: focusNodeId ? 1 : undefined }}
+        fitViewOptions={{ padding: focusNodeId ? readinessFocusPadding : 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : undefined, maxZoom: focusNodeId ? 1 : undefined }}
         minZoom={0.18}
         maxZoom={1.5}
         nodesDraggable

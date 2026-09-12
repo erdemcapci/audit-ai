@@ -147,3 +147,11 @@ For browser hook lifecycle checks, run the frontend dev server and open
 methods, uses no backend and writes no audit data. It is a development test page,
 not included in the production entrypoint. No backend static type checker or
 lint configuration is currently supplied; Python compilation is not type checking.
+
+For workspace UX checks, open `/tests/readiness-workspace-browser.html` in a real
+browser at desktop widths of 1280px and 1440px. Results appear below the workspace.
+Its 30 assertions exercise the actual workspace, canvas and inspector with an
+isolated in-memory API: summary, finding navigation, unobscured viewport focus,
+card editing, stale/preliminary states and reruns. No audit data is read or written.
+Use real-time browser execution: accelerated virtual time can skip React Flow
+layout/animation frames and produce misleading viewport failures.
