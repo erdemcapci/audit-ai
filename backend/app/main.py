@@ -5,7 +5,7 @@ Copyright (C) 2026 Erdem Capci
 This file is part of Assurenodia and is licensed under AGPLv3-or-later.
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
