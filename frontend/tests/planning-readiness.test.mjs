@@ -23,7 +23,7 @@ test("management summary prioritizes decisions, actions and affected cards", () 
   assert.match(html, /1 important issue should be addressed before fieldwork/);
   assert.match(html, /Biggest concern/);
   assert.match(html, /Recommended improvement/);
-  assert.match(html, /View Approval risk/);
+  assert.match(html, /Show on audit map/);
   assert.match(html, /Readiness dimensions/);
 });
 
@@ -36,7 +36,7 @@ test("loading, failed, stale, running and disabled states stay explicit", () => 
   assert.match(render(scenarios.running), /Reviewing/);
   assert.match(render(scenarios.disabled), /disabled=""/);
   const missing = render({ ...scenarios.current, onOpenArtifact: () => {} });
-  assert.match(missing, /This card is not in the current audit plan/);
+  assert.doesNotMatch(missing, /Show on audit map|readiness-map-action/);
 });
 
 test("decision statuses use score thresholds and severity overrides", async () => {
@@ -112,16 +112,52 @@ test("readiness API preserves endpoints, methods, credentials and compatibility 
   }
 });
 
-test("artifact labels never fall back to internal IDs", () => {
+test("only valid references navigate and no raw ID is used as a label", () => {
   const readiness = structuredClone(pending);
   readiness.deterministic.findings[0].affected_artifact_ids = ["risk_2a66f67672", "obj_3665a6d198"];
   readiness.deterministic.findings[0].affected_artifact_names = ["Approval risk", ""];
   const html = renderToStaticMarkup(createElement(Panel, { ...scenarios.pending, readiness,
-    artifactLabels: { "risk_2a66f67672": "risk_2a66f67672", "obj_3665a6d198": "obj_3665a6d198" }, onOpenArtifact: () => {} }));
-  assert.match(html, /View Approval risk/);
-  assert.match(html, /View Affected audit-plan card/);
+    artifactLabels: { "risk_2a66f67672": "risk_2a66f67672" }, onOpenArtifact: () => {} }));
+  assert.match(html, /Show on audit map/);
+  assert.match(html, /1 related plan item/);
   assert.doesNotMatch(html, /risk_2a66f67672|obj_3665a6d198/);
   const unavailable = renderToStaticMarkup(createElement(Panel, { ...scenarios.pending, readiness, onOpenArtifact: () => {} }));
-  assert.doesNotMatch(unavailable, /risk_2a66f67672|obj_3665a6d198/);
-  assert.match(unavailable, /disabled=""/);
+  assert.doesNotMatch(unavailable, /readiness-map-action|related plan item|risk_2a66f67672|obj_3665a6d198/);
+});
+
+test("one compact action for 1, 3, 6, 12 and 20 artifacts with full reasoning retained", () => {
+  for (const count of [1, 3, 6, 12, 20]) {
+    const readiness = structuredClone(pending);
+    const issue = readiness.deterministic.findings[0];
+    issue.affected_artifact_ids = Array.from({ length: count }, (_, i) => `risk-${i}`);
+    issue.explanation = "A short problem statement. " + "Full supporting reasoning. ".repeat(40);
+    issue.recommended_action = "Improve evidence coverage. " + "Additional recommendation detail. ".repeat(30);
+    const artifacts = Object.fromEntries(issue.affected_artifact_ids.map((id, index) => [id, { label: `Risk ${index}`, type: "riskNode", area: "Procurement" }]));
+    const html = renderToStaticMarkup(createElement(Panel, { ...scenarios.pending, readiness, artifacts, onOpenArtifact: () => {}, onOpenArtifacts: () => {} }));
+    assert.equal((html.match(/class="button button-secondary readiness-map-action"/g) || []).length, 1);
+    assert.match(html, new RegExp(`${count} related plan item`));
+    assert.match(html, new RegExp(`Risks \\(${count}\\)`));
+    assert.doesNotMatch(html, /<details[^>]*open/);
+    assert.ok(html.includes(issue.explanation));
+    assert.ok(html.includes(issue.recommended_action));
+    assert.match(html, /Affected areas/);
+  }
+});
+
+test("area context follows planning ancestry without expanding implicated IDs", async () => {
+  const { buildArtifactPresentations, findingArtifacts, conciseText } = await server.ssrLoadModule("/src/features/planning-readiness/presentation.ts");
+  const node = (id, type, title) => ({ id, type, data: { title }, position: { x: 0, y: 0 } });
+  const map = { nodes: [node("ws", "workstreamNode", "Procurement"), node("obj", "objectiveNode", "Approval controls"), node("risk", "riskNode", "Overrides"), node("test", "testNode", "Sample approvals"), node("agent", "agentNode", "Generator")], edges: [{ source: "ws", target: "obj" }, { source: "obj", target: "risk" }, { source: "risk", target: "test" }, { source: "risk", target: "agent" }] };
+  const artifacts = buildArtifactPresentations(map, null);
+  const result = findingArtifacts({ artifactIds: ["risk", "test", "risk", "deleted"], branch: "" }, artifacts);
+  assert.deepEqual(result.ids, ["risk", "test"]);
+  assert.deepEqual(result.areas, ["Procurement"]);
+  assert.equal(artifacts.agent.area, "");
+  const { summarizeReadiness } = await server.ssrLoadModule("/src/features/planning-readiness/summary.ts");
+  const readiness = structuredClone(pending);
+  readiness.deterministic.findings[0].navigation = { node_id: "obj" };
+  assert.deepEqual(summarizeReadiness(readiness).findings[0].artifactIds, ["risk-1"]);
+  readiness.deterministic.findings[0].affected_artifact_ids = [];
+  assert.deepEqual(summarizeReadiness(readiness).findings[0].artifactIds, ["obj"]);
+  assert.equal(conciseText("A short issue. " + "Long reasoning ".repeat(40)), "A short issue.");
 });

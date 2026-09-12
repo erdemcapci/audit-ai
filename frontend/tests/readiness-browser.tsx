@@ -87,13 +87,15 @@ async function run() {
     agentExecutionEnabled={true} agentExecutionMessage="" artifactLabels={{ "risk-1": "Approval risk" }}
     onOpenArtifact={(id) => { opened = id; }} runReadinessReview={async () => { reviewClicks++; }} />); });
   const buttons = Array.from(document.querySelectorAll("#probe button"));
-  const valid = buttons.find((button) => button.textContent === "View Approval risk") as HTMLButtonElement;
-  const missing = buttons.find((button) => button.textContent === "View Deleted risk") as HTMLButtonElement;
+  const valid = buttons.find((button) => button.textContent === "Show on audit map") as HTMLButtonElement;
   await act(async () => { valid.click(); });
-  check(opened === "risk-1", "affected card action forwards the exact existing node ID");
-  check(missing.disabled, "missing map cards cannot navigate");
-  await act(async () => { missing.click(); });
-  check(opened === "risk-1", "disabled missing-card action leaves selection unchanged");
+  check(opened === "risk-1", "primary card action forwards the exact valid node ID");
+  check(document.querySelectorAll(".readiness-map-action").length === 1, "one primary action for one valid card plus a deleted reference");
+  const related = document.querySelector(".readiness-related") as HTMLDetailsElement;
+  check(!related.open && related.querySelectorAll("button").length === 1, "related items start collapsed and exclude missing cards");
+  related.querySelector("summary")!.click();
+  await act(async () => { (related.querySelector("button") as HTMLButtonElement).click(); });
+  check(opened === "risk-1", "individual related-item action preserves exact navigation");
   await act(async () => { (buttons.find((button) => button.textContent === "Run AI Planning Review") as HTMLButtonElement).click(); });
   check(reviewClicks === 1, "review action invokes the existing review workflow");
   check(document.querySelector("#readiness-priorities")?.textContent?.includes("Add a test for approval evidence."), "priority destination includes a practical recommendation");

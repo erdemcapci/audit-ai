@@ -1,3 +1,4 @@
+import { buildArtifactPresentations } from "../features/planning-readiness/presentation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 
@@ -111,6 +112,7 @@ export function AuditWorkspace({
   const [map, setMap] = useState<AuditMapResponse | null>(null);
   const [agentTypes, setAgentTypes] = useState<AgentDefinition[]>([]);
   const [agentTypeToAdd, setAgentTypeToAdd] = useState("test_generator");
+  const [readinessGroupIds, setReadinessGroupIds] = useState<string[]>([]);
   const [readinessFocusId, setReadinessFocusId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -130,9 +132,20 @@ export function AuditWorkspace({
   const visibleAgentTypes = useMemo(() => agentTypes.filter((agentType) => PLANNING_AGENT_TYPES.has(agentType.type)), [agentTypes]);
   const visibleMap = useMemo(() => planningOnlyMap(map), [map]);
 
-  const readinessArtifactLabels = useMemo(() => Object.fromEntries(
-    (visibleMap?.nodes || []).map((node) => [node.id, String(node.data.title || node.id)])
-  ), [visibleMap]);
+  const readinessArtifacts = useMemo(() => buildArtifactPresentations(visibleMap, planning), [visibleMap, planning]);
+  const readinessArtifactLabels = useMemo(() => Object.fromEntries(Object.entries(readinessArtifacts).map(([id, item]) => [id, item.label])), [readinessArtifacts]);
+
+  function openReadinessArtifacts(nodeIds: string[]) {
+    const valid = [...new Set(nodeIds)].filter((id) => visibleMap?.nodes.some((node) => node.id === id));
+    if (valid.length === 1) { openReadinessArtifact(valid[0]); return; }
+    if (!valid.length) return;
+    setShowAutoLayoutConfig(false);
+    setPhaseFilter("planning");
+    setSelectedNode(null);
+    setReadinessFocusId(null);
+    setReadinessGroupIds(valid);
+    setActiveScreen("Map");
+  }
 
   function openReadinessArtifact(nodeId: string) {
     const node = visibleMap?.nodes.find((item) => item.id === nodeId);
@@ -142,10 +155,13 @@ export function AuditWorkspace({
     }
     setShowAutoLayoutConfig(false);
     setPhaseFilter("planning");
+    setReadinessGroupIds([]);
     setReadinessFocusId(nodeId);
     setSelectedNode(node);
     setActiveScreen("Map");
   }
+
+  useEffect(() => { if (activeScreen !== "Map") setReadinessGroupIds([]); }, [activeScreen]);
 
   const refresh = useCallback(async () => {
     const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
@@ -581,9 +597,11 @@ export function AuditWorkspace({
           <AuditMapCanvas
             map={visibleMap}
             focusNodeId={readinessFocusId}
+            focusNodeIds={readinessGroupIds}
+            onClearReadinessEmphasis={() => setReadinessGroupIds([])}
             selectedNodeId={selectedNode?.id || null}
             agentTypes={visibleAgentTypes}
-            onSelectNode={(node) => { setSelectedNode(node); if (node?.id !== readinessFocusId) setReadinessFocusId(null); }}
+            onSelectNode={(node) => { setReadinessGroupIds([]); setSelectedNode(node); if (node?.id !== readinessFocusId) setReadinessFocusId(null); }}
             onSaveMap={saveMapState}
             onRunAgent={runAgent}
             onAutoLayout={async () => {
@@ -632,7 +650,7 @@ export function AuditWorkspace({
 
       {activeScreen === "Readiness" && planning ? (
         <PlanningReadinessScreen projectId={projectId} planning={planning}
-          artifactLabels={readinessArtifactLabels} onOpenArtifact={openReadinessArtifact}
+          artifactLabels={readinessArtifactLabels} artifacts={readinessArtifacts} onOpenArtifacts={openReadinessArtifacts} onOpenArtifact={openReadinessArtifact}
           agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
           agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."} />
       ) : null}
@@ -641,7 +659,7 @@ export function AuditWorkspace({
         <PlanningScreen
           projectId={projectId}
           planning={planning}
-          artifactLabels={readinessArtifactLabels}
+          artifactLabels={readinessArtifactLabels} artifacts={readinessArtifacts} onOpenArtifacts={openReadinessArtifacts}
           onOpenArtifact={openReadinessArtifact}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
           onApprove={() => {

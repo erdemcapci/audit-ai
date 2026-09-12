@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { summarizeReadiness, type ReadinessIssue } from "./summary";
+import { artifactGroup, conciseText, displayLabel, findingArtifacts, type ArtifactPresentations } from "./presentation";
 import type { PlanningReadinessResponse } from "./types";
 
 function scoreText(score: number) {
@@ -12,42 +13,53 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? "recently" : date.toLocaleString();
 }
 
-function IssueCard({ issue, artifactLabels, onOpenArtifact }: {
+function IssueCard({ issue, artifacts, onOpenArtifact, onOpenArtifacts }: {
   issue: ReadinessIssue;
-  artifactLabels: Record<string, string>;
+  artifacts: ArtifactPresentations;
   onOpenArtifact?: (nodeId: string) => void;
+  onOpenArtifacts?: (nodeIds: string[]) => void;
 }) {
+  const { ids, items, areas } = findingArtifacts(issue, artifacts);
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    const group = artifactGroup(item.type);
+    groups.set(group, [...(groups.get(group) || []), item]);
+  }
+  const problem = issue.title !== issue.category ? conciseText(issue.title) : conciseText(issue.explanation);
   return <article className="readiness-finding">
     <div className="readiness-finding-topline">
+      <strong>{issue.category}</strong>
       <Badge tone={issue.severity === "critical" || issue.severity === "high" ? "red" : issue.severity === "medium" ? "amber" : "blue"}>
-        {issue.severity === "critical" ? "Critical" : issue.severity === "high" ? "High priority" : "Improvement"}
+        {issue.severity === "critical" ? "Critical" : issue.severity === "high" ? "High priority" : issue.severity === "medium" ? "Medium" : "Low"}
       </Badge>
-      <span>{issue.sources.join(" + ")}</span>
     </div>
-    <h4>{issue.title}</h4>
-    <p>{issue.explanation}</p>
-    {issue.branch ? <small>{issue.branch}</small> : null}
-    <div className="readiness-action"><strong>Recommended improvement</strong><p>{issue.action || "Review the affected area and agree the next action with the audit team."}</p></div>
-    <div className="readiness-artifacts">
-      {issue.artifactIds.length ? [...new Set(issue.artifactIds)].map((id) => {
-        const available = Object.prototype.hasOwnProperty.call(artifactLabels, id);
-        const name = issue.artifactNames[issue.artifactIds.indexOf(id)] || artifactLabels[id] || "";
-        // API display names are normalized against the plan. Never fall back to
-        // an internal ID, including unnamed or no-longer-available map cards.
-        const label = name && name !== id && !/(?:audit|ws|obj|risk|test|agent|fw|finding|node|artifact)_[0-9a-fA-F]{10,32}/.test(name)
-          ? name : "Affected audit-plan card";
-        return onOpenArtifact ? <Button key={id} variant="ghost" disabled={!available}
-          title={available ? "Open and focus this audit-plan card" : "This card is not in the current audit plan"}
-          onClick={() => onOpenArtifact(id)}>View {label}</Button> : <span key={id}>{label}</span>;
-      }) : <small>{issue.artifactNames.join(", ") || "Whole plan — no specific card linked."}</small>}
-    </div>
+    <h4>{problem}</h4>
+    {areas.length ? <div className="readiness-areas"><strong>Affected areas</strong>
+      <p>{areas.slice(0, 3).join(" · ")}{areas.length > 3 ? ` · +${areas.length - 3} more areas` : ""}</p>
+    </div> : null}
+    <div className="readiness-action"><strong>Recommended improvement</strong><p>{conciseText(issue.action) || "Review the affected area and agree the next action with the audit team."}</p></div>
+    {ids.length === 1 && onOpenArtifact ? <Button className="readiness-map-action" variant="secondary" onClick={() => onOpenArtifact(ids[0])}>Show on audit map</Button>
+      : ids.length > 1 && onOpenArtifacts ? <Button className="readiness-map-action" variant="secondary" onClick={() => onOpenArtifacts(ids)}>Show {ids.length} affected items on map</Button> : null}
+    {items.length ? <details className="readiness-related"><summary>{items.length} related plan {items.length === 1 ? "item" : "items"}</summary>
+      <div className="readiness-related-list">{[...groups].map(([group, members]) => <section key={group}>
+        <h5>{group} ({members.length})</h5><ul>{members.map((item) => <li key={item.id}>
+          {onOpenArtifact ? <button type="button" className="readiness-item-link" onClick={() => onOpenArtifact(item.id)}>{item.label} <span aria-hidden="true">↗</span></button> : item.label}
+        </li>)}</ul>
+      </section>)}</div>
+    </details> : null}
+    <details className="readiness-finding-details"><summary>Details</summary>
+      <p>{issue.explanation}</p>
+      <strong>Full recommendation</strong><p>{issue.action || "Review the affected area and agree the next action with the audit team."}</p>
+      {areas.length ? <><strong>Affected areas</strong><p>{areas.join(" · ")}</p></> : null}
+      <small>{issue.sources.join(" + ")}</small>
+    </details>
   </article>;
 }
 
 export function PlanningReadinessPanel({
   readiness, readinessLoading, readinessRunning, readinessError,
   runReadinessReview, agentExecutionEnabled, agentExecutionMessage,
-  artifactLabels = {}, onOpenArtifact
+  artifactLabels = {}, artifacts, onOpenArtifact, onOpenArtifacts
 }: {
   readiness: PlanningReadinessResponse | null;
   readinessLoading: boolean;
@@ -57,8 +69,11 @@ export function PlanningReadinessPanel({
   agentExecutionEnabled: boolean;
   agentExecutionMessage: string;
   artifactLabels?: Record<string, string>;
+  artifacts?: ArtifactPresentations;
+  onOpenArtifacts?: (nodeIds: string[]) => void;
   onOpenArtifact?: (nodeId: string) => void;
 }) {
+  const currentArtifacts = artifacts || Object.fromEntries(Object.entries(artifactLabels).map(([id, label]) => [id, { label: displayLabel(label, id), type: "", area: "" }]));
   const result = useMemo(() => readiness ? summarizeReadiness(readiness) : null, [readiness]);
   const review = readiness?.ai_review;
   const tone = result?.status === "Ready" ? "green" : result?.status === "Ready with improvements" ? "blue" : result?.status === "Needs attention" ? "amber" : "red";
@@ -82,7 +97,7 @@ export function PlanningReadinessPanel({
         <div className="readiness-management-message">
           <p className="readiness-decision">{result.summary}</p>
           <p><strong>{result.important}</strong> important {result.important === 1 ? "issue" : "issues"} <span className="muted">· {result.findings.length} distinct findings</span></p>
-          {result.biggestConcern ? <><strong>Biggest concern</strong><p>{result.biggestConcern.explanation}</p>
+          {result.biggestConcern ? <><strong>Biggest concern</strong><p>{conciseText(result.biggestConcern.explanation)}</p>
             <a href="#readiness-priorities">Review priorities and affected cards ↓</a></> : null}
         </div>
       </div>
@@ -94,7 +109,7 @@ export function PlanningReadinessPanel({
       <section id="readiness-priorities" className="readiness-priorities">
         <h3>What to improve next</h3>
         <p className="muted">Critical and high-priority findings first. Repeated findings for the same affected cards are shown once.</p>
-        {result.findings.length ? <div className="readiness-finding-list">{result.findings.map((issue, index) => <IssueCard key={`${issue.id}-${index}`} issue={issue} artifactLabels={artifactLabels} onOpenArtifact={onOpenArtifact} />)}</div>
+        {result.findings.length ? <div className="readiness-finding-list">{result.findings.map((issue, index) => <IssueCard key={`${issue.id}-${index}`} issue={issue} artifacts={currentArtifacts} onOpenArtifact={onOpenArtifact} onOpenArtifacts={onOpenArtifacts} />)}</div>
           : <p>No findings in the current assessment.</p>}
       </section>
       {review && !result.preliminary && review.dimension_scores.length > 0 ? <section>

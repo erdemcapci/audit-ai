@@ -360,3 +360,6 @@
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   overflow: hidden;
 }
+
+/* Ephemeral readiness group context; never stored as card data/selection. */
+.react-flow__node.readiness-node-emphasis { outline: 3px solid #4f70c5; outline-offset: 4px; border-radius: 10px; }

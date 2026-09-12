@@ -145,14 +145,14 @@ readiness prompt fixture is checked using a fake provider. It includes explicit
 internal-reference/display-label separation and a labeled artifact catalog.
 
 For browser hook lifecycle checks, run the frontend dev server and open
-`/tests/readiness-browser.html`. It runs 12 lifecycle assertions and 5 panel interaction assertions with mocked readiness API
+`/tests/readiness-browser.html`. It runs 12 lifecycle assertions and 6 panel interaction assertions with mocked readiness API
 methods, uses no backend and writes no audit data. It is a development test page,
 not included in the production entrypoint. No backend static type checker or
 lint configuration is currently supplied; Python compilation is not type checking.
 
 For workspace UX checks, open `/tests/readiness-workspace-browser.html` in a real
 browser at desktop widths of 1280px and 1440px. Results appear below the workspace.
-Its 30 assertions exercise the actual workspace, canvas and inspector with an
+Its 48 assertions exercise the actual workspace, canvas and inspector with an
 isolated in-memory API: summary, finding navigation, unobscured viewport focus,
 card editing, stale/preliminary states and reruns. No audit data is read or written.
 Use real-time browser execution: accelerated virtual time can skip React Flow
@@ -164,3 +164,20 @@ also normalize old/current/stale reviews without migrating stored history. Only
 display fields change: artifact IDs, navigation, fingerprints, scores and severity
 remain intact. Unknown references use saved labels where reliable, otherwise a
 neutral artifact-type label. The frontend never uses a raw ID as a card label.
+
+Finding cards have one primary map action, collapsed Related plan items grouped
+by actual node type, and Details retaining the full explanation/recommendation.
+Concise text uses the existing deterministic check name or a bounded explanation
+excerpt; there is no new AI call or response contract. Workstream ancestry supplies
+affected areas, using the planning hierarchy first and supported map parent edges
+as fallback. Context ancestors are labels only, never extra affected targets.
+
+Explicit `affected_artifact_ids` remain the implicated set. The existing
+`navigation.node_id` fallback is used only when that set is empty; it is not added
+to a populated set. All targets are deduplicated and checked against the current
+map. Missing references have no action and do not inflate counts. A single target
+opens its inspector; multiple targets close overlays and fit the group with a
+temporary outline. Pointer, wheel, keyboard interaction or leaving Map clears the
+outline. This is workspace state and decorated-node CSS, never persisted map data.
+Large groups can zoom farther out for an overview; individual inspection remains
+available from Related plan items. Unit fixtures cover 1, 3, 6, 12 and 20 targets.

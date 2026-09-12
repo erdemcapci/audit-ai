@@ -174,6 +174,8 @@ function InnerCanvas({
   map,
   selectedNodeId,
   focusNodeId,
+  focusNodeIds = [],
+  onClearReadinessEmphasis,
   agentTypes,
   onSelectNode,
   onSaveMap,
@@ -189,6 +191,8 @@ function InnerCanvas({
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
   focusNodeId?: string | null;
+  focusNodeIds?: string[];
+  onClearReadinessEmphasis?: () => void;
   agentTypes: AgentDefinition[];
   onSelectNode: (node: Node<FlowNodeData> | null) => void;
   onSaveMap: (state: MapStateUpdate) => Promise<void>;
@@ -213,8 +217,8 @@ function InnerCanvas({
   const nodesRef = useRef<Node<FlowNodeData>[]>([]);
   const onSaveMapRef = useRef(onSaveMap);
   const onRunAgentRef = useRef(onRunAgent);
-  const readinessFocusRef = useRef(focusNodeId);
-  readinessFocusRef.current = focusNodeId;
+  const readinessFocusRef = useRef({ single: focusNodeId, group: focusNodeIds });
+  readinessFocusRef.current = { single: focusNodeId, group: focusNodeIds };
   const previousPhaseFilterRef = useRef<PhaseFilter>(phaseFilter);
   const previousHierarchyFilterRef = useRef("");
 
@@ -335,8 +339,10 @@ function InnerCanvas({
     setNodes(nextNodes);
     setEdges(nextEdges);
     window.requestAnimationFrame(() => {
-      const target = readinessFocusRef.current;
-      reactFlow.fitView({ padding: target ? readinessFocusPadding : 0.16, duration: 250, nodes: target ? [{ id: target }] : undefined, maxZoom: target ? 1 : undefined });
+      const { single, group } = readinessFocusRef.current;
+      reactFlow.fitView({ padding: single ? readinessFocusPadding : 0.16, duration: 250,
+        nodes: single ? [{ id: single }] : group.length ? group.map((id) => ({ id })) : undefined,
+        maxZoom: single || group.length ? 1 : undefined, minZoom: group.length ? 0.01 : undefined });
     });
   }, [agentExecutionEnabled, agentExecutionMessage, handleNodeResize, handlePhaseResize, map, reactFlow, setEdges, setNodes]);
 
@@ -367,12 +373,12 @@ function InnerCanvas({
           onNodeResize: handleNodeResize,
           isSelected: node.id === selectedNodeId
         },
-        className:
+        className: focusNodeIds.includes(node.id) ? "readiness-node-emphasis" :
           selectedNodeId && !["phaseNode", "fieldworkSectionNode"].includes(node.type || "") && node.id !== selectedNodeId && !connected.has(node.id)
             ? "node-faded"
             : ""
       })),
-    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId]
+    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId, focusNodeIds]
   );
   const hierarchyVisibleIds = useMemo(() => {
     const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length);
@@ -528,14 +534,17 @@ function InnerCanvas({
   }
 
   return (
-    <div className="audit-map-canvas" ref={canvasRef}>
+    <div className="audit-map-canvas" ref={canvasRef}
+      onPointerDownCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}
+      onWheelCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}
+      onKeyDownCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}>
       <ReactFlow
         nodes={visibleNodes}
         edges={visibleEdges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: focusNodeId ? readinessFocusPadding : 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : undefined, maxZoom: focusNodeId ? 1 : undefined }}
-        minZoom={0.18}
+        fitViewOptions={{ padding: focusNodeId ? readinessFocusPadding : 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : focusNodeIds.length ? focusNodeIds.map((id) => ({ id })) : undefined, maxZoom: focusNodeId || focusNodeIds.length ? 1 : undefined, minZoom: focusNodeIds.length ? 0.01 : undefined }}
+        minZoom={focusNodeIds.length ? 0.01 : 0.18}
         maxZoom={1.5}
         nodesDraggable
         selectionOnDrag
@@ -625,6 +634,8 @@ export function AuditMapCanvas(props: {
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
   focusNodeId?: string | null;
+  focusNodeIds?: string[];
+  onClearReadinessEmphasis?: () => void;
   agentTypes: AgentDefinition[];
   onSelectNode: (node: Node<FlowNodeData> | null) => void;
   onSaveMap: (state: MapStateUpdate) => Promise<void>;

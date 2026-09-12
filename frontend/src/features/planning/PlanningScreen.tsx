@@ -1,3 +1,4 @@
+import type { ArtifactPresentations } from "../planning-readiness/presentation";
 import { PlanningReadinessPanel } from "../planning-readiness/PlanningReadinessPanel";
 import { usePlanningReadiness } from "../planning-readiness/usePlanningReadiness";
 import { useEffect, useState } from "react";
@@ -20,7 +21,7 @@ export function PlanningScreen({
   onChange,
   onApprove,
   onReopen,
-  artifactLabels,
+  artifactLabels, artifacts, onOpenArtifacts,
   onOpenArtifact,
   agentExecutionEnabled = true,
   agentExecutionMessage = "AI agent execution is disabled."
@@ -30,6 +31,8 @@ export function PlanningScreen({
   onChange: (planning: PlanningState) => Promise<void>;
   onApprove: () => void | Promise<void>;
   onReopen: () => void | Promise<void>;
+  artifacts?: ArtifactPresentations;
+  onOpenArtifacts?: (nodeIds: string[]) => void;
   artifactLabels?: Record<string, string>;
   onOpenArtifact?: (nodeId: string) => void;
   agentExecutionEnabled?: boolean;
@@ -113,7 +116,7 @@ export function PlanningScreen({
       {draft.approved ? <p className="muted">Planning is complete. Reopen it if you need to make changes.</p> : null}
       {!hasTests ? <p className="muted">Generate tests before completing planning.</p> : null}
       <PlanningReadinessPanel
-        artifactLabels={artifactLabels}
+        artifactLabels={artifactLabels} artifacts={artifacts} onOpenArtifacts={onOpenArtifacts}
         onOpenArtifact={onOpenArtifact}
         readiness={readiness}
         readinessLoading={readinessLoading}
