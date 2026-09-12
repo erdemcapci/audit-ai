@@ -31,9 +31,10 @@ On the frontend, `App.tsx` owns navigation and project selection.
 `screens/AuditWorkspace.tsx` and `panels/DetailPanel.tsx` coordinate the audit map.
 `features/planning/` owns the planning editor and API operations.
 `features/planning-readiness/` owns readiness response types, its API calls,
-`usePlanningReadiness` and `PlanningReadinessPanel`. The hook stays mounted in the
-planning editor; it refreshes on project/planning changes and after saving edits.
-The panel only renders values and invokes the supplied review callback.
+`usePlanningReadiness` and `PlanningReadinessPanel`. The hook runs in the dedicated Readiness screen and the retained planning editor;
+it refreshes on project/planning changes and after saving edits. The panel derives
+a decision summary from the existing response and links findings to current map
+cards through workspace selection, viewport focus and the existing detail panel.
 
 `components/` contains generic controls. `api/client.ts` owns HTTP transport,
 base URL, credentials and error handling. The remaining phase screens/APIs and
@@ -94,7 +95,7 @@ empty domains, one-implementation interfaces, event buses, registries or a giant
 `common` folder. Cross-phase persistence changes need workflow regression tests,
 especially when deleting outputs or altering planning/fieldwork/finding links.
 
-## Intentional hidden functionality
+## Planning readiness and retained planning editor
 
 Audit Planning Readiness remains implemented end to end. The planning router
 registers both readiness routes:
@@ -110,9 +111,20 @@ detects staleness from the plan fingerprint, and persists the result.
 `ProjectStore` still creates, loads and saves `planning_readiness.json`,
 including the missing-file fallback. Scoring, weights, review/error history,
 stale detection, schemas, prompts, configuration, provider dependencies,
-frontend actions and CSS remain intact. `SHOW_AUDIT_PLAN_PAGE = false` still
-controls navigation visibility. Do not remove the page or its dependencies
-because it is hidden.
+and backend contracts remain intact. The visible Readiness tab provides the
+management summary, prioritized findings, recommendations and affected-card links.
+`SHOW_AUDIT_PLAN_PAGE = false` still hides only the planning editor. Do not remove
+the editor or its dependencies because it is hidden.
+
+The summary preserves the backend overall score (65% deterministic / 35% AI).
+Critical findings or a score below 55 mean Not ready; high-priority findings or a
+score below 75 mean Needs attention. Remaining findings or a score below 90 mean
+Ready with improvements; otherwise the result is Ready. Critical AI priorities
+are treated as at least high priority. Missing or stale AI reviews show a clearly
+labeled preliminary deterministic result. Stale AI findings remain in review
+details and do not count toward current priorities. Findings are deduplicated by
+normalized explanation and affected scope, then ordered by severity. No per-node
+scores are introduced. Readiness does not approve the plan.
 
 ## Validation
 
@@ -126,13 +138,12 @@ npm --prefix frontend run build
 ```
 
 The frontend tests use Node's test runner, React server rendering and the existing
-Vite dependencies. Their seven HTML fingerprints were captured from the original
-planning page. The readiness prompt fixture was captured by executing the original
-backend renderer with a fake provider. Treat changes to either baseline as
-behavior changes requiring review, rather than regenerating them to pass a refactor.
+Vite dependencies. They cover management decisions, scoring boundaries, priority
+overrides, deduplication, stale/error states, links and API compatibility. The
+readiness prompt fixture was captured using a fake provider and remains unchanged.
 
 For browser hook lifecycle checks, run the frontend dev server and open
-`/tests/readiness-browser.html`. It runs 12 assertions with mocked readiness API
+`/tests/readiness-browser.html`. It runs 12 lifecycle assertions and 5 panel interaction assertions with mocked readiness API
 methods, uses no backend and writes no audit data. It is a development test page,
 not included in the production entrypoint. No backend static type checker or
 lint configuration is currently supplied; Python compilation is not type checking.

@@ -1,6 +1,8 @@
 // Browser-only hook integration checks using React's existing test act helper.
 // Run Vite and open /tests/readiness-browser.html; no provider or project writes.
 import { act } from "react";
+import { PlanningReadinessPanel } from "../src/features/planning-readiness/PlanningReadinessPanel";
+import "../src/styles/global.css";
 import { createRoot } from "react-dom/client";
 import { planningReadinessApi } from "../src/features/planning-readiness/api";
 import { usePlanningReadiness } from "../src/features/planning-readiness/usePlanningReadiness";
@@ -75,6 +77,26 @@ async function run() {
   await act(async () => { root.unmount(); });
   await act(async () => { reads[5].resolve(response("after-unmount")); });
   check(latest.readiness?.plan_fingerprint === "saved", "unmounted load is cancelled");
+  const panelRoot = createRoot(document.getElementById("probe")!);
+  const assessment = response("interaction");
+  assessment.deterministic.findings = [{ id: "gap", check_name: "Risk without tests", category: "Coverage", severity: "high", explanation: "Approval risk has no audit tests.", recommended_action: "Add a test for approval evidence.", affected_artifact_ids: ["risk-1", "deleted-risk"], affected_artifact_names: ["Approval risk", "Deleted risk"], branch: "Approvals" }];
+  let opened = "";
+  let reviewClicks = 0;
+  await act(async () => { panelRoot.render(<PlanningReadinessPanel readiness={assessment}
+    readinessLoading={false} readinessRunning={false} readinessError=""
+    agentExecutionEnabled={true} agentExecutionMessage="" artifactLabels={{ "risk-1": "Approval risk" }}
+    onOpenArtifact={(id) => { opened = id; }} runReadinessReview={async () => { reviewClicks++; }} />); });
+  const buttons = Array.from(document.querySelectorAll("#probe button"));
+  const valid = buttons.find((button) => button.textContent === "View Approval risk") as HTMLButtonElement;
+  const missing = buttons.find((button) => button.textContent === "View Deleted risk") as HTMLButtonElement;
+  await act(async () => { valid.click(); });
+  check(opened === "risk-1", "affected card action forwards the exact existing node ID");
+  check(missing.disabled, "missing map cards cannot navigate");
+  await act(async () => { missing.click(); });
+  check(opened === "risk-1", "disabled missing-card action leaves selection unchanged");
+  await act(async () => { (buttons.find((button) => button.textContent === "Run AI Planning Review") as HTMLButtonElement).click(); });
+  check(reviewClicks === 1, "review action invokes the existing review workflow");
+  check(document.querySelector("#readiness-priorities")?.textContent?.includes("Add a test for approval evidence."), "priority destination includes a practical recommendation");
   results.textContent = `PASS: ${passed.length} lifecycle checks\n\n${passed.join("\n")}`;
 }
 run().catch((error) => { results.textContent = `FAIL: ${error.message}\n\nPassed:\n${passed.join("\n")}`; }).finally(() => Object.assign(planningReadinessApi, originalApi));

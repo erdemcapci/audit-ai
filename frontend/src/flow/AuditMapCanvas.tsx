@@ -169,6 +169,7 @@ function clamp(value: number, min: number, max: number): number {
 function InnerCanvas({
   map,
   selectedNodeId,
+  focusNodeId,
   agentTypes,
   onSelectNode,
   onSaveMap,
@@ -183,6 +184,7 @@ function InnerCanvas({
 }: {
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
+  focusNodeId?: string | null;
   agentTypes: AgentDefinition[];
   onSelectNode: (node: Node<FlowNodeData> | null) => void;
   onSaveMap: (state: MapStateUpdate) => Promise<void>;
@@ -207,6 +209,8 @@ function InnerCanvas({
   const nodesRef = useRef<Node<FlowNodeData>[]>([]);
   const onSaveMapRef = useRef(onSaveMap);
   const onRunAgentRef = useRef(onRunAgent);
+  const readinessFocusRef = useRef(focusNodeId);
+  readinessFocusRef.current = focusNodeId;
   const previousPhaseFilterRef = useRef<PhaseFilter>(phaseFilter);
   const previousHierarchyFilterRef = useRef("");
 
@@ -326,7 +330,10 @@ function InnerCanvas({
       }) || [];
     setNodes(nextNodes);
     setEdges(nextEdges);
-    window.requestAnimationFrame(() => reactFlow.fitView({ padding: 0.16, duration: 250 }));
+    window.requestAnimationFrame(() => {
+      const target = readinessFocusRef.current;
+      reactFlow.fitView({ padding: 0.16, duration: 250, nodes: target ? [{ id: target }] : undefined, maxZoom: target ? 1 : undefined });
+    });
   }, [agentExecutionEnabled, agentExecutionMessage, handleNodeResize, handlePhaseResize, map, reactFlow, setEdges, setNodes]);
 
   const nodeTypeById = useMemo(() => new Map(nodes.map((node) => [node.id, node.type || ""])), [nodes]);
@@ -475,10 +482,11 @@ function InnerCanvas({
   }, [canvasSize.height, canvasSize.width, viewport.x, viewport.y, viewport.zoom, visibleNodes]);
 
   useEffect(() => {
+    if (!nodes.length) return;
     if (phaseFilter !== "all" && selectedNodeId && !visibleNodeIds.has(selectedNodeId)) {
       onSelectNode(null);
     }
-  }, [phaseFilter, onSelectNode, selectedNodeId, visibleNodeIds]);
+  }, [phaseFilter, onSelectNode, selectedNodeId, visibleNodeIds, nodes.length]);
 
   useEffect(() => {
     if (previousPhaseFilterRef.current === phaseFilter) return;
@@ -522,7 +530,7 @@ function InnerCanvas({
         edges={visibleEdges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.14 }}
+        fitViewOptions={{ padding: 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : undefined, maxZoom: focusNodeId ? 1 : undefined }}
         minZoom={0.18}
         maxZoom={1.5}
         nodesDraggable
@@ -612,6 +620,7 @@ function InnerCanvas({
 export function AuditMapCanvas(props: {
   map: AuditMapResponse | null;
   selectedNodeId: string | null;
+  focusNodeId?: string | null;
   agentTypes: AgentDefinition[];
   onSelectNode: (node: Node<FlowNodeData> | null) => void;
   onSaveMap: (state: MapStateUpdate) => Promise<void>;

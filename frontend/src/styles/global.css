@@ -1686,3 +1686,34 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Planning readiness: manager summary and actionable findings. */
+.readiness-management-summary {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(0, 2fr);
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #fff;
+}
+.readiness-management-score { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.readiness-management-score > strong { font-size: 44px; line-height: 1.1; }
+.readiness-management-score > strong small { font-size: 18px; font-weight: 400; }
+.readiness-management-message p { margin: 0 0 12px; }
+.readiness-management-message > strong { display: block; margin-bottom: 6px; }
+.readiness-decision { font-size: 19px; font-weight: 600; }
+.readiness-review-notice { padding: 12px 16px; border-left: 3px solid #b87a12; background: #fff7e5; color: #604408; }
+.readiness-priorities { scroll-margin-top: 24px; }
+.readiness-priorities h3 { margin-bottom: 6px; }
+.readiness-finding h4 { margin: 4px 0 0; font-size: 16px; }
+.readiness-action { margin-top: 8px; }
+.readiness-action > strong { font-size: 12px; }
+.readiness-artifacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.readiness-artifacts .button { white-space: normal; text-align: left; }
+.readiness-review-details { padding: 12px 0; border-top: 1px solid #dbe3ef; }
+.readiness-review-details summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 700px) {
+  .readiness-management-summary { grid-template-columns: 1fr; padding: 18px; }
+  .readiness-management-score > strong { font-size: 36px; }
+}

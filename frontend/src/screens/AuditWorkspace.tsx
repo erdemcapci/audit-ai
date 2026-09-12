@@ -32,16 +32,17 @@ import type {
   PlanningState,
   ReportState
 } from "../types";
+import { PlanningReadinessScreen } from "../features/planning-readiness/PlanningReadinessScreen";
 import { PlanningScreen } from "../features/planning/PlanningScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
-type WorkspaceTab = "Map" | "Audit Plan" | "Settings" | "Agent Logs";
+type WorkspaceTab = "Map" | "Readiness" | "Audit Plan" | "Settings" | "Agent Logs";
 
 const SHOW_AUDIT_PLAN_PAGE = false;
-const VISIBLE_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Audit Plan", "Settings", "Agent Logs"] : ["Map", "Settings", "Agent Logs"];
-const PRIMARY_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Audit Plan"] : ["Map"];
+const VISIBLE_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan", "Settings", "Agent Logs"] : ["Map", "Readiness", "Settings", "Agent Logs"];
+const PRIMARY_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan"] : ["Map", "Readiness"];
 const PLANNING_AGENT_TYPES = new Set(["workstream_generator", "objective_generator", "risk_generator", "test_generator"]);
 const PLANNING_NODE_TYPES = new Set(["phaseNode", "auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "agentNode"]);
 
@@ -110,6 +111,7 @@ export function AuditWorkspace({
   const [map, setMap] = useState<AuditMapResponse | null>(null);
   const [agentTypes, setAgentTypes] = useState<AgentDefinition[]>([]);
   const [agentTypeToAdd, setAgentTypeToAdd] = useState("test_generator");
+  const [readinessFocusId, setReadinessFocusId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -127,6 +129,23 @@ export function AuditWorkspace({
   const [mapExpanded, setMapExpanded] = useState(false);
   const visibleAgentTypes = useMemo(() => agentTypes.filter((agentType) => PLANNING_AGENT_TYPES.has(agentType.type)), [agentTypes]);
   const visibleMap = useMemo(() => planningOnlyMap(map), [map]);
+
+  const readinessArtifactLabels = useMemo(() => Object.fromEntries(
+    (visibleMap?.nodes || []).map((node) => [node.id, String(node.data.title || node.id)])
+  ), [visibleMap]);
+
+  function openReadinessArtifact(nodeId: string) {
+    const node = visibleMap?.nodes.find((item) => item.id === nodeId);
+    if (!node) {
+      setError("This card is no longer in the audit plan. Refresh readiness to review the current plan.");
+      return;
+    }
+    setShowAutoLayoutConfig(false);
+    setPhaseFilter("planning");
+    setReadinessFocusId(nodeId);
+    setSelectedNode(node);
+    setActiveScreen("Map");
+  }
 
   const refresh = useCallback(async () => {
     const [projectData, planningData, fieldworkData, findingsData, reportData, mapData, agentTypeData] = await Promise.all([
@@ -561,9 +580,10 @@ export function AuditWorkspace({
         <section className="map-workspace">
           <AuditMapCanvas
             map={visibleMap}
+            focusNodeId={readinessFocusId}
             selectedNodeId={selectedNode?.id || null}
             agentTypes={visibleAgentTypes}
-            onSelectNode={setSelectedNode}
+            onSelectNode={(node) => { setSelectedNode(node); if (node?.id !== readinessFocusId) setReadinessFocusId(null); }}
             onSaveMap={saveMapState}
             onRunAgent={runAgent}
             onAutoLayout={async () => {
@@ -588,7 +608,7 @@ export function AuditWorkspace({
             <div className="map-overlay-panel inspector-overlay">
               <DetailPanel
                 node={selectedNode}
-                onClose={() => setSelectedNode(null)}
+                onClose={() => { setSelectedNode(null); setReadinessFocusId(null); }}
                 agentTypes={visibleAgentTypes}
                 onSaveNode={saveNode}
                 onSaveAgent={saveAgent}
@@ -610,10 +630,19 @@ export function AuditWorkspace({
         </>
       ) : null}
 
+      {activeScreen === "Readiness" && planning ? (
+        <PlanningReadinessScreen projectId={projectId} planning={planning}
+          artifactLabels={readinessArtifactLabels} onOpenArtifact={openReadinessArtifact}
+          agentExecutionEnabled={runtime?.agentExecutionEnabled ?? true}
+          agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."} />
+      ) : null}
+
       {activeScreen === "Audit Plan" && planning ? (
         <PlanningScreen
           projectId={projectId}
           planning={planning}
+          artifactLabels={readinessArtifactLabels}
+          onOpenArtifact={openReadinessArtifact}
           onChange={(next) => run(() => planningApi.update(projectId, next))}
           onApprove={() => {
             setShowApprovePlanning(true);

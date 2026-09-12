@@ -20,6 +20,8 @@ export function PlanningScreen({
   onChange,
   onApprove,
   onReopen,
+  artifactLabels,
+  onOpenArtifact,
   agentExecutionEnabled = true,
   agentExecutionMessage = "AI agent execution is disabled."
 }: {
@@ -28,6 +30,8 @@ export function PlanningScreen({
   onChange: (planning: PlanningState) => Promise<void>;
   onApprove: () => void | Promise<void>;
   onReopen: () => void | Promise<void>;
+  artifactLabels?: Record<string, string>;
+  onOpenArtifact?: (nodeId: string) => void;
   agentExecutionEnabled?: boolean;
   agentExecutionMessage?: string;
 }) {
@@ -109,6 +113,8 @@ export function PlanningScreen({
       {draft.approved ? <p className="muted">Planning is complete. Reopen it if you need to make changes.</p> : null}
       {!hasTests ? <p className="muted">Generate tests before completing planning.</p> : null}
       <PlanningReadinessPanel
+        artifactLabels={artifactLabels}
+        onOpenArtifact={onOpenArtifact}
         readiness={readiness}
         readinessLoading={readinessLoading}
         readinessRunning={readinessRunning}

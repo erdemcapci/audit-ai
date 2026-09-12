@@ -18,7 +18,7 @@ It helps with:
 
 - Planning an audit from a title and description
 - Generating objectives, risks, and tests
-- Reviewing planning readiness before moving into fieldwork
+- Reviewing planning readiness before moving into fieldwork (open the **Readiness** tab for a decision summary, prioritized issues, and links to affected map cards)
 - Organizing fieldwork and findings
 - Drafting executive summaries and reports
 - Keeping audit project data in local files

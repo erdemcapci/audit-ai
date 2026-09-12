@@ -8,7 +8,7 @@ export const pending = {
   ai_review: null, ai_error: null, weights: { deterministic: 0.65, ai: 0.35 },
   overall_score: null, overall_status: "awaiting_ai_review", overall_explanation: "Awaiting review."
 };
-const finding = { id: "ai-1", category: "Coverage", priority: "Important", severity: "medium", confidence: 0.8, explanation: "Evidence coverage is incomplete.", suggested_action: "Review source evidence.", affected_artifact_names: ["Approval risk"] };
+const finding = { id: "ai-1", category: "Coverage", priority: "Important", severity: "medium", confidence: 0.8, explanation: "Evidence coverage is incomplete.", suggested_action: "Review source evidence.", affected_artifact_names: ["Approval risk"], affected_artifact_ids: ["risk-1"], affected_workstreams: ["Approvals"] };
 export const current = {
   ...pending,
   ai_review: {
