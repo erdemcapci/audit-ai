@@ -181,3 +181,9 @@ temporary outline. Pointer, wheel, keyboard interaction or leaving Map clears th
 outline. This is workspace state and decorated-node CSS, never persisted map data.
 Large groups can zoom farther out for an overview; individual inspection remains
 available from Related plan items. Unit fixtures cover 1, 3, 6, 12 and 20 targets.
+
+The management header emphasizes the AI review score and shows deterministic
+checks separately. The existing blended score remains under Review details and
+still contributes to the overall plan status with finding severity. Pending/stale
+AI reviews show no current AI number; previous scores remain in review details.
+This is a display change, not a change to scoring or readiness thresholds.

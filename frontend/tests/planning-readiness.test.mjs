@@ -17,8 +17,12 @@ after(async () => { await server?.close(); });
 test("management summary prioritizes decisions, actions and affected cards", () => {
   const html = renderToStaticMarkup(createElement(Panel, { ...scenarios.current,
     artifactLabels: { "risk-1": "Approval risk" }, onOpenArtifact: () => {} }));
-  assert.match(html, /Overall readiness/);
-  assert.match(html, /76.8/);
+  assert.match(html, /Overall plan status/);
+  assert.match(html, /AI review/);
+  assert.match(html, /Deterministic/);
+  assert.match(html, /readiness-ai-score[^>]*>[\s\S]*?<strong>80 /);
+  assert.match(html, /readiness-checks-score[^>]*>[\s\S]*?<strong>75 /);
+  assert.match(html, /Combined readiness score: 76.8/);
   assert.match(html, /Needs attention/);
   assert.match(html, /1 important issue should be addressed before fieldwork/);
   assert.match(html, /Biggest concern/);
@@ -32,6 +36,9 @@ test("loading, failed, stale, running and disabled states stay explicit", () => 
   assert.match(render(scenarios.loading), /Loading readiness/);
   assert.match(render(scenarios.pending), /Preliminary: Needs attention/);
   assert.match(render(scenarios.stale), /previous plan and do not contribute/);
+  assert.match(render(scenarios.stale), /Review outdated/);
+  assert.match(render(scenarios.pending), /Not reviewed yet/);
+  assert.match(render(scenarios.failed), /Review unavailable/);
   assert.match(render(scenarios.failed), /Provider failed/);
   assert.match(render(scenarios.running), /Reviewing/);
   assert.match(render(scenarios.disabled), /disabled=""/);

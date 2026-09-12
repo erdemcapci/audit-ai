@@ -89,12 +89,20 @@ export function PlanningReadinessPanel({
     {readinessLoading ? <p className="muted" role="status">{readiness ? "Updating readiness…" : "Loading readiness…"}</p> : null}
     {readiness && result ? <>
       <div className="readiness-management-summary">
-        <div className="readiness-management-score">
-          <span>{result.preliminary ? "Plan checks · overall pending" : "Overall readiness"}</span>
-          <strong>{scoreText(result.score)} <small>/ 100</small></strong>
-          <Badge tone={tone}>{result.preliminary ? `Preliminary: ${result.status}` : result.status}</Badge>
+        <div className="readiness-score-pair">
+          <div className="readiness-management-score readiness-ai-score">
+            <span>AI review{review?.provider === "demo" ? " (demo)" : ""}</span>
+            <strong>{!result.preliminary && review ? <>{scoreText(review.score)} <small>/ 100</small></> : "—"}</strong>
+            <small>{!result.preliminary ? "Plan quality" : review?.stale ? "Review outdated" : readiness.ai_error ? "Review unavailable" : "Not reviewed yet"}</small>
+          </div>
+          <div className="readiness-management-score readiness-checks-score">
+            <span>Deterministic</span>
+            <strong>{scoreText(readiness.deterministic.score)} <small>/ 100</small></strong>
+            <small>Structure and completeness checks</small>
+          </div>
         </div>
         <div className="readiness-management-message">
+          <div className="readiness-overall-status"><strong>Overall plan status</strong> <Badge tone={tone}>{result.preliminary ? `Preliminary: ${result.status}` : result.status}</Badge></div>
           <p className="readiness-decision">{result.summary}</p>
           <p><strong>{result.important}</strong> important {result.important === 1 ? "issue" : "issues"} <span className="muted">· {result.findings.length} distinct findings</span></p>
           {result.biggestConcern ? <><strong>Biggest concern</strong><p>{conciseText(result.biggestConcern.explanation)}</p>
@@ -103,8 +111,8 @@ export function PlanningReadinessPanel({
       </div>
       {result.preliminary ? <p className="readiness-review-notice" role="status">
         {review?.stale ? "The plan has changed since the saved AI review. Its findings are excluded from the current summary. Run a new review to confirm overall readiness."
-          : "Overall readiness is pending a successful AI review. The preliminary score and findings above use current plan checks only."}
-      </p> : <p className="muted">Overall readiness combines {Math.round(readiness.weights.deterministic * 100)}% plan checks and {Math.round(readiness.weights.ai * 100)}% AI review. Readiness supports the audit manager’s judgment; it does not approve the plan.</p>}
+          : "Overall readiness is pending a successful AI review. The preliminary status and findings above use current plan checks only."}
+      </p> : <p className="muted">Overall plan status uses the combined assessment and issue severity. The combined assessment weights {Math.round(readiness.weights.deterministic * 100)}% plan checks and {Math.round(readiness.weights.ai * 100)}% AI review. Readiness supports the audit manager’s judgment; it does not approve the plan.</p>}
       {readiness.ai_error ? <p className="error-message">Latest AI review failed: {readiness.ai_error.error_message}{!result.preliminary ? " The last successful review still matches this plan." : ""}</p> : null}
       <section id="readiness-priorities" className="readiness-priorities">
         <h3>What to improve next</h3>
@@ -119,6 +127,7 @@ export function PlanningReadinessPanel({
       </section> : null}
       <details className="readiness-review-details">
         <summary>{review?.stale ? "Previous AI review — outdated" : "Review details and scoring"}</summary>
+        {!result.preliminary ? <p>Combined readiness score: {scoreText(result.score)} / 100.</p> : null}
         <p>Plan checks: {scoreText(readiness.deterministic.score)} / 100. {readiness.deterministic.summary}</p>
         {review ? <>
           <p>AI review: {scoreText(review.score)} / 100 · {review.provider || "AI"} {review.model} · reviewed {formatDate(review.reviewed_at)}.</p>
@@ -129,7 +138,7 @@ export function PlanningReadinessPanel({
             {[...review.critical_gaps, ...review.warnings, ...review.duplication_findings, ...review.contradiction_findings, ...review.missing_coverage_findings, ...review.improvement_opportunities, ...review.prioritized_recommendations].map((finding, index) => <p key={index}>{finding.explanation} {finding.suggested_action}</p>)}
           </> : null}
         </> : <p>An AI review has not completed successfully yet.</p>}
-        <p>Decision rules: a score below 55 or a critical finding means Not ready; a score below 75 or a high-priority finding means Needs attention; a score below 90 or remaining improvements means Ready with improvements. Ready requires at least 90 and no findings.</p>
+        <p>Decision rules use the combined score (or deterministic score while preliminary): a score below 55 or a critical finding means Not ready; a score below 75 or a high-priority finding means Needs attention; a score below 90 or remaining improvements means Ready with improvements. Ready requires at least 90 and no findings.</p>
       </details>
     </> : !readinessLoading && !readinessError ? <p>Run a review to assess your audit plan.</p> : null}
   </section>;
