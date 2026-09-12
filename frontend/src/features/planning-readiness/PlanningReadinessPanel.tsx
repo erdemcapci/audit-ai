@@ -76,7 +76,6 @@ export function PlanningReadinessPanel({
   const currentArtifacts = artifacts || Object.fromEntries(Object.entries(artifactLabels).map(([id, label]) => [id, { label: displayLabel(label, id), type: "", area: "" }]));
   const result = useMemo(() => readiness ? summarizeReadiness(readiness) : null, [readiness]);
   const review = readiness?.ai_review;
-  const tone = result?.status === "Ready" ? "green" : result?.status === "Ready with improvements" ? "blue" : result?.status === "Needs attention" ? "amber" : "red";
   return <section className="planning-readiness" aria-label="Audit plan readiness">
     <div className="planning-readiness-header">
       <div><p className="eyebrow">Planning Readiness</p><h2>Audit Plan Readiness</h2></div>
@@ -101,18 +100,11 @@ export function PlanningReadinessPanel({
             <small>Structure and completeness checks</small>
           </div>
         </div>
-        <div className="readiness-management-message">
-          <div className="readiness-overall-status"><strong>Overall plan status</strong> <Badge tone={tone}>{result.preliminary ? `Preliminary: ${result.status}` : result.status}</Badge></div>
-          <p className="readiness-decision">{result.summary}</p>
-          <p><strong>{result.important}</strong> important {result.important === 1 ? "issue" : "issues"} <span className="muted">· {result.findings.length} distinct findings</span></p>
-          {result.biggestConcern ? <><strong>Biggest concern</strong><p>{conciseText(result.biggestConcern.explanation)}</p>
-            <a href="#readiness-priorities">Review priorities and affected cards ↓</a></> : null}
-        </div>
       </div>
       {result.preliminary ? <p className="readiness-review-notice" role="status">
         {review?.stale ? "The plan has changed since the saved AI review. Its findings are excluded from the current summary. Run a new review to confirm overall readiness."
-          : "Overall readiness is pending a successful AI review. The preliminary status and findings above use current plan checks only."}
-      </p> : <p className="muted">Overall plan status uses the combined assessment and issue severity. The combined assessment weights {Math.round(readiness.weights.deterministic * 100)}% plan checks and {Math.round(readiness.weights.ai * 100)}% AI review. Readiness supports the audit manager’s judgment; it does not approve the plan.</p>}
+          : "Overall readiness is pending a successful AI review. Current findings use plan checks only."}
+      </p> : null}
       {readiness.ai_error ? <p className="error-message">Latest AI review failed: {readiness.ai_error.error_message}{!result.preliminary ? " The last successful review still matches this plan." : ""}</p> : null}
       <section id="readiness-priorities" className="readiness-priorities">
         <h3>What to improve next</h3>
@@ -127,6 +119,7 @@ export function PlanningReadinessPanel({
       </section> : null}
       <details className="readiness-review-details">
         <summary>{review?.stale ? "Previous AI review — outdated" : "Review details and scoring"}</summary>
+        <p>{result.preliminary ? "Preliminary plan status" : "Overall plan status"}: {result.status}</p>
         {!result.preliminary ? <p>Combined readiness score: {scoreText(result.score)} / 100.</p> : null}
         <p>Plan checks: {scoreText(readiness.deterministic.score)} / 100. {readiness.deterministic.summary}</p>
         {review ? <>

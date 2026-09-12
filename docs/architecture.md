@@ -152,7 +152,7 @@ lint configuration is currently supplied; Python compilation is not type checkin
 
 For workspace UX checks, open `/tests/readiness-workspace-browser.html` in a real
 browser at desktop widths of 1280px and 1440px. Results appear below the workspace.
-Its 48 assertions exercise the actual workspace, canvas and inspector with an
+Its 47 assertions exercise the actual workspace, canvas and inspector with an
 isolated in-memory API: summary, finding navigation, unobscured viewport focus,
 card editing, stale/preliminary states and reruns. No audit data is read or written.
 Use real-time browser execution: accelerated virtual time can skip React Flow
@@ -187,3 +187,10 @@ checks separately. The existing blended score remains under Review details and
 still contributes to the overall plan status with finding severity. Pending/stale
 AI reviews show no current AI number; previous scores remain in review details.
 This is a display change, not a change to scoring or readiness thresholds.
+
+The score header now contains only AI and deterministic scores; management text
+and the explanatory weighting paragraph are removed. Existing overall status and
+combined scoring remain in Review details. AI findings may include `concise_issue`,
+a plain-language problem statement produced by the same review call. Older saved
+reviews omit this optional field and retain the explanation-excerpt fallback until
+rerun. Full reasoning remains in Details; scoring and navigation are unchanged.

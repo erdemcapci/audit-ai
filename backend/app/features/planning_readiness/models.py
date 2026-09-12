@@ -47,6 +47,7 @@ class PlanningAIReviewDimensionScore(BaseModel):
 
 class PlanningAIReviewFinding(BaseModel):
     id: str
+    concise_issue: str = ""
     category: str
     priority: Literal["Critical", "Important", "Enhancement"] = "Important"
     severity: PlanningReadinessSeverity = "medium"

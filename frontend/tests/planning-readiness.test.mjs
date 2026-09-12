@@ -24,8 +24,7 @@ test("management summary prioritizes decisions, actions and affected cards", () 
   assert.match(html, /readiness-checks-score[^>]*>[\s\S]*?<strong>75 /);
   assert.match(html, /Combined readiness score: 76.8/);
   assert.match(html, /Needs attention/);
-  assert.match(html, /1 important issue should be addressed before fieldwork/);
-  assert.match(html, /Biggest concern/);
+  assert.doesNotMatch(html, /readiness-management-message|Biggest concern|combined assessment weights/);
   assert.match(html, /Recommended improvement/);
   assert.match(html, /Show on audit map/);
   assert.match(html, /Readiness dimensions/);
@@ -34,7 +33,7 @@ test("management summary prioritizes decisions, actions and affected cards", () 
 test("loading, failed, stale, running and disabled states stay explicit", () => {
   const render = (props) => renderToStaticMarkup(createElement(Panel, props));
   assert.match(render(scenarios.loading), /Loading readiness/);
-  assert.match(render(scenarios.pending), /Preliminary: Needs attention/);
+  assert.match(render(scenarios.pending), /Preliminary plan status: Needs attention/);
   assert.match(render(scenarios.stale), /previous plan and do not contribute/);
   assert.match(render(scenarios.stale), /Review outdated/);
   assert.match(render(scenarios.pending), /Not reviewed yet/);
@@ -167,4 +166,19 @@ test("area context follows planning ancestry without expanding implicated IDs", 
   readiness.deterministic.findings[0].affected_artifact_ids = [];
   assert.deepEqual(summarizeReadiness(readiness).findings[0].artifactIds, ["obj"]);
   assert.equal(conciseText("A short issue. " + "Long reasoning ".repeat(40)), "A short issue.");
+});
+
+test("AI-authored problem statement takes precedence over contextual reasoning", async () => {
+  const readiness = structuredClone(current);
+  const finding = readiness.ai_review.warnings[0];
+  finding.concise_issue = "Planned tests do not verify vendor bank-account ownership before approval.";
+  finding.explanation = "Vendor Due Diligence identifies validation of banking details as part of onboarding. However, the planned procedures omit bank-account ownership checks.";
+  const html = renderToStaticMarkup(createElement(Panel, { ...scenarios.current, readiness }));
+  assert.ok(html.includes(`<h4>${finding.concise_issue}</h4>`));
+  assert.ok(html.includes(finding.explanation));
+  assert.ok(!html.includes(`<h4>Vendor Due Diligence`));
+  const { summarizeReadiness } = await server.ssrLoadModule("/src/features/planning-readiness/summary.ts");
+  assert.equal(summarizeReadiness(readiness).score, current.overall_score);
+  delete finding.concise_issue;
+  assert.doesNotThrow(() => renderToStaticMarkup(createElement(Panel, { ...scenarios.current, readiness })));
 });

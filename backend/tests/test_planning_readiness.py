@@ -148,6 +148,7 @@ class PlanningReadinessTests(unittest.IsolatedAsyncioTestCase):
             "test-model",
         )
 
+        self.assertEqual(review.critical_gaps[0].concise_issue, "")
         self.assertEqual(review.score, 100)
         self.assertEqual(review.critical_gaps[0].priority, "Important")
         self.assertEqual(review.critical_gaps[0].severity, "medium")
@@ -171,7 +172,7 @@ class PlanningReadinessTests(unittest.IsolatedAsyncioTestCase):
         groups = ["critical_gaps", "warnings", "duplication_findings", "contradiction_findings",
                   "missing_coverage_findings", "improvement_opportunities", "prioritized_recommendations"]
         for group in groups:
-            data[group] = [{"category": prose, "explanation": prose, "suggested_action": prose,
+            data[group] = [{"concise_issue": prose, "category": prose, "explanation": prose, "suggested_action": prose,
                             "affected_artifact_ids": [objective.id, risk.id],
                             "affected_artifact_names": [objective.id, risk.id], "affected_workstreams": ["ws_procure"]}]
 
@@ -187,6 +188,7 @@ class PlanningReadinessTests(unittest.IsolatedAsyncioTestCase):
         for group in groups:
             self.assertEqual(getattr(saved, group)[0].affected_artifact_ids, [objective.id, risk.id])
             self.assertEqual(getattr(saved, group)[0].affected_artifact_names, [objective.title, risk.title])
+        self.assertIn("“Assess approval controls”", saved.critical_gaps[0].concise_issue)
         self.assertIn("“Assess approval controls”", saved.executive_summary)
         self.assertIn("“Unauthorized approval override”", saved.executive_summary)
         self.assertIn("the referenced test", saved.executive_summary)

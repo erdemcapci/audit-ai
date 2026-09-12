@@ -331,6 +331,7 @@ class PlanningReadinessService:
         findings = [
             PlanningAIReviewFinding(
                 id=f"ai-demo-{index + 1}",
+                concise_issue=finding.explanation,
                 category=finding.category,
                 priority="Critical" if finding.severity in {"critical", "high"} else "Important",
                 severity=finding.severity,
@@ -408,6 +409,7 @@ class PlanningReadinessService:
                 normalized.append(
                     PlanningAIReviewFinding(
                         id=f"ai-{key}-{index + 1}",
+                        concise_issue=str(item.get("concise_issue") or "").strip(),
                         category=str(item.get("category") or key.replace("_", " ").title()),
                         priority=priority,  # type: ignore[arg-type]
                         severity=severity,  # type: ignore[arg-type]

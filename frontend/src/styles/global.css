@@ -1736,5 +1736,7 @@ h3 {
 .readiness-checks-score { padding-top: 3px; color: #64748b; }
 .readiness-checks-score > strong { font-size: 28px; color: #475569; }
 .readiness-overall-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.readiness-management-summary { grid-template-columns: minmax(310px, 1fr) minmax(0, 2fr); }
+.readiness-management-summary { grid-template-columns: 1fr; }
 @media (max-width: 800px) { .readiness-management-summary { grid-template-columns: 1fr; } }
+
+.readiness-score-pair { max-width: 460px; gap: 36px; }

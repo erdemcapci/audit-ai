@@ -30,6 +30,8 @@ class CapabilityBoundaryTests(unittest.IsolatedAsyncioTestCase):
         system, user = build_review_prompts(audit, planning, deterministic)
         self.assertIn("internal references belong only in affected_artifact_ids", system)
         self.assertIn("Artifact Reference Catalog", user)
+        self.assertIn("concise_issue", user)
+        self.assertIn("Do not start by describing what an objective says", user)
         self.assertIn('"internal_reference"', user)
         self.assertIn('"display_label"', user)
         self.assertNotIn("reference artifact IDs where practical", user)

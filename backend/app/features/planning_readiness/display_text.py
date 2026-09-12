@@ -11,7 +11,7 @@ from app.models import AuditProject, PlanningState
 # Also cover unresolved references explicitly supplied in affected_artifact_ids.
 GENERATED_ID = r"(?:audit|ws|obj|risk|test|agent|fw|finding|node|artifact)_[0-9a-fA-F]{10,32}"
 TYPE_NAMES = {"obj": "objective", "ws": "workstream", "fw": "fieldwork item", "risk": "risk", "test": "test", "audit": "audit", "agent": "agent", "finding": "finding"}
-TEXT_FIELDS = {"check_name", "category", "explanation", "recommended_action", "suggested_action", "branch", "summary", "executive_summary", "dimension", "error_message", "overall_explanation"}
+TEXT_FIELDS = {"concise_issue", "check_name", "category", "explanation", "recommended_action", "suggested_action", "branch", "summary", "executive_summary", "dimension", "error_message", "overall_explanation"}
 TEXT_LISTS = {"strengths", "affected_artifact_names", "affected_workstreams"}
 T = TypeVar("T", bound=BaseModel)
 

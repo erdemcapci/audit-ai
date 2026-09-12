@@ -31,7 +31,7 @@ export function summarizeReadiness(readiness: PlanningReadinessResponse) {
         // A Critical recommendation is at least high priority, even if the model
         // supplied a lower severity. No per-artifact score is introduced.
         const severity = finding.priority === "Critical" && rank[finding.severity] > rank.high ? "high" : finding.severity;
-        issues.push({ id: `ai-${finding.id}`, title: finding.category, category: finding.category, severity,
+        issues.push({ id: `ai-${finding.id}`, title: finding.concise_issue?.trim() || finding.category, category: finding.category, severity,
           explanation: finding.explanation, action: finding.suggested_action,
           artifactIds: finding.affected_artifact_ids, artifactNames: finding.affected_artifact_names,
           branch: finding.affected_workstreams.join(" / "), sources: ["AI review"] });

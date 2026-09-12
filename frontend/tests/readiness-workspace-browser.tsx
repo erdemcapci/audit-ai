@@ -95,9 +95,9 @@ async function run() {
   await openReadiness();
   check(text().includes("Audit Plan Readiness"), "Readiness screen opens");
   check(document.querySelector(".readiness-ai-score > strong")?.textContent === "74.3 / 100" && document.querySelector(".readiness-checks-score > strong")?.textContent === "80 / 100", "AI and deterministic scores display separately");
-  check(text().includes("Needs attention"), "decision status visible");
-  check(text().includes("1 important issue"), "important issue count correct");
-  check(document.querySelector(".readiness-management-message")?.textContent?.includes("Biggest concernApproval evidence is missing."), "biggest concern is highest priority issue");
+  check(!document.querySelector(".readiness-management-message"), "scores have no adjacent management text block");
+  check(!text().includes("combined assessment weights"), "combined-assessment paragraph removed");
+
   const cards = Array.from(document.querySelectorAll(".readiness-finding"));
   check(cards.map((c) => c.querySelector("h4")?.textContent).join(",") === "Single gap,Shared gap,Plan scope,Large gap", "findings sorted high to medium to low");
   check(cards[0].textContent?.includes("Improve Single gap."), "recommendation rendered");
@@ -158,7 +158,7 @@ async function run() {
   check(document.querySelector('.react-flow__node[data-id="risk-2"].selected'), "ordinary map selection works after readiness navigation");
   assessment = { ...structuredClone(current), ai_review: null, overall_score: null, overall_status: "awaiting_ai_review" };
   await openReadiness();
-  check(text().includes("Preliminary: Needs attention") && text().includes("Not reviewed yet"), "preliminary result distinguished from overall readiness");
+  check(text().includes("Overall readiness is pending") && text().includes("Not reviewed yet"), "preliminary result distinguished from overall readiness");
   await click("Map");
   assessment = { ...structuredClone(current), ai_review: { ...current.ai_review, stale: true }, overall_score: null, overall_status: "stale_ai_review" };
   await openReadiness();

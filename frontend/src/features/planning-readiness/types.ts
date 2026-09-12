@@ -24,6 +24,7 @@ export type PlanningReadinessComponent = {
 };
 
 export type PlanningAIReviewFinding = {
+  concise_issue?: string;
   id: string;
   category: string;
   priority: "Critical" | "Important" | "Enhancement";
