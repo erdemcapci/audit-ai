@@ -191,18 +191,12 @@ It normalizes relationships from:
 
 Core query methods include:
 
-- `get_item`
-- `get_items_by_type`
 - `get_related_items`
 - `get_upstream_items`
-- `get_downstream_items`
-- `get_items_by_phase`
-- `get_items_by_workstream`
 - `get_relationship_gaps`
 - `get_objective_chain`
 - `get_risk_chain`
 - `get_test_chain`
-- `get_traceability_chain`
 
 Agents should not directly traverse raw project JSON. They should use context packs built from graph services and context blocks.
 

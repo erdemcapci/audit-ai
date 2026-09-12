@@ -6,20 +6,6 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from app.time_utils import utc_now
-# Compatibility exports for existing API and persistence consumers.
-from app.features.planning_readiness.models import (
-    PlanningReadinessSeverity,
-    PlanningReadinessNavigation,
-    PlanningReadinessFinding,
-    PlanningReadinessComponent,
-    PlanningAIReviewDimensionScore,
-    PlanningAIReviewFinding,
-    PlanningAIReviewResult,
-    PlanningAIReviewError,
-    PlanningReadinessWeights,
-    PlanningReadinessState,
-    PlanningReadinessResponse,
-)
 
 
 def new_id(prefix: str) -> str:

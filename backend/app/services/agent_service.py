@@ -8,8 +8,7 @@ from app.features.planning.definitions import AGENT_DEFINITIONS as PLANNING_AGEN
 from app.features.findings.definitions import AGENT_DEFINITIONS as FINDING_AGENT_DEFINITIONS
 from app.features.reporting.definitions import AGENT_DEFINITIONS as REPORT_AGENT_DEFINITIONS
 from app.features.planning.canvas_templates import (
-    coverage_candidates, normalize_theme, theme_is_covered,
-    risk_catalog, risk_templates, test_catalog, test_templates,
+    risk_templates, test_templates,
     workstream_templates, objective_templates,
 )
 
@@ -17,9 +16,7 @@ from app.llm.json_utils import parse_or_warn
 from app.features.reporting.demo import demo_report
 from app.config import settings
 from app.features.findings.agent import FindingAgent
-from app.features.reporting.normalization import (
-    report_from_agent_data, _report_has_content, _first_text, _text_list, _report_sections,
-)
+from app.features.reporting.normalization import report_from_agent_data
 from app.context.context_pack_builder import context_pack_builder
 from app.context.policy import PLANNING_AGENT_TYPES
 from app.context.models import ContextPack, ContextPreviewRequest
@@ -39,14 +36,12 @@ from app.models import (
     MapState,
     NodeUpdateRequest,
     Objective,
-    ReportState,
     Risk,
     Test,
     Workstream,
     utc_now,
 )
 from app.services.audit_map_service import SECTION_PADDING, anchored_fieldwork_section_layouts, audit_map_service
-from app.services.audit_graph_service import audit_graph_service
 from app.services.agent_run_log_service import agent_run_log_service
 from app.store.project_store import project_store
 
@@ -758,7 +753,7 @@ class AgentService:
                     context_pack,
                     capture,
                 )
-                report = self._report_from_agent_data(data)
+                report = report_from_agent_data(data)
             project_store.save_report(project_id, report)
             add_custom_edge(map_state, agent.id, "report-main")
             return {"report": 1}
@@ -891,156 +886,6 @@ class AgentService:
         )
         return "\n".join(lines)
 
-    def _report_from_agent_data(self, data: dict) -> ReportState:
-        return report_from_agent_data(data)
-
-    def _report_has_content(self, report: ReportState) -> bool:
-        return _report_has_content(report)
-
-    def _first_text(self, data: dict, keys: list[str]) -> str:
-        return _first_text(data, keys)
-
-    def _text_list(self, value: object) -> list[str]:
-        return _text_list(value)
-
-    def _report_sections(self, value: object) -> list[dict]:
-        return _report_sections(value)
-
-    def _node_context(self, project_id: str, node_id: str) -> dict:
-        audit = project_store.get_project(project_id)
-        if audit.id == node_id:
-            return {"id": audit.id, "type": "audit", "data": self._compact_audit_context(audit)}
-
-        planning = project_store.load_planning(project_id)
-        for workstream in planning.workstreams:
-            if workstream.id == node_id:
-                return {"id": workstream.id, "type": "workstream", "data": self._compact_workstream_context(workstream)}
-            for objective in workstream.objectives:
-                if objective.id == node_id:
-                    return {
-                        "id": objective.id,
-                        "type": "objective",
-                        "workstream": self._compact_workstream_context(workstream),
-                        "data": self._compact_objective_context(objective),
-                    }
-                for risk in objective.risks:
-                    if risk.id == node_id:
-                        return {
-                            "id": risk.id,
-                            "type": "risk",
-                            "workstream": self._compact_workstream_context(workstream),
-                            "objective": self._compact_objective_context(objective),
-                            "data": self._compact_risk_context(risk),
-                        }
-                    for test in risk.tests:
-                        if test.id == node_id:
-                            return {
-                                "id": test.id,
-                                "type": "test",
-                                "workstream": self._compact_workstream_context(workstream),
-                                "objective": self._compact_objective_context(objective),
-                                "risk": self._compact_risk_context(risk),
-                                "data": self._compact_test_context(test),
-                            }
-
-        fieldwork = project_store.load_fieldwork(project_id)
-        for item in fieldwork.items:
-            if item.id == node_id:
-                return {"id": item.id, "type": "fieldwork_item", "data": self._compact_fieldwork_context(item)}
-
-        findings = project_store.load_findings(project_id)
-        for finding in findings.findings:
-            if finding.id == node_id:
-                return {"id": finding.id, "type": "finding", "data": self._compact_finding_context(finding)}
-
-        return {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}
-
-    def _compact_audit_context(self, audit: Any) -> dict[str, Any]:
-        return {
-            "id": audit.id,
-            "title": audit.title,
-            "description": audit.description,
-            "process_area": audit.process_area,
-            "initial_concern": audit.initial_concern,
-            "extra_context": audit.extra_context,
-            "status": audit.status,
-        }
-
-    def _compact_workstream_context(self, workstream: Workstream) -> dict[str, Any]:
-        return {
-            "id": workstream.id,
-            "name": workstream.name,
-            "description": workstream.description,
-            "rationale": workstream.rationale,
-            "status": workstream.status,
-            "objectives_count": len(workstream.objectives),
-        }
-
-    def _compact_objective_context(self, objective: Objective) -> dict[str, Any]:
-        return {
-            "id": objective.id,
-            "title": objective.title,
-            "description": objective.description,
-            "scope_notes": objective.scope_notes,
-            "rationale": objective.rationale,
-            "status": objective.status,
-            "risks_count": len(objective.risks),
-        }
-
-    def _compact_risk_context(self, risk: Risk) -> dict[str, Any]:
-        return {
-            "id": risk.id,
-            "title": risk.title,
-            "description": risk.description,
-            "why_it_matters": risk.why_it_matters,
-            "potential_impact": risk.potential_impact,
-            "severity": risk.severity,
-            "status": risk.status,
-            "tests_count": len(risk.tests),
-        }
-
-    def _compact_test_context(self, test: Test) -> dict[str, Any]:
-        return {
-            "id": test.id,
-            "title": test.title,
-            "test_type": test.test_type,
-            "test_objective": test.test_objective,
-            "description": test.description,
-            "expected_evidence": test.expected_evidence,
-            "sample_considerations": test.sample_considerations,
-            "status": test.status,
-        }
-
-    def _compact_fieldwork_context(self, item: Any) -> dict[str, Any]:
-        return {
-            "id": item.id,
-            "test_id": item.test_id,
-            "source_test_id": item.source_test_id,
-            "title": item.title,
-            "test_type": item.test_type,
-            "description": item.description,
-            "expected_evidence": item.expected_evidence,
-            "status": item.status,
-            "notes": item.notes,
-            "evidence_placeholder": item.evidence_placeholder,
-            "findings_count": len(item.finding_ids),
-        }
-
-    def _compact_finding_context(self, finding: Any) -> dict[str, Any]:
-        return {
-            "id": finding.id,
-            "title": finding.title,
-            "issue": finding.issue,
-            "criteria": finding.criteria,
-            "root_cause": finding.root_cause,
-            "impact": finding.impact,
-            "recommendation": finding.recommendation,
-            "management_action": finding.management_action,
-            "severity": finding.severity,
-            "linked_fieldwork_item_id": finding.linked_fieldwork_item_id,
-            "status": finding.status,
-        }
-
     def _audit_ref(self, audit: Any) -> dict[str, Any]:
         return {"id": audit.id, "type": "audit", "title": audit.title}
 
@@ -1052,51 +897,6 @@ class AgentService:
 
     def _risk_ref(self, risk: Risk) -> dict[str, Any]:
         return {"id": risk.id, "type": "risk", "title": risk.title}
-
-    def _test_ref(self, test: Test) -> dict[str, Any]:
-        return {"id": test.id, "type": "test", "title": test.title}
-
-    def _node_task_reference(self, project_id: str, node_id: str) -> dict[str, Any]:
-        audit = project_store.get_project(project_id)
-        if audit.id == node_id:
-            return {"item": self._audit_ref(audit), "parent_hierarchy": []}
-
-        planning = project_store.load_planning(project_id)
-        for workstream in planning.workstreams:
-            if workstream.id == node_id:
-                return {"item": self._workstream_ref(workstream), "parent_hierarchy": [self._audit_ref(audit)]}
-            for objective in workstream.objectives:
-                if objective.id == node_id:
-                    return {"item": self._objective_ref(objective), "parent_hierarchy": [self._audit_ref(audit), self._workstream_ref(workstream)]}
-                for risk in objective.risks:
-                    if risk.id == node_id:
-                        return {
-                            "item": self._risk_ref(risk),
-                            "parent_hierarchy": [self._audit_ref(audit), self._workstream_ref(workstream), self._objective_ref(objective)],
-                        }
-                    for test in risk.tests:
-                        if test.id == node_id:
-                            return {
-                                "item": self._test_ref(test),
-                                "parent_hierarchy": [
-                                    self._audit_ref(audit),
-                                    self._workstream_ref(workstream),
-                                    self._objective_ref(objective),
-                                    self._risk_ref(risk),
-                                ],
-                            }
-
-        graph_item = audit_graph_service.get_item(project_id, node_id)
-        if graph_item:
-            return {
-                "item": {
-                    "id": graph_item.get("id"),
-                    "type": graph_item.get("type"),
-                    "title": graph_item.get("title"),
-                },
-                "parent_hierarchy": [],
-            }
-        return {"item": {"id": node_id, "type": "unknown", "title": self._node_title(project_id, node_id)}, "parent_hierarchy": []}
 
     async def _run_workstream_generator(self, project_id: str, map_state: MapState, agent: AgentState, input_node_ids: list[str], context_pack: ContextPack, capture: dict[str, Any]) -> dict:
         audit = project_store.get_project(project_id)
