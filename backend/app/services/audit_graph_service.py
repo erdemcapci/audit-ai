@@ -76,13 +76,6 @@ class AuditGraph:
     items: dict[str, AuditGraphItem] = field(default_factory=dict)
     relationships: list[AuditRelationship] = field(default_factory=list)
 
-    def item_dicts(self) -> list[dict[str, Any]]:
-        return [item.to_dict() for item in self.items.values()]
-
-    def relationship_dicts(self) -> list[dict[str, Any]]:
-        return [relationship.to_dict() for relationship in self.relationships]
-
-
 class AuditGraphService:
     """Builds and queries a storage-agnostic graph view of an audit project."""
 
@@ -195,15 +188,6 @@ class AuditGraphService:
 
         return graph
 
-    def get_item(self, project: str | AuditGraph, item_id: str) -> dict[str, Any] | None:
-        graph = self._ensure_graph(project)
-        item = graph.items.get(item_id)
-        return item.to_dict() if item else None
-
-    def get_items_by_type(self, project: str | AuditGraph, item_type: str) -> list[dict[str, Any]]:
-        graph = self._ensure_graph(project)
-        return [item.to_dict() for item in graph.items.values() if item.type == item_type]
-
     def get_related_items(
         self,
         project: str | AuditGraph,
@@ -261,44 +245,6 @@ class AuditGraphService:
         exclude_item_types: set[str] | list[str] | None = None,
     ) -> list[dict[str, Any]]:
         return self.get_related_items(project, item_id, depth=depth, direction="upstream", relationship_types=relationship_types, exclude_item_types=exclude_item_types)
-
-    def get_downstream_items(
-        self,
-        project: str | AuditGraph,
-        item_id: str,
-        depth: int = 1,
-        relationship_types: list[str] | set[str] | None = None,
-        exclude_item_types: set[str] | list[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        return self.get_related_items(project, item_id, depth=depth, direction="downstream", relationship_types=relationship_types, exclude_item_types=exclude_item_types)
-
-    def get_audit_chain(self, project: str | AuditGraph, item_id: str, depth: int = 3) -> dict[str, Any]:
-        graph = self._ensure_graph(project)
-        return {
-            "item": graph.items[item_id].to_dict() if item_id in graph.items else None,
-            "related_items": self.get_related_items(graph, item_id, depth=depth, direction="both", exclude_item_types={"agent"}),
-        }
-
-    def get_items_by_phase(self, project: str | AuditGraph, phase: str) -> list[dict[str, Any]]:
-        graph = self._ensure_graph(project)
-        return [item.to_dict() for item in graph.items.values() if item.phase == phase]
-
-    def get_items_by_workstream(self, project: str | AuditGraph, workstream: str | dict[str, Any]) -> list[dict[str, Any]]:
-        graph = self._ensure_graph(project)
-        workstream_id = workstream.get("id") if isinstance(workstream, dict) else workstream
-        if not workstream_id or workstream_id not in graph.items:
-            return []
-        items = [graph.items[workstream_id].to_dict()]
-        related = self.get_related_items(
-            graph,
-            workstream_id,
-            depth=6,
-            direction="downstream",
-            relationship_types=DEFAULT_CONTEXT_RELATIONSHIPS,
-            exclude_item_types={"agent"},
-        )
-        items.extend(entry["item"] for entry in related)
-        return items
 
     def get_relationship_gaps(self, project: str | AuditGraph) -> list[dict[str, Any]]:
         graph = self._ensure_graph(project)
@@ -381,19 +327,6 @@ class AuditGraphService:
             "findings": findings,
             "report_sections": self._report_sections_for_findings(graph, findings),
         }
-
-    def get_traceability_chain(self, project: str | AuditGraph, item_id: str) -> dict[str, Any]:
-        graph = self._ensure_graph(project)
-        item = graph.items.get(item_id)
-        if not item:
-            return {"item": None, "related_items": []}
-        if item.type == "objective":
-            return self.get_objective_chain(graph, item_id)
-        if item.type == "risk":
-            return self.get_risk_chain(graph, item_id)
-        if item.type == "test":
-            return self.get_test_chain(graph, item_id)
-        return self.get_audit_chain(graph, item_id)
 
     def get_existing_outputs_for_agent(self, project: str | AuditGraph, agent_type: str, input_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
         graph = self._ensure_graph(project)

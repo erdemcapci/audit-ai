@@ -137,6 +137,9 @@ npm run dev
 
 The local frontend dev server also defaults to `127.0.0.1`. Set `VITE_DEV_HOST=0.0.0.0` only when you intentionally need access from another device or container.
 
+For code ownership, dependency rules, prompt locations and regression checks, see
+the [architecture guide](docs/architecture.md).
+
 ## Privacy
 
 - Your data is stored locally in the `projects` directory.

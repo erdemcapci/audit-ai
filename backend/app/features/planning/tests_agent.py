@@ -1,9 +1,9 @@
 import json
 
-from app.agents.demo_data import demo_tests
+from app.features.planning.demo import demo_tests
 from app.agents.context_utils import compact_audit, compact_planning
-from app.agents.json_utils import parse_or_warn
-from app.agents.prompts import SYSTEM_PROMPT, TESTS_PROMPT
+from app.llm.json_utils import parse_or_warn
+from app.features.planning.prompts import SYSTEM_PROMPT, TESTS_PROMPT
 from app.config import settings
 from app.llm.router import get_llm_provider
 from app.models import AuditProject, PlanningState, Test

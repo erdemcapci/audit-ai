@@ -4,7 +4,7 @@ import type { Node } from "@xyflow/react";
 import { agentsApi } from "../api/agentsApi";
 import { fieldworkApi } from "../api/fieldworkApi";
 import { findingsApi } from "../api/findingsApi";
-import { planningApi } from "../api/planningApi";
+import { planningApi } from "../features/planning/api";
 import { projectsApi } from "../api/projectsApi";
 import { reportsApi } from "../api/reportsApi";
 import type { RuntimeSettings } from "../api/settingsApi";
@@ -32,7 +32,7 @@ import type {
   PlanningState,
   ReportState
 } from "../types";
-import { PlanningScreen } from "./PlanningScreen";
+import { PlanningScreen } from "../features/planning/PlanningScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 

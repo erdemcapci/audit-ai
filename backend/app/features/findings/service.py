@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from app.agents.finding_agent import FindingAgent
+from app.features.findings.agent import FindingAgent
 from app.llm.base import LLMProviderError
 from app.models import Finding, FindingDraftRequest
 from app.store.project_store import project_store

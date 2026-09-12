@@ -1,8 +1,8 @@
 from fastapi import HTTPException
 
-from app.agents.objectives_agent import ObjectivesAgent
-from app.agents.risks_agent import RisksAgent
-from app.agents.tests_agent import TestsAgent
+from app.features.planning.objectives_agent import ObjectivesAgent
+from app.features.planning.risks_agent import RisksAgent
+from app.features.planning.tests_agent import TestsAgent
 from app.llm.base import LLMProviderError
 from app.models import PlanningState
 from app.store.project_store import project_store

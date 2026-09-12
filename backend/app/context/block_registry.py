@@ -35,6 +35,3 @@ class ContextBlockRegistry:
 
     def get(self, block_id: str) -> ContextBlockProvider | None:
         return self._providers.get(block_id)
-
-    def list_block_ids(self) -> list[str]:
-        return sorted(self._providers)

@@ -19,7 +19,7 @@ from app.models import (
     Test,
     Workstream,
 )
-from app.services.planning_readiness_service import planning_readiness_service
+from app.features.planning_readiness.service import planning_readiness_service
 from app.store.file_store import FileStore
 from app.store.project_store import project_store
 

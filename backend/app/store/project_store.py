@@ -9,11 +9,11 @@ from app.models import (
     FindingsState,
     MapState,
     PlanningState,
-    PlanningReadinessState,
     ReportState,
     default_phase_layouts,
     utc_now,
 )
+from app.features.planning_readiness.models import PlanningReadinessState
 from app.store.file_store import FileStore
 
 

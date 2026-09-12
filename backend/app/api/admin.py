@@ -28,9 +28,9 @@ from app.runtime import (
 )
 from app.services.audit_map_service import audit_map_service
 from app.services.fieldwork_service import fieldwork_service
-from app.services.finding_service import finding_service
-from app.services.planning_service import planning_service
-from app.services.report_service import report_service
+from app.features.findings.service import finding_service
+from app.features.planning.service import planning_service
+from app.features.reporting.service import report_service
 from app.store.project_store import project_store
 
 

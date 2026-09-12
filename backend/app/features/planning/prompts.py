@@ -1,6 +1,4 @@
-SYSTEM_PROMPT = """You are an internal audit planning assistant.
-Return valid JSON only. Do not include markdown, comments, or explanatory prose.
-Use practical internal audit language, avoid generic consulting phrases, and keep outputs concise enough for a working auditor to edit."""
+from app.agents.prompt_defaults import SYSTEM_PROMPT
 
 
 OBJECTIVES_PROMPT = """Create audit workstreams and objectives for this audit.
@@ -68,41 +66,4 @@ Return this JSON shape:
 }
 Audit, objectives, and risks:
 {planning_context}
-"""
-
-
-FINDING_PROMPT = """Draft a structured internal audit finding from the rough description.
-Return this JSON shape:
-{
-  "title": "...",
-  "issue": "...",
-  "criteria": "...",
-  "root_cause": "...",
-  "impact": "...",
-  "recommendation": "...",
-  "management_action": "...",
-  "severity": "Low|Medium|High",
-  "evidence_needed": ["..."],
-  "validation_questions": ["..."]
-}
-Input:
-{finding_context}
-"""
-
-
-REPORT_PROMPT = """Generate reporting content from the audit planning, fieldwork, and findings.
-Return this JSON shape:
-{
-  "executive_summary": "...",
-  "audit_conclusion": "...",
-  "key_themes": ["..."],
-  "issue_summary": "...",
-  "management_attention_points": ["..."],
-  "draft_report_structure": [
-    {"heading": "...", "content": "..."}
-  ],
-  "ai_improved_version": "..."
-}
-Audit materials:
-{report_context}
 """

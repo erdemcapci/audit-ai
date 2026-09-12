@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from app.agents.report_agent import ReportAgent
+from app.features.reporting.agent import ReportAgent
 from app.llm.base import LLMProviderError
 from app.models import ReportState
 from app.store.project_store import project_store

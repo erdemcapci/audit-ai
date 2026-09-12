@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from app.models import Finding, FindingDraftRequest, FindingsState
 from app.runtime import ensure_agent_execution_allowed, ensure_project_write_allowed
-from app.services.finding_service import finding_service
+from app.features.findings.service import finding_service
 from app.store.project_store import project_store
 
 
