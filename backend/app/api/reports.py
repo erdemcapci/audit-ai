@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, Response
 
 from app.models import ReportState
 from app.runtime import ensure_agent_execution_allowed, ensure_project_write_allowed
-from app.services.export_service import export_service
-from app.services.report_service import report_service
+from app.features.reporting.export import export_service
+from app.features.reporting.service import report_service
 from app.store.project_store import project_store
 
 

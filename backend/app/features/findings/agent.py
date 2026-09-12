@@ -1,9 +1,9 @@
 import json
 
-from app.agents.demo_data import demo_finding
+from app.features.findings.demo import demo_finding
 from app.agents.context_utils import compact_audit
-from app.agents.json_utils import parse_or_warn
-from app.agents.prompts import FINDING_PROMPT, SYSTEM_PROMPT
+from app.llm.json_utils import parse_or_warn
+from app.features.findings.prompts import FINDING_PROMPT, SYSTEM_PROMPT
 from app.config import settings
 from app.context.models import ContextPack
 from app.llm.router import get_llm_provider

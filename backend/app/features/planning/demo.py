@@ -1,13 +1,4 @@
-from app.models import (
-    FieldworkItem,
-    Finding,
-    Objective,
-    PlanningState,
-    ReportState,
-    Risk,
-    Test,
-    Workstream,
-)
+from app.models import Objective, PlanningState, Risk, Test, Workstream
 
 
 def _topic(title: str) -> str:
@@ -116,66 +107,3 @@ def demo_tests(planning: PlanningState) -> PlanningState:
                 index += 1
     planning.stage = "tests_generated"
     return planning
-
-
-def demo_finding(raw_description: str, fieldwork_item: FieldworkItem | None = None) -> Finding:
-    title = "Control exception requires management attention"
-    if fieldwork_item:
-        title = f"Exception noted in {fieldwork_item.title}"
-    observation = raw_description.strip() or "Testing identified a control exception requiring follow-up."
-    issue = (
-        "Fieldwork identified a control exception that indicates the related process may not be operating consistently. "
-        f"Based on the auditor's observation, the condition to validate is: {observation}"
-    )
-    return Finding(
-        title=title,
-        raw_description=raw_description,
-        issue=issue,
-        criteria="Management procedures and control expectations require consistent approval, evidence retention, and timely exception resolution.",
-        root_cause="Ownership, system enforcement, or evidence retention expectations may not be sufficiently clear.",
-        impact="The exception may increase the risk of unauthorized activity, inaccurate processing, or delayed detection.",
-        recommendation="Clarify ownership, reinforce required evidence, and monitor exceptions until the control operates consistently.",
-        management_action="Management should review the exception, confirm root cause, and document a corrective action owner and target date.",
-        severity="Medium",
-        evidence_needed=["Population and sample support", "Approval or review evidence", "Management explanation for exception"],
-        validation_questions=["Is this exception isolated or recurring?", "Was compensating review performed?", "Who owns remediation?"],
-        linked_fieldwork_item_id=fieldwork_item.id if fieldwork_item else None,
-    )
-
-
-def demo_report() -> ReportState:
-    executive_summary = "The audit identified generally understood process ownership with opportunities to strengthen control evidence, exception tracking, and management visibility."
-    audit_conclusion = "Controls appear directionally appropriate, but selected areas require remediation before management can rely on consistent operation."
-    issue_summary = "Findings noted during fieldwork should be validated with process owners and prioritized by severity."
-    draft_structure = [
-        {"heading": "Background", "content": "Summary of audit scope and process context."},
-        {"heading": "Scope and Approach", "content": "Planning, evidence review, and selected testing."},
-        {"heading": "Findings", "content": "Detailed issues, impact, and recommendations."},
-        {"heading": "Conclusion", "content": "Overall control assessment and management next steps."},
-    ]
-    return ReportState(
-        executive_summary=executive_summary,
-        audit_conclusion=audit_conclusion,
-        key_themes=["Evidence retention should be more consistent.", "Exception ownership should be clearer.", "System reports can improve monitoring."],
-        issue_summary=issue_summary,
-        management_attention_points=["Confirm accountable owners.", "Agree remediation dates.", "Track open exceptions through closure."],
-        draft_report_structure=draft_structure,
-        ai_improved_version="The audit indicates a workable control framework with targeted improvements needed around documentation, exception handling, and accountability.",
-        draft_markdown=(
-            "# Draft Audit Report\n\n"
-            "## Executive Summary\n"
-            f"{executive_summary}\n\n"
-            "## Audit Conclusion\n"
-            f"{audit_conclusion}\n\n"
-            "## Key Themes\n"
-            "- Evidence retention should be more consistent.\n"
-            "- Exception ownership should be clearer.\n"
-            "- System reports can improve monitoring.\n\n"
-            "## Issue Summary\n"
-            f"{issue_summary}\n\n"
-            "## Management Attention Points\n"
-            "- Confirm accountable owners.\n"
-            "- Agree remediation dates.\n"
-            "- Track open exceptions through closure.\n"
-        ),
-    )
