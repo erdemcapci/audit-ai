@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.services.agent_service import agent_service
-from app.services.planning_readiness_service import planning_readiness_service
+from app.features.reporting.normalization import report_from_agent_data
+from app.features.planning_readiness.service import planning_readiness_service
 from app.store.file_store import FileStore
 from app.store.project_store import project_store
 
@@ -131,11 +131,11 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(project_store.load_planning_readiness(self.project_id).latest_successful_ai_review, original_review)
 
     def test_report_normalization_aliases_markdown_and_empty_output(self):
-        report = agent_service._report_from_agent_data({"summary": " Summary ", "themes": "Theme", "sections": [{"title": "Results", "body": "Detail"}, "Follow up"]})
+        report = report_from_agent_data({"summary": " Summary ", "themes": "Theme", "sections": [{"title": "Results", "body": "Detail"}, "Follow up"]})
         self.assertEqual(report.executive_summary, "Summary")
         self.assertEqual(report.key_themes, ["Theme"])
         self.assertEqual(report.draft_report_structure, [{"heading": "Results", "content": "Detail"}, {"heading": "Section 2", "content": "Follow up"}])
         self.assertIn("### Results\nDetail", report.draft_markdown)
-        self.assertEqual(agent_service._report_from_agent_data({"markdown": "# Explicit report"}).draft_markdown, "# Explicit report")
+        self.assertEqual(report_from_agent_data({"markdown": "# Explicit report"}).draft_markdown, "# Explicit report")
         with self.assertRaisesRegex(ValueError, "empty draft report"):
-            agent_service._report_from_agent_data({})
+            report_from_agent_data({})

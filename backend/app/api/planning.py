@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Request
 
-from app.models import PlanningReadinessResponse, PlanningState
+from app.models import (
+    PlanningState,
+)
+from app.features.planning_readiness.models import PlanningReadinessResponse
 from app.runtime import ensure_agent_execution_allowed, ensure_project_write_allowed
 from app.features.planning_readiness.service import planning_readiness_service
 from app.features.planning.service import planning_service

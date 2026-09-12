@@ -81,16 +81,6 @@ export type PlanningState = {
   open_questions: string[];
 };
 
-// Compatibility exports for existing consumers.
-export type {
-  PlanningReadinessSeverity,
-  PlanningReadinessFinding,
-  PlanningReadinessComponent,
-  PlanningAIReviewFinding,
-  PlanningAIReviewResult,
-  PlanningReadinessResponse,
-} from "./features/planning-readiness/types";
-
 export type FieldworkItem = {
   id: string;
   test_id: string;

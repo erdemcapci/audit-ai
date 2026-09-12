@@ -1,9 +1,7 @@
 # Application architecture
 
 Assurenodia is a FastAPI/React application with local JSON project storage. This
-guide describes existing code, not a roadmap of future product modules. The
-[assessment and cleanup decisions](architecture/review-and-cleanup.md) explain
-the scope and deliberately deferred changes.
+guide describes existing code, not a roadmap of future product modules.
 
 ## Ownership
 
@@ -21,7 +19,7 @@ the scope and deliberately deferred changes.
 | `llm/` | Domain-agnostic provider interfaces/clients, provider selection and JSON response extraction. |
 | `config.py`, `runtime.py` | Existing environment configuration and hosted/local access policy. |
 | `store/file_store.py`, `time_utils.py` | Generic file I/O and UTC timestamp formatting. |
-| `store/project_store.py`, `models.py` | Audit-wide persistence coordination and shared audit contracts, with compatibility exports for readiness schemas. |
+| `store/project_store.py`, `models.py` | Audit-wide persistence coordination and shared audit contracts. |
 | `services/agent_run_log_service.py` | Current audit-agent execution logging and retention/policy support. |
 
 The phase AI endpoints and configurable canvas agents are distinct existing
@@ -57,12 +55,14 @@ framework or speculative frontend module system was introduced.
 - Readiness schemas import only Pydantic, typing and the common timestamp helper.
   They must not import the global `models.py` facade or project storage, which
   would introduce a cycle.
-- Old `app.agents.*`, moved `app.services.*`, the planning screen/API entry points
-  and readiness exports in the global model/type files are compatibility facades.
-  Existing consumers still receive the same objects. New application imports
-  should use the capability's implementation path. Do not add business logic to
-  the facades. They preserve named imports, not arbitrary monkeypatching of former
-  module globals; patch a dependency in its owning implementation module.
+- The old `app.agents.*` and `app.services.*_service.py` compatibility modules,
+  the frontend `screens/PlanningScreen.tsx` facade, and the readiness re-exports
+  in the global model/type files were removed once no application code imported
+  them anymore. `frontend/src/api/planningApi.ts` remains as a thin re-export of
+  `features/planning/api.ts`: `frontend/tests/planning-readiness.test.mjs` still
+  imports it directly to assert old and new call sites resolve to the same
+  function. Do not add business logic to a facade like this; if you remove its
+  last consumer (including test consumers), remove the facade too.
 
 ## Prompts and AI execution
 
@@ -96,13 +96,23 @@ especially when deleting outputs or altering planning/fieldwork/finding links.
 
 ## Intentional hidden functionality
 
-Audit Planning Readiness remains implemented end to end. The original planning
-router registers both readiness routes; `ProjectStore` still creates, loads and
-saves `planning_readiness.json`, including the missing-file fallback. Scoring,
-weights, review/error history, stale detection, schemas, prompts, configuration,
-provider dependencies, frontend actions and CSS remain intact.
-`SHOW_AUDIT_PLAN_PAGE = false` still controls navigation visibility. Do not remove
-the page or its dependencies because it is hidden.
+Audit Planning Readiness remains implemented end to end. The planning router
+registers both readiness routes:
+
+```text
+GET  /api/projects/{project_id}/planning/readiness
+POST /api/projects/{project_id}/planning/readiness/ai-review
+```
+
+The GET route computes deterministic readiness and returns the latest saved AI
+review or error; the POST route runs (or demo-simulates) a new AI review,
+detects staleness from the plan fingerprint, and persists the result.
+`ProjectStore` still creates, loads and saves `planning_readiness.json`,
+including the missing-file fallback. Scoring, weights, review/error history,
+stale detection, schemas, prompts, configuration, provider dependencies,
+frontend actions and CSS remain intact. `SHOW_AUDIT_PLAN_PAGE = false` still
+controls navigation visibility. Do not remove the page or its dependencies
+because it is hidden.
 
 ## Validation
 

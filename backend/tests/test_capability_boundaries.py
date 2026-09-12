@@ -11,13 +11,12 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import models
-from app.agents import json_utils as legacy_json
 from app.features.planning_readiness import models as readiness_models
 from app.features.planning_readiness import service as readiness
 from app.features.planning_readiness.prompts import build_review_prompts
 from app.llm.base import LLMResponse
 from app.llm.json_utils import parse_or_warn
-from app.services.planning_readiness_service import planning_readiness_service
+from app.features.planning_readiness.service import planning_readiness_service
 
 
 class CapabilityBoundaryTests(unittest.IsolatedAsyncioTestCase):
@@ -41,12 +40,6 @@ class CapabilityBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, [(fixture["system_prompt"], fixture["user_prompt"], fixture["json_mode"])])
         self.assertEqual((result.score, result.provider, result.model, result.plan_fingerprint), (75, "fake", "fake-model", "fingerprint"))
         self.assertEqual(result.executive_summary, "Review complete")
-
-    def test_legacy_imports_share_the_same_models_service_and_parser(self):
-        self.assertIs(models.PlanningReadinessState, readiness_models.PlanningReadinessState)
-        self.assertIs(models.PlanningReadinessResponse, readiness_models.PlanningReadinessResponse)
-        self.assertIs(planning_readiness_service, readiness.planning_readiness_service)
-        self.assertIs(legacy_json.parse_or_warn, parse_or_warn)
 
     def test_json_parser_preserves_fenced_prose_and_failure_behavior(self):
         for text in ['{"score": 2}', '```json\n{"score": 2}\n```', 'Result: {"score": 2} done']:
