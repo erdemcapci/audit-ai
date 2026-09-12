@@ -29,9 +29,13 @@ function IssueCard({ issue, artifactLabels, onOpenArtifact }: {
     {issue.branch ? <small>{issue.branch}</small> : null}
     <div className="readiness-action"><strong>Recommended improvement</strong><p>{issue.action || "Review the affected area and agree the next action with the audit team."}</p></div>
     <div className="readiness-artifacts">
-      {issue.artifactIds.length ? [...new Set(issue.artifactIds)].map((id, index) => {
+      {issue.artifactIds.length ? [...new Set(issue.artifactIds)].map((id) => {
         const available = Object.prototype.hasOwnProperty.call(artifactLabels, id);
-        const label = artifactLabels[id] || issue.artifactNames[index] || id;
+        const name = issue.artifactNames[issue.artifactIds.indexOf(id)] || artifactLabels[id] || "";
+        // API display names are normalized against the plan. Never fall back to
+        // an internal ID, including unnamed or no-longer-available map cards.
+        const label = name && name !== id && !/(?:audit|ws|obj|risk|test|agent|fw|finding|node|artifact)_[0-9a-fA-F]{10,32}/.test(name)
+          ? name : "Affected audit-plan card";
         return onOpenArtifact ? <Button key={id} variant="ghost" disabled={!available}
           title={available ? "Open and focus this audit-plan card" : "This card is not in the current audit plan"}
           onClick={() => onOpenArtifact(id)}>View {label}</Button> : <span key={id}>{label}</span>;

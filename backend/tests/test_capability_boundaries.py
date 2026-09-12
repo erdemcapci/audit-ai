@@ -20,13 +20,19 @@ from app.features.planning_readiness.service import planning_readiness_service
 
 
 class CapabilityBoundaryTests(unittest.IsolatedAsyncioTestCase):
-    async def test_readiness_provider_request_matches_original_prompt_and_contract(self):
-        # Captured from public/main before moving the inline prompt renderer.
+    async def test_readiness_provider_request_uses_display_labels_and_preserves_contract(self):
+        # Explicitly updated for the human-readable readiness prompt contract.
         fixture = json.loads((Path(__file__).parent / "fixtures/planning_review_prompt.json").read_text())
         audit = models.AuditProject.model_validate(fixture["audit"])
         planning = models.PlanningState.model_validate(fixture["planning"])
         deterministic = readiness_models.PlanningReadinessComponent.model_validate(fixture["deterministic"])
         self.assertEqual(build_review_prompts(audit, planning, deterministic), (fixture["system_prompt"], fixture["user_prompt"]))
+        system, user = build_review_prompts(audit, planning, deterministic)
+        self.assertIn("internal references belong only in affected_artifact_ids", system)
+        self.assertIn("Artifact Reference Catalog", user)
+        self.assertIn('"internal_reference"', user)
+        self.assertIn('"display_label"', user)
+        self.assertNotIn("reference artifact IDs where practical", user)
         calls = []
 
         class Provider:

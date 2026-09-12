@@ -111,3 +111,17 @@ test("readiness API preserves endpoints, methods, credentials and compatibility 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("artifact labels never fall back to internal IDs", () => {
+  const readiness = structuredClone(pending);
+  readiness.deterministic.findings[0].affected_artifact_ids = ["risk_2a66f67672", "obj_3665a6d198"];
+  readiness.deterministic.findings[0].affected_artifact_names = ["Approval risk", ""];
+  const html = renderToStaticMarkup(createElement(Panel, { ...scenarios.pending, readiness,
+    artifactLabels: { "risk_2a66f67672": "risk_2a66f67672", "obj_3665a6d198": "obj_3665a6d198" }, onOpenArtifact: () => {} }));
+  assert.match(html, /View Approval risk/);
+  assert.match(html, /View Affected audit-plan card/);
+  assert.doesNotMatch(html, /risk_2a66f67672|obj_3665a6d198/);
+  const unavailable = renderToStaticMarkup(createElement(Panel, { ...scenarios.pending, readiness, onOpenArtifact: () => {} }));
+  assert.doesNotMatch(unavailable, /risk_2a66f67672|obj_3665a6d198/);
+  assert.match(unavailable, /disabled=""/);
+});

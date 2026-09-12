@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import json
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -151,6 +153,112 @@ class PlanningReadinessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(review.critical_gaps[0].severity, "medium")
         self.assertEqual(review.critical_gaps[0].confidence, 0.7)
         self.assertEqual(review.critical_gaps[0].affected_artifact_ids, [])
+
+    async def test_readable_review_is_saved_without_changing_internal_references(self):
+        from app.features.planning_readiness import service as readiness_module
+        from app.llm.base import LLMResponse
+        from app.features.planning_readiness.display_text import TEXT_FIELDS, TEXT_LISTS
+        plan = self._complete_plan()
+        objective = plan.workstreams[0].objectives[0]
+        objective.id = "obj_3665a6d198"
+        risk = objective.risks[0]
+        risk.id = "risk_2a66f67672"
+        project_store.save_planning(self.project.id, plan)
+        settings.demo_mode = False
+        prose = "`obj_3665a6d198` should address risk_2a66f67672; test_ffffffff00 needs clarification."
+        data = {"score": 82, "executive_summary": prose, "strengths": [prose],
+                "dimension_scores": [{"dimension": prose, "score": 81, "explanation": prose}]}
+        groups = ["critical_gaps", "warnings", "duplication_findings", "contradiction_findings",
+                  "missing_coverage_findings", "improvement_opportunities", "prioritized_recommendations"]
+        for group in groups:
+            data[group] = [{"category": prose, "explanation": prose, "suggested_action": prose,
+                            "affected_artifact_ids": [objective.id, risk.id],
+                            "affected_artifact_names": [objective.id, risk.id], "affected_workstreams": ["ws_procure"]}]
+
+        class Provider:
+            async def generate(self, system_prompt, user_prompt, json_mode):
+                return LLMResponse(content=json.dumps(data), provider="fake", model="fake")
+
+        with patch.object(readiness_module, "get_llm_provider", return_value=Provider()):
+            result = await planning_readiness_service.run_ai_review(self.project.id)
+        saved = project_store.load_planning_readiness(self.project.id).latest_successful_ai_review
+        self.assertEqual(saved.score, 82)
+        self.assertEqual(saved.plan_fingerprint, result.plan_fingerprint)
+        for group in groups:
+            self.assertEqual(getattr(saved, group)[0].affected_artifact_ids, [objective.id, risk.id])
+            self.assertEqual(getattr(saved, group)[0].affected_artifact_names, [objective.title, risk.title])
+        self.assertIn("“Assess approval controls”", saved.executive_summary)
+        self.assertIn("“Unauthorized approval override”", saved.executive_summary)
+        self.assertIn("the referenced test", saved.executive_summary)
+        def assert_display_fields(item):
+            if isinstance(item, dict):
+                for key, value in item.items():
+                    if key in TEXT_FIELDS or key in TEXT_LISTS:
+                        self.assertNotRegex(str(value), r"(?:obj|risk|test|ws)_")
+                    else:
+                        assert_display_fields(value)
+            elif isinstance(item, list):
+                for value in item:
+                    assert_display_fields(value)
+        assert_display_fields(result.model_dump())
+        assert_display_fields(saved.model_dump())
+
+    def test_old_and_stale_reviews_are_readable_without_rewriting_persistence(self):
+        from app.features.planning_readiness.models import PlanningAIReviewResult, PlanningAIReviewFinding, PlanningAIReviewError
+        plan = self._complete_plan()
+        project_store.save_planning(self.project.id, plan)
+        state = project_store.load_planning_readiness(self.project.id)
+        state.latest_successful_ai_review = PlanningAIReviewResult(score=80, plan_fingerprint="old-plan",
+            executive_summary="obj_approval needs work; risk_deadbeef00 was removed.",
+            warnings=[PlanningAIReviewFinding(id="finding-internal", category="Coverage",
+                explanation="risk_deadbeef00 is duplicated by risk_override.",
+                affected_artifact_ids=["risk_deadbeef00"], affected_artifact_names=["Former approval risk"])])
+        state.latest_error = PlanningAIReviewError(error_message="Review failed for obj_approval")
+        project_store.save_planning_readiness(self.project.id, state)
+        original = state.model_dump()
+        result = planning_readiness_service.get_readiness(self.project.id)
+        self.assertTrue(result.ai_review.stale)
+        self.assertIsNone(result.overall_score)
+        self.assertIn("Assess approval controls", result.ai_review.executive_summary)
+        self.assertIn("Former approval risk", result.ai_review.executive_summary)
+        self.assertNotIn("obj_approval", result.ai_error.error_message)
+        self.assertEqual(result.ai_review.warnings[0].affected_artifact_ids, ["risk_deadbeef00"])
+        self.assertEqual(project_store.load_planning_readiness(self.project.id).model_dump(), original)
+
+    def test_deterministic_branches_and_invalid_edges_use_labels_with_missing_titles(self):
+        plan = self._complete_plan()
+        objective = plan.workstreams[0].objectives[0]
+        objective.title = ""
+        project_store.save_planning(self.project.id, plan)
+        project_store.save_map_state(self.project.id, MapState(edges=[FlowEdge(id="bad", source="risk_override", target="obj_approval")]))
+        result = planning_readiness_service.deterministic_readiness(self.project.id)
+        edge = next(item for item in result.findings if item.check_name == "Invalid planning relationship")
+        self.assertEqual(edge.affected_artifact_ids, ["risk_override", "obj_approval"])
+        self.assertEqual(edge.affected_artifact_names, ["Unauthorized approval override", objective.description])
+        missing = next(item for item in result.findings if item.check_name == "Objective title missing")
+        self.assertIn("Untitled objective", missing.branch)
+        self.assertEqual(missing.navigation.node_id, objective.id)
+        self.assertNotIn(objective.id, missing.branch)
+
+    def test_readable_labels_disambiguate_duplicates_and_preserve_ordinary_numbers(self):
+        from app.features.planning_readiness.display_text import artifact_catalog, readable_readiness
+        from app.features.planning_readiness.models import PlanningAIReviewResult
+        plan = self._complete_plan()
+        second = plan.workstreams[0].model_copy(deep=True)
+        second.id = "ws_second"
+        second.name = "Travel Documentation"
+        second.objectives[0].id = "obj_second"
+        second.objectives[0].risks[0].id = "risk_second"
+        second.objectives[0].risks[0].tests = []
+        plan.workstreams.append(second)
+        review = PlanningAIReviewResult(score=80, executive_summary="risk_override and risk_second duplicate coverage of ISO 27001 and FY2026 and invoice_1234567890; test_0123456789 is unavailable.")
+        result = readable_readiness(review, artifact_catalog(self.project, plan))
+        self.assertIn("Procurement Governance", result.executive_summary)
+        self.assertIn("Travel Documentation", result.executive_summary)
+        self.assertIn("ISO 27001 and FY2026 and invoice_1234567890", result.executive_summary)
+        self.assertNotRegex(result.executive_summary, r"risk_override|risk_second|test_0123456789")
+        self.assertEqual(readable_readiness(result, artifact_catalog(self.project, plan)), result)
+        self.assertIn("risk_override", review.executive_summary)
 
     def _complete_plan(self) -> PlanningState:
         test = Test(

@@ -23,6 +23,7 @@ from app.features.planning_readiness.models import (
     PlanningReadinessWeights,
 )
 from app.features.planning_readiness.prompts import build_review_prompts
+from app.features.planning_readiness.display_text import artifact_catalog, readable_readiness
 from app.store.project_store import project_store
 
 
@@ -78,7 +79,7 @@ class PlanningReadinessService:
         ai_review = state.latest_successful_ai_review
         if ai_review:
             ai_review = ai_review.model_copy(update={"stale": ai_review.plan_fingerprint != fingerprint})
-        return self._response(fingerprint, deterministic, ai_review, state.latest_error)
+        return self._readable_response(project_id, self._response(fingerprint, deterministic, ai_review, state.latest_error))
 
     async def run_ai_review(self, project_id: str) -> PlanningReadinessResponse:
         fingerprint = self.plan_fingerprint(project_id)
@@ -91,10 +92,11 @@ class PlanningReadinessService:
                 review = self._demo_ai_review(project_id, deterministic, fingerprint)
             else:
                 review = await self._llm_ai_review(project_id, deterministic, fingerprint)
+            review = readable_readiness(review, artifact_catalog(project_store.get_project(project_id), project_store.load_planning(project_id)))
             state.latest_successful_ai_review = review
             state.latest_error = None
             project_store.save_planning_readiness(project_id, state)
-            return self._response(fingerprint, deterministic, review, None)
+            return self._readable_response(project_id, self._response(fingerprint, deterministic, review, None))
         except Exception as exc:
             error = PlanningAIReviewError(error_message=str(exc), provider=provider, model=model)
             state.latest_error = error
@@ -102,7 +104,11 @@ class PlanningReadinessService:
             ai_review = state.latest_successful_ai_review
             if ai_review:
                 ai_review = ai_review.model_copy(update={"stale": ai_review.plan_fingerprint != fingerprint})
-            return self._response(fingerprint, deterministic, ai_review, error)
+            return self._readable_response(project_id, self._response(fingerprint, deterministic, ai_review, error))
+
+    def _readable_response(self, project_id: str, response: PlanningReadinessResponse) -> PlanningReadinessResponse:
+        # Normalize GET as well as POST: existing/stale saved reviews need no rerun.
+        return readable_readiness(response, artifact_catalog(project_store.get_project(project_id), project_store.load_planning(project_id)))
 
     def plan_fingerprint(self, project_id: str) -> str:
         audit = project_store.get_project(project_id)
@@ -165,7 +171,7 @@ class PlanningReadinessService:
         planning_ids = self._planning_ids(audit, planning)
 
         for workstream in planning.workstreams:
-            branch = workstream.name or workstream.id
+            branch = workstream.name or "Untitled workstream"
             title_groups["workstream"].append((workstream.id, workstream.name, "workstreamNode", branch))
             expected_parent_edges.add((audit.id, workstream.id))
             if not _meaningful(workstream.name):
@@ -175,7 +181,7 @@ class PlanningReadinessService:
             if not workstream.objectives:
                 add("Workstream without objectives", "Structure", "high", "A workstream has no objectives.", [(workstream.id, workstream.name, "workstreamNode")], branch, "Add at least one objective under this workstream.")
             for objective in workstream.objectives:
-                objective_branch = f"{branch} / {objective.title or objective.id}"
+                objective_branch = f"{branch} / {objective.title or 'Untitled objective'}"
                 title_groups["objective"].append((objective.id, objective.title, "objectiveNode", objective_branch))
                 expected_parent_edges.add((workstream.id, objective.id))
                 if not _meaningful(objective.title):
@@ -185,7 +191,7 @@ class PlanningReadinessService:
                 if not objective.risks:
                     add("Objective without risks", "Structure", "high", "An objective has no risks.", [(objective.id, objective.title, "objectiveNode")], objective_branch, "Generate or add risks linked to this objective.")
                 for risk in objective.risks:
-                    risk_branch = f"{objective_branch} / {risk.title or risk.id}"
+                    risk_branch = f"{objective_branch} / {risk.title or 'Untitled risk'}"
                     title_groups["risk"].append((risk.id, risk.title, "riskNode", risk_branch))
                     expected_parent_edges.add((objective.id, risk.id))
                     if not _meaningful(risk.title):
@@ -199,7 +205,7 @@ class PlanningReadinessService:
                     if not risk.tests:
                         add("Risk without tests", "Structure", "high", "A risk has no planned tests.", [(risk.id, risk.title, "riskNode")], risk_branch, "Add at least one test that addresses this risk.")
                     for test in risk.tests:
-                        test_branch = f"{risk_branch} / {test.title or test.id}"
+                        test_branch = f"{risk_branch} / {test.title or 'Untitled test'}"
                         title_groups["test"].append((test.id, test.title, "testNode", test_branch))
                         expected_parent_edges.add((risk.id, test.id))
                         if not _meaningful(test.title):
@@ -253,14 +259,14 @@ class PlanningReadinessService:
         else:
             status = "not_ready"
         summary = "No deterministic readiness issues found." if not findings else f"{len(findings)} deterministic issue{'s' if len(findings) != 1 else ''} found."
-        return PlanningReadinessComponent(
+        return readable_readiness(PlanningReadinessComponent(
             score=score,
             status=status,
             summary=summary,
             findings=findings,
             category_counts=dict(sorted(category_counts.items())),
             severity_counts=dict(sorted(severity_counts.items())),
-        )
+        ), artifact_catalog(audit, planning))
 
     def overall_score(self, deterministic_score: float, ai_score: float) -> float:
         return _clamp_score(deterministic_score * DETERMINISTIC_WEIGHT + _clamp_score(ai_score) * AI_WEIGHT)

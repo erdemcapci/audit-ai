@@ -74,7 +74,8 @@ not a framework for unknown capabilities.
 
 `agents/prompt_defaults.py` retains the existing audit-wide system instruction.
 It is deliberately audit-specific and is not part of provider infrastructure.
-Readiness has its own complete prompt renderer. Preserve prompt bytes, JSON
+Readiness has its own complete prompt renderer. Review intentional prompt changes
+with its provider-contract fixture; preserve JSON
 serialization, provider options and normalization behavior during structural work.
 Use `llm/router.py` for provider selection and `llm/json_utils.py` for the existing
 JSON extraction/warning behavior. Provider-specific HTTP code remains separate;
@@ -140,7 +141,8 @@ npm --prefix frontend run build
 The frontend tests use Node's test runner, React server rendering and the existing
 Vite dependencies. They cover management decisions, scoring boundaries, priority
 overrides, deduplication, stale/error states, links and API compatibility. The
-readiness prompt fixture was captured using a fake provider and remains unchanged.
+readiness prompt fixture is checked using a fake provider. It includes explicit
+internal-reference/display-label separation and a labeled artifact catalog.
 
 For browser hook lifecycle checks, run the frontend dev server and open
 `/tests/readiness-browser.html`. It runs 12 lifecycle assertions and 5 panel interaction assertions with mocked readiness API
@@ -155,3 +157,10 @@ isolated in-memory API: summary, finding navigation, unobscured viewport focus,
 card editing, stale/preliminary states and reruns. No audit data is read or written.
 Use real-time browser execution: accelerated virtual time can skip React Flow
 layout/animation frames and produce misleading viewport failures.
+
+Readiness narrative text is normalized in the backend using the plan's artifact
+catalog. New reviews are normalized before persistence; GET and failure responses
+also normalize old/current/stale reviews without migrating stored history. Only
+display fields change: artifact IDs, navigation, fingerprints, scores and severity
+remain intact. Unknown references use saved labels where reliable, otherwise a
+neutral artifact-type label. The frontend never uses a raw ID as a card label.
