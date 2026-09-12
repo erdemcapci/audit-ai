@@ -168,6 +168,7 @@ function clamp(value: number, min: number, max: number): number {
 
 // Leave room for the existing 400px inspector and its insets when opening
 // a readiness finding. Ordinary map fit and selection retain their behavior.
+const readinessGroupPadding = { top: "24px", bottom: "184px", left: "220px", right: "24px" } as const;
 const readinessFocusPadding = { top: "24px", bottom: "24px", left: "24px", right: "436px" } as const;
 
 function InnerCanvas({
@@ -340,7 +341,7 @@ function InnerCanvas({
     setEdges(nextEdges);
     window.requestAnimationFrame(() => {
       const { single, group } = readinessFocusRef.current;
-      reactFlow.fitView({ padding: single ? readinessFocusPadding : 0.16, duration: 250,
+      reactFlow.fitView({ padding: single ? readinessFocusPadding : group.length ? readinessGroupPadding : 0.16, duration: 250,
         nodes: single ? [{ id: single }] : group.length ? group.map((id) => ({ id })) : undefined,
         maxZoom: single || group.length ? 1 : undefined, minZoom: group.length ? 0.01 : undefined });
     });
@@ -364,6 +365,10 @@ function InnerCanvas({
       nodes.map((node) => ({
         ...node,
         selected: node.id === selectedNodeId,
+        style: { ...node.style, ...(focusNodeIds.includes(node.id) ? {
+          "--readiness-ring": `${3 / Math.max(viewport.zoom, 0.01)}px`,
+          "--readiness-ring-offset": `${3 / Math.max(viewport.zoom, 0.01)}px`
+        } : {}) },
         data: {
           ...node.data,
           onRunAgent: (agentId: string) => onRunAgentRef.current(agentId, edges.filter((edge) => edge.target === agentId).map((edge) => edge.source)),
@@ -373,12 +378,12 @@ function InnerCanvas({
           onNodeResize: handleNodeResize,
           isSelected: node.id === selectedNodeId
         },
-        className: focusNodeIds.includes(node.id) ? "readiness-node-emphasis" :
+        className: focusNodeIds.includes(node.id) ? "readiness-node-emphasis" : focusNodeIds.length && node.id !== selectedNodeId && !["phaseNode", "fieldworkSectionNode"].includes(node.type || "") ? "readiness-node-context" :
           selectedNodeId && !["phaseNode", "fieldworkSectionNode"].includes(node.type || "") && node.id !== selectedNodeId && !connected.has(node.id)
             ? "node-faded"
             : ""
       })),
-    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId, focusNodeIds]
+    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId, focusNodeIds, viewport.zoom]
   );
   const hierarchyVisibleIds = useMemo(() => {
     const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length);
@@ -534,16 +539,13 @@ function InnerCanvas({
   }
 
   return (
-    <div className="audit-map-canvas" ref={canvasRef}
-      onPointerDownCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}
-      onWheelCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}
-      onKeyDownCapture={() => { if (focusNodeIds.length) onClearReadinessEmphasis?.(); }}>
+    <div className="audit-map-canvas" ref={canvasRef}>
       <ReactFlow
         nodes={visibleNodes}
         edges={visibleEdges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: focusNodeId ? readinessFocusPadding : 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : focusNodeIds.length ? focusNodeIds.map((id) => ({ id })) : undefined, maxZoom: focusNodeId || focusNodeIds.length ? 1 : undefined, minZoom: focusNodeIds.length ? 0.01 : undefined }}
+        fitViewOptions={{ padding: focusNodeId ? readinessFocusPadding : focusNodeIds.length ? readinessGroupPadding : 0.14, nodes: focusNodeId ? [{ id: focusNodeId }] : focusNodeIds.length ? focusNodeIds.map((id) => ({ id })) : undefined, maxZoom: focusNodeId || focusNodeIds.length ? 1 : undefined, minZoom: focusNodeIds.length ? 0.01 : undefined }}
         minZoom={focusNodeIds.length ? 0.01 : 0.18}
         maxZoom={1.5}
         nodesDraggable
@@ -585,6 +587,15 @@ function InnerCanvas({
         }}
       >
         <Panel position="top-left" className="canvas-toolbar">
+          {focusNodeIds.length ? <div className="readiness-map-controls" aria-label="Readiness highlights">
+            <strong>{focusNodeIds.length} affected cards</strong>
+            <small>Highlights stay while you explore.</small>
+            <Button variant="secondary" onClick={() => {
+              onSelectNode(null);
+              void reactFlow.fitView({ nodes: focusNodeIds.map((id) => ({ id })), padding: readinessGroupPadding, maxZoom: 1, minZoom: 0.01, duration: 250 });
+            }}>Show all affected</Button>
+            <Button variant="ghost" onClick={onClearReadinessEmphasis}>Clear highlights</Button>
+          </div> : null}
           <Button variant="ghost" onClick={() => reactFlow.fitView({ padding: 0.16, duration: 250 })}>Fit View</Button>
           <Button
             variant={connectorsVisible ? "ghost" : "secondary"}

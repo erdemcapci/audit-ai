@@ -84,6 +84,8 @@ function verifyGroup(ids: string[]) {
   check(!document.querySelector(".detail-panel"), "group navigation closes inspector");
   const emphasized = Array.from(document.querySelectorAll(".readiness-node-emphasis"));
   check(emphasized.length === ids.length && emphasized.every((node) => ids.includes(node.getAttribute("data-id")!)), `${ids.length} cards: only explicitly implicated artifacts emphasized`);
+  const minimap = document.querySelector(".react-flow__minimap")!.getBoundingClientRect();
+  check(emphasized.every((node) => node.getBoundingClientRect().bottom <= minimap.top - 8), `${ids.length} cards: minimap does not obscure affected cards`);
   const canvas = document.querySelector(".react-flow")!.getBoundingClientRect();
   check(emphasized.every((node) => { const bounds = node.getBoundingClientRect(); return bounds.width > 0 && bounds.left >= canvas.left - 2 && bounds.right <= canvas.right + 2 && bounds.top >= canvas.top - 2 && bounds.bottom <= canvas.bottom + 2; }), `${ids.length} cards: entire affected group fits viewport`);
 }
@@ -130,8 +132,24 @@ async function run() {
   verifyGroup(groupIds);
   document.querySelector<HTMLElement>('.react-flow__node[data-id="risk-2"]')!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
   document.querySelector<HTMLElement>('.react-flow__node[data-id="risk-2"]')!.click(); await pause();
-  check(!document.querySelector(".readiness-node-emphasis"), "normal map interaction clears temporary group emphasis");
+  check(document.querySelectorAll(".readiness-node-emphasis").length === 6, "inspecting a card retains the affected group");
+  const viewportBeforeZoom = document.querySelector(".react-flow__viewport")!.getAttribute("style");
+  document.querySelector<HTMLButtonElement>(".react-flow__controls-zoomin")!.click(); await pause();
+  check(document.querySelector(".react-flow__viewport")!.getAttribute("style") !== viewportBeforeZoom && document.querySelectorAll(".readiness-node-emphasis").length === 6, "zooming changes viewport without clearing highlights");
+  const highlighted = document.querySelector<HTMLElement>('.readiness-node-emphasis[data-id="risk-1"]')!;
+  const ringOnScreen = parseFloat(getComputedStyle(highlighted).outlineWidth) * highlighted.getBoundingClientRect().width / 560;
+  check(ringOnScreen > 2.5 && ringOnScreen < 3.5, "highlight outline stays visible at the current zoom");
+  const scrollbar = document.querySelector<HTMLInputElement>('input[aria-label="Horizontal map scrollbar"]')!;
+  const viewportBeforePan = document.querySelector(".react-flow__viewport")!.getAttribute("style");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(scrollbar, Number(scrollbar.value) > 500 ? "250" : "750");
+  scrollbar.dispatchEvent(new Event("input", { bubbles: true })); await pause();
+  check(document.querySelector(".react-flow__viewport")!.getAttribute("style") !== viewportBeforePan && document.querySelectorAll(".readiness-node-emphasis").length === 6, "panning retains affected cards");
   check(document.querySelector(".detail-panel"), "normal map interaction opens inspector after group navigation");
+  await click("Show all affected");
+  verifyGroup(groupIds);
+  check(button("Clear highlights"), "explicit dismissal available while reviewing a group");
+  await click("Clear highlights");
+  check(!document.querySelector(".readiness-node-emphasis") && !document.querySelector(".readiness-node-context") && !document.querySelector(".readiness-map-controls"), "Clear highlights removes emphasis, dimming and review controls");
   await openReadiness();
   const sharedRelated = document.querySelectorAll<HTMLDetailsElement>(".readiness-related")[1];
   sharedRelated.querySelector("summary")!.click(); await pause();

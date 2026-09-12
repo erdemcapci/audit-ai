@@ -152,7 +152,7 @@ lint configuration is currently supplied; Python compilation is not type checkin
 
 For workspace UX checks, open `/tests/readiness-workspace-browser.html` in a real
 browser at desktop widths of 1280px and 1440px. Results appear below the workspace.
-Its 47 assertions exercise the actual workspace, canvas and inspector with an
+Its 58 assertions exercise the actual workspace, canvas and inspector with an
 isolated in-memory API: summary, finding navigation, unobscured viewport focus,
 card editing, stale/preliminary states and reruns. No audit data is read or written.
 Use real-time browser execution: accelerated virtual time can skip React Flow
@@ -177,8 +177,10 @@ Explicit `affected_artifact_ids` remain the implicated set. The existing
 to a populated set. All targets are deduplicated and checked against the current
 map. Missing references have no action and do not inflate counts. A single target
 opens its inspector; multiple targets close overlays and fit the group with a
-temporary outline. Pointer, wheel, keyboard interaction or leaving Map clears the
-outline. This is workspace state and decorated-node CSS, never persisted map data.
+temporary outline. Zooming, panning and inspecting cards retain the outline. Clear highlights or
+leaving Map dismisses it; Show all affected closes the inspector and refits the group.
+Amber outlines retain their screen thickness across zoom levels, with a light
+card tint and dimmer unrelated cards. This is workspace state and decorated-node CSS, never persisted map data.
 Large groups can zoom farther out for an overview; individual inspection remains
 available from Related plan items. Unit fixtures cover 1, 3, 6, 12 and 20 targets.
 

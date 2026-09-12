@@ -601,7 +601,7 @@ export function AuditWorkspace({
             onClearReadinessEmphasis={() => setReadinessGroupIds([])}
             selectedNodeId={selectedNode?.id || null}
             agentTypes={visibleAgentTypes}
-            onSelectNode={(node) => { setReadinessGroupIds([]); setSelectedNode(node); if (node?.id !== readinessFocusId) setReadinessFocusId(null); }}
+            onSelectNode={(node) => { setSelectedNode(node); if (node?.id !== readinessFocusId) setReadinessFocusId(null); }}
             onSaveMap={saveMapState}
             onRunAgent={runAgent}
             onAutoLayout={async () => {
