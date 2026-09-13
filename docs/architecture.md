@@ -177,10 +177,10 @@ Explicit `affected_artifact_ids` remain the implicated set. The existing
 to a populated set. All targets are deduplicated and checked against the current
 map. Missing references have no action and do not inflate counts. A single target
 opens its inspector; multiple targets close overlays and fit the group with a
-temporary outline. Zooming, panning and inspecting cards retain the outline. Clear highlights or
+temporary tint. Zooming, panning and inspecting cards retain the highlighting. Clear highlights or
 leaving Map dismisses it; Show all affected closes the inspector and refits the group.
-Amber outlines retain their screen thickness across zoom levels, with a light
-card tint and dimmer unrelated cards. This is workspace state and decorated-node CSS, never persisted map data.
+Affected cards use a light tint and unrelated cards are dimmed, without an added
+border or highlighting. This is workspace state and decorated-node CSS, never persisted map data.
 Large groups can zoom farther out for an overview; individual inspection remains
 available from Related plan items. Unit fixtures cover 1, 3, 6, 12 and 20 targets.
 

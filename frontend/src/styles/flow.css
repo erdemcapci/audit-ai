@@ -362,7 +362,6 @@
 }
 
 /* Ephemeral readiness group context; never stored as card data/selection. */
-.react-flow__node.readiness-node-emphasis { outline: var(--readiness-ring, 3px) solid #b45309; outline-offset: var(--readiness-ring-offset, 3px); border-radius: 10px; }
 .readiness-node-emphasis .audit-flow-node { background-color: #fffbeb; }
 .readiness-node-context .audit-flow-node { opacity: 0.45; }
 .readiness-map-controls { display: flex; flex-direction: column; gap: 6px; max-width: 175px; padding: 6px 4px 10px; border-bottom: 1px solid #e2e8f0; }

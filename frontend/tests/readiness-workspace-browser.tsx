@@ -137,8 +137,7 @@ async function run() {
   document.querySelector<HTMLButtonElement>(".react-flow__controls-zoomin")!.click(); await pause();
   check(document.querySelector(".react-flow__viewport")!.getAttribute("style") !== viewportBeforeZoom && document.querySelectorAll(".readiness-node-emphasis").length === 6, "zooming changes viewport without clearing highlights");
   const highlighted = document.querySelector<HTMLElement>('.readiness-node-emphasis[data-id="risk-1"]')!;
-  const ringOnScreen = parseFloat(getComputedStyle(highlighted).outlineWidth) * highlighted.getBoundingClientRect().width / 560;
-  check(ringOnScreen > 2.5 && ringOnScreen < 3.5, "highlight outline stays visible at the current zoom");
+  check(getComputedStyle(highlighted).outlineStyle === "none" && getComputedStyle(highlighted.querySelector(".audit-flow-node")!).backgroundColor === "rgb(255, 251, 235)", "affected cards retain tint without an added outline");
   const scrollbar = document.querySelector<HTMLInputElement>('input[aria-label="Horizontal map scrollbar"]')!;
   const viewportBeforePan = document.querySelector(".react-flow__viewport")!.getAttribute("style");
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(scrollbar, Number(scrollbar.value) > 500 ? "250" : "750");

@@ -365,10 +365,6 @@ function InnerCanvas({
       nodes.map((node) => ({
         ...node,
         selected: node.id === selectedNodeId,
-        style: { ...node.style, ...(focusNodeIds.includes(node.id) ? {
-          "--readiness-ring": `${3 / Math.max(viewport.zoom, 0.01)}px`,
-          "--readiness-ring-offset": `${3 / Math.max(viewport.zoom, 0.01)}px`
-        } : {}) },
         data: {
           ...node.data,
           onRunAgent: (agentId: string) => onRunAgentRef.current(agentId, edges.filter((edge) => edge.target === agentId).map((edge) => edge.source)),
@@ -383,7 +379,7 @@ function InnerCanvas({
             ? "node-faded"
             : ""
       })),
-    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId, focusNodeIds, viewport.zoom]
+    [agentExecutionEnabled, agentExecutionMessage, connected, edges, handleNodeResize, handlePhaseResize, nodes, selectedNodeId, focusNodeIds]
   );
   const hierarchyVisibleIds = useMemo(() => {
     const hasHierarchyFilter = Boolean(hierarchyFilters.nodeIds.length);
