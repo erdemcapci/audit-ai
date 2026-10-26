@@ -308,6 +308,9 @@ function InnerCanvas({
     const nextNodes: Node<FlowNodeData>[] =
       laidOut?.nodes.map((node) => ({
         ...node,
+        height: node.type === "phaseNode" || node.type === "fieldworkSectionNode"
+          ? node.height
+          : Math.max(node.height || node.data.height || 0, calculateRequiredNodeSize(node.data, node.width || node.data.width).height),
         data: {
           ...node.data,
           onRunAgent: (agentId: string, inputNodeIds?: string[]) => onRunAgentRef.current(agentId, inputNodeIds),
@@ -321,7 +324,7 @@ function InnerCanvas({
             ? { width: node.data.width || 800, height: node.data.height || 900 }
             : {
                 width: node.width || node.data.width || calculateRequiredNodeSize(node.data).width,
-                height: node.height || node.data.height || calculateRequiredNodeSize(node.data, node.width || node.data.width).height
+                height: Math.max(node.height || node.data.height || 0, calculateRequiredNodeSize(node.data, node.width || node.data.width).height)
               },
         zIndex: node.type === "phaseNode" ? 0 : node.type === "fieldworkSectionNode" ? 1 : 2,
         draggable: true,

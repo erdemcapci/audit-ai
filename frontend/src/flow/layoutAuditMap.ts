@@ -14,7 +14,7 @@ export function calculateRequiredNodeSize(
   const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / charsPerLine) : 0;
   let metaRows = 1;
   if (nodeData.agentType) metaRows += 1;
-  const height = 38 + titleLines * 30 + descriptionLines * 26 + metaRows * 30 + 24;
+  const height = 38 + titleLines * 30 + descriptionLines * 27 + metaRows * 30 + 36;
   return { width, height: Math.max(height, minHeight) };
 }
 
