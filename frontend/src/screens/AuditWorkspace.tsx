@@ -35,15 +35,17 @@ import type {
 } from "../types";
 import { PlanningReadinessScreen } from "../features/planning-readiness/PlanningReadinessScreen";
 import { PlanningScreen } from "../features/planning/PlanningScreen";
+import { DataQualityScreen } from "../features/data-quality/DataQualityScreen";
+import { WorkspaceSidebar } from "../components/WorkspaceSidebar";
+import { PLANNING_SCREENS, type WorkspaceScreen } from "../navigation";
 import { SettingsScreen } from "./SettingsScreen";
 import { AgentRunLogsScreen } from "./AgentRunLogsScreen";
 
 type PhaseFilter = "all" | "planning" | "fieldwork" | "reporting" | "execution";
-type WorkspaceTab = "Map" | "Readiness" | "Audit Plan" | "Settings" | "Agent Logs";
 
 const SHOW_AUDIT_PLAN_PAGE = false;
-const VISIBLE_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan", "Settings", "Agent Logs"] : ["Map", "Readiness", "Settings", "Agent Logs"];
-const PRIMARY_WORKSPACE_TABS: WorkspaceTab[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan"] : ["Map", "Readiness"];
+const VISIBLE_WORKSPACE_TABS: WorkspaceScreen[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan", "Data Quality", "Settings", "Agent Logs"] : ["Map", "Readiness", "Data Quality", "Settings", "Agent Logs"];
+const PRIMARY_WORKSPACE_TABS: WorkspaceScreen[] = SHOW_AUDIT_PLAN_PAGE ? ["Map", "Readiness", "Audit Plan"] : ["Map", "Readiness"];
 const PLANNING_AGENT_TYPES = new Set(["workstream_generator", "objective_generator", "risk_generator", "test_generator"]);
 const PLANNING_NODE_TYPES = new Set(["phaseNode", "auditNode", "workstreamNode", "objectiveNode", "riskNode", "testNode", "agentNode"]);
 
@@ -187,7 +189,7 @@ export function AuditWorkspace({
   }, [refresh]);
 
   useEffect(() => {
-    if (!VISIBLE_WORKSPACE_TABS.includes(activeScreen as (typeof VISIBLE_WORKSPACE_TABS)[number])) {
+    if (!VISIBLE_WORKSPACE_TABS.includes(activeScreen as WorkspaceScreen)) {
       setActiveScreen("Map");
     }
   }, [activeScreen]);
@@ -541,6 +543,8 @@ export function AuditWorkspace({
   }
 
   return (
+    <div className={`workspace-shell${mapExpanded ? " workspace-shell-expanded" : ""}`}>
+    {!mapExpanded ? <WorkspaceSidebar active={activeScreen} onNavigate={(screen) => { setError(""); setNotice(""); setActiveScreen(screen); }} /> : null}
     <main className="workspace">
       {!mapExpanded ? (
         <>
@@ -550,19 +554,20 @@ export function AuditWorkspace({
             </div>
             <div className="header-actions">
               <span className="header-contact">Questions or feedback <LinkedInLogoLink /></span>
-              <Button variant={activeScreen === "Settings" ? "secondary" : "ghost"} onClick={() => setActiveScreen("Settings")}>Settings</Button>
               <Button variant="ghost" onClick={onReset}>New audit</Button>
               {busy ? <LoadingState label="Action running" /> : null}
             </div>
           </header>
 
-          <nav className="workspace-tabs">
-            {PRIMARY_WORKSPACE_TABS.map((tab) => (
-              <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
-                {tab}
-              </button>
-            ))}
-          </nav>
+          {PLANNING_SCREENS.includes(activeScreen as WorkspaceScreen) ? (
+            <nav className="workspace-tabs">
+              {PRIMARY_WORKSPACE_TABS.map((tab) => (
+                <button key={tab} className={activeScreen === tab ? "active" : ""} onClick={() => setActiveScreen(tab)}>
+                  {tab}
+                </button>
+              ))}
+            </nav>
+          ) : null}
         </>
       ) : null}
 
@@ -670,6 +675,7 @@ export function AuditWorkspace({
           agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
         />
       ) : null}
+      {activeScreen === "Data Quality" ? <DataQualityScreen /> : null}
       {activeScreen === "Settings" && project ? (
         <SettingsScreen
           projectId={projectId}
@@ -813,5 +819,6 @@ export function AuditWorkspace({
       ) : null}
       <BrandingFooter />
     </main>
+    </div>
   );
 }

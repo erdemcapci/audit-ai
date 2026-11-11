@@ -53,8 +53,30 @@ export function HomeScreen({
         <div className="home-section-heading">
           <p className="eyebrow">Updates</p>
           <h2>Building in Public</h2>
-          <p>Development updates, demo videos and LinkedIn posts will appear here as the project evolves.</p>
+          <p>Demo videos, development updates and LinkedIn posts appear here as the project evolves.</p>
         </div>
+        {homeContent.videos.length ? (
+          <div className="home-video-grid">
+            {homeContent.videos.map((video) => (
+              <figure className="home-video-card" key={video.youtubeId}>
+                <div className="home-video-frame">
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}`}
+                    title={video.title}
+                    loading="lazy"
+                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
+                <figcaption>{video.title}</figcaption>
+              </figure>
+            ))}
+          </div>
+        ) : null}
+        {homeContent.videos.length ? (
+          <p className="home-video-channel"><a href={homeContent.youtubeChannelUrl} target="_blank" rel="noreferrer">More on the Assurenodia YouTube channel</a></p>
+        ) : null}
         {homeContent.buildLog.length ? (
           <div className="home-build-grid">
             {homeContent.buildLog.map((entry) => (
@@ -71,11 +93,7 @@ export function HomeScreen({
               </article>
             ))}
           </div>
-        ) : (
-          <Card className="home-empty-updates">
-            <p>No updates yet.</p>
-          </Card>
-        )}
+        ) : null}
       </section>
     </main>
   );
