@@ -110,3 +110,11 @@ test("overrides force a column in or out and change the grouping", () => {
   assert.ok(!forced.findings.some((f) => f.column === "customer_id"));
   assert.equal(forced.findings.find((f) => f.column === "tax_number").group, null);
 });
+
+test("decimal columns with any number of decimals are treated as measures", () => {
+  const lines = ["id,weight"];
+  for (let i = 0; i < 300; i++) lines.push(`ID${digits(5, i)},${(i * 1.37 + 0.5).toFixed(3)}`);
+  const by = Object.fromEntries(dq.profileDataset(csv.parseCsv(lines.join("\n")), false).map((p) => [p.column, p]));
+  assert.equal(by.weight.verdict, "unsuitable");
+  assert.equal(by.weight.isMeasure, true);
+});

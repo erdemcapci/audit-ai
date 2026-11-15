@@ -14,10 +14,13 @@ import { isMissing, parseNumber, type Dataset } from "./csv";
 export const PROFILE_SAMPLE = 5000;
 export const DEFAULT_THRESHOLD_PERCENT = 3;
 export const GROUPING_MIN_IMPROVEMENT = 0.15;
+const GROUPING_MIN_EXPLAINED_SHARE = 0.005; // grouping must also be able to explain >= 0.5% of all records ...
+const GROUPING_MIN_EXPLAINED_OF_FLAGGED = 0.25; // ... and a quarter of the records that look unusual overall
 const COMMON_SHARE = 0.02; // a pattern held by >= 2% of a group is a "common" (legitimate) format
 const MIN_GROUP_SIZE = 10; // below this a group is too small to establish a standard
 const SMALL_GROUP_SIZE = 100; // below this a 1% threshold cannot flag even a single record
 const MAX_GROUPS = 50;
+const EXPLAIN_MIN_GROUP = 50; // smaller groups are too thin to vouch for a format when judging a grouping
 const MIN_ROWS_PER_GROUP = 30;
 const MAX_STORED_RECORDS = 100000;
 const RARE_SAMPLES = 100;
@@ -34,6 +37,9 @@ export type GroupingEvaluation = {
   ungrouped: number;
   grouped: number;
   improvement: number;
+  /** Records that look rare overall, and how many of those are ordinary within their own group. */
+  flaggedBefore: number;
+  explained: number;
 };
 
 export type ColumnProfile = {
@@ -187,6 +193,10 @@ type Base = {
   isCategorical: boolean;
   examples: string[];
   eligibleAsGroup: boolean;
+  /** Records whose pattern is rare across the whole column (sample). */
+  flaggedUngrouped: number;
+  presentCount: number;
+  rarePatterns: Set<string>;
 };
 
 function baseProfile(data: Dataset, sample: number[], index: number, keepSpecial: boolean): Base {
@@ -200,10 +210,20 @@ function baseProfile(data: Dataset, sample: number[], index: number, keepSpecial
   const lengths = tally(present.map((v) => String(v.trim().length)));
   const topLengthShare = present.length ? Math.max(...lengths.values(), 0) / present.length : 0;
   const numericShare = present.length ? present.filter((v) => parseNumber(v) !== null).length / present.length : 0;
-  const decimalShare = present.length ? present.filter((v) => /[.,]\d{1,2}$/.test(v.trim())).length / present.length : 0;
-  // Amounts, quantities, rates: digits whose length varies by magnitude, so their "pattern" is not a format.
-  const isMeasure = numericShare >= 0.9 && (decimalShare >= 0.5 || (lengths.size >= 4 && topLengthShare < 0.6));
+  const decimalShare = present.length ? present.filter((v) => /\.\d+%?$|,\d{1,2}%?$/.test(v.trim())).length / present.length : 0;
+  // Amounts, quantities, percentages, running numbers: digits whose length only reflects magnitude, so
+  // their "pattern" is not a format. Decimals qualify outright. Whole numbers qualify when their lengths
+  // form an unbroken run (1,2,3 digits…), they carry no leading zeros and no single length dominates —
+  // unlike identifiers, which have a fixed length or jump between formats (8 vs 10 digits).
+  const lengthList = [...lengths.keys()].map(Number).sort((a, b) => a - b);
+  const contiguousLengths = lengthList.length >= 2 && lengthList[lengthList.length - 1] - lengthList[0] + 1 === lengthList.length;
+  const leadingZeros = present.length ? present.filter((v) => /^0\d/.test(v.trim())).length / present.length : 0;
+  const magnitudeLike = contiguousLengths && leadingZeros < 0.05 && topLengthShare < 0.95;
+  const isMeasure = numericShare >= 0.9 && (decimalShare >= 0.5 || magnitudeLike);
   const lowCardinality = distinctValues >= 2 && distinctValues <= MAX_GROUPS && distinctValues <= present.length / MIN_ROWS_PER_GROUP;
+  const rareShare = DEFAULT_THRESHOLD_PERCENT / 100;
+  const rarePatterns = new Set([...patternCounts.entries()].filter(([, count]) => present.length && count / present.length <= rareShare).map(([pattern]) => pattern));
+  const flaggedUngrouped = [...rarePatterns].reduce((n, pattern) => n + (patternCounts.get(pattern) ?? 0), 0);
   const blank = data.rows.reduce((n, r) => n + (isMissing(r[index]) ? 1 : 0), 0);
   return {
     header: data.headers[index],
@@ -218,26 +238,42 @@ function baseProfile(data: Dataset, sample: number[], index: number, keepSpecial
     isMeasure,
     isCategorical: lowCardinality && dominance < 0.9,
     examples: [...new Set(present.map((v) => v.trim()))].slice(0, 3),
-    eligibleAsGroup: lowCardinality && !isMeasure && (raw.length - present.length) / raw.length < 0.2
+    eligibleAsGroup: lowCardinality && !isMeasure && (raw.length - present.length) / raw.length < 0.2,
+    flaggedUngrouped,
+    presentCount: present.length,
+    rarePatterns
   };
 }
 
-function evaluateGrouping(target: Base, candidate: Base): GroupingEvaluation {
+function evaluateGrouping(target: Base, candidate: Base, scale: number): GroupingEvaluation {
   const labels = candidate.raw.map(groupLabel);
-  const grouped = consistency(groupedCounts(target.patterns, labels));
+  const byGroup = groupedCounts(target.patterns, labels);
+  const grouped = consistency(byGroup);
+  // How many of the records that look rare overall are ordinary inside their own group? Groups that
+  // would be small in the full data stay flagged, so tiny groups cannot "explain" anything by luck.
+  let flaggedAfter = 0;
+  byGroup.forEach((counts) => {
+    const size = [...counts.values()].reduce((a, b) => a + b, 0);
+    counts.forEach((count, pattern) => {
+      if (size * scale >= EXPLAIN_MIN_GROUP ? count / size <= DEFAULT_THRESHOLD_PERCENT / 100 : target.rarePatterns.has(pattern)) flaggedAfter += count;
+    });
+  });
   return {
     column: candidate.header,
-    groups: new Set(labels.filter((_, k) => target.patterns[k] !== null)).size,
+    groups: byGroup.size,
     avgGroupSize: 0,
     ungrouped: target.dominance,
     grouped: grouped.dominance,
-    improvement: grouped.dominance - target.dominance
+    improvement: grouped.dominance - target.dominance,
+    flaggedBefore: target.flaggedUngrouped,
+    explained: target.flaggedUngrouped - flaggedAfter
   };
 }
 
 /** Stage 1. Profiles a deterministic sample of rows; blank counts use every row. */
 export function profileDataset(data: Dataset, keepSpecial: boolean): ColumnProfile[] {
   const sample = sampleIndexes(data.rows.length);
+  const scale = sample.length ? data.rows.length / sample.length : 1; // sample records represent this many rows each
   const bases = data.headers.map((_, index) => baseProfile(data, sample, index, keepSpecial));
   return bases.map((base) => {
     const blankPercent = data.rows.length ? (base.blank / data.rows.length) * 100 : 100;
@@ -267,28 +303,38 @@ export function profileDataset(data: Dataset, keepSpecial: boolean): ColumnProfi
     if (base.isCategorical) return excluded(`Category label: only ${base.distinctValues} distinct values, spelled in different shapes — patterns describe wording, not structure.`);
 
     // Which grouping, if any, makes the column's patterns meaningfully more consistent?
+    //  (a) it lifts the share held by the most common pattern by >= 15 points, or
+    //  (b) it explains the unusual records: formats that look rare overall but are normal in their group.
     let groupings: GroupingEvaluation[] = [];
     let grouping: GroupingEvaluation | null = null;
-    let groupingNote: string;
-    if (base.dominance >= 0.95) {
-      groupingNote = `Already consistent without grouping (${pct(base.dominance)} use one pattern).`;
-    } else {
+    let groupingNote = "";
+    if (base.distinctPatterns > 1) {
       groupings = bases
         .filter((c) => c.index !== base.index && c.eligibleAsGroup)
         .map((c) => {
-          const evaluation = evaluateGrouping(base, c);
+          const evaluation = evaluateGrouping(base, c, scale);
           return { ...evaluation, avgGroupSize: evaluation.groups ? present / evaluation.groups : 0 };
         })
         .sort((a, b) => b.improvement - a.improvement);
-      const best = groupings[0];
-      if (best && best.improvement >= GROUPING_MIN_IMPROVEMENT && best.grouped >= 0.8) {
-        grouping = best;
-        groupingNote = `Grouped by “${best.column}”: the most common pattern covers ${pct(best.grouped)} within groups vs ${pct(best.ungrouped)} overall (${best.groups} groups, ~${Math.round(best.avgGroupSize).toLocaleString()} records each).`;
-      } else {
-        groupingNote = best
-          ? `No grouping applied: the best candidate (“${best.column}”) raises consistency by only ${((Math.max(best.improvement, 0)) * 100).toFixed(0)} points (needs ${GROUPING_MIN_IMPROVEMENT * 100}).`
-          : "No grouping applied: no column has a suitable number of groups.";
+      const lifts = groupings.find((e) => e.improvement >= GROUPING_MIN_IMPROVEMENT && e.grouped >= 0.8);
+      const explains = groupings
+        .filter((e) => e.avgGroupSize * scale >= SMALL_GROUP_SIZE && e.flaggedBefore > 0 && e.explained >= GROUPING_MIN_EXPLAINED_OF_FLAGGED * e.flaggedBefore && e.explained / present >= GROUPING_MIN_EXPLAINED_SHARE)
+        .sort((a, b) => b.explained - a.explained)[0];
+      if (lifts) {
+        grouping = lifts;
+        groupingNote = `Grouped by “${lifts.column}”: the most common pattern covers ${pct(lifts.grouped)} within groups vs ${pct(lifts.ungrouped)} overall (${lifts.groups} groups, ~${Math.round(lifts.avgGroupSize).toLocaleString()} records each).`;
+      } else if (explains) {
+        grouping = explains;
+        groupingNote = `Grouped by “${explains.column}”: ${Math.round((explains.explained / explains.flaggedBefore) * 100)}% of the records that look unusual overall follow a format that is normal for their “${explains.column}” group.`;
       }
+    }
+    if (!grouping) {
+      const best = groupings[0];
+      groupingNote = base.dominance >= 0.95
+        ? `Already consistent without grouping (${pct(base.dominance)} use one pattern).`
+        : best
+          ? `No grouping applied: the best candidate (“${best.column}”) does not make patterns meaningfully more consistent.`
+          : "No grouping applied: no column has a suitable number of groups.";
     }
 
     const labels = grouping ? bases[data.headers.indexOf(grouping.column)].raw.map(groupLabel) : null;
@@ -297,7 +343,7 @@ export function profileDataset(data: Dataset, keepSpecial: boolean): ColumnProfi
     let verdict: Verdict;
     if (stats.commonCoverage < 0.75) {
       verdict = "unsuitable";
-      reasons.push(`Free-form content: only ${pct(stats.commonCoverage)} of values follow a pattern shared by ≥ ${COMMON_SHARE * 100}% of their group.`);
+      reasons.push(`No repeating structure: only ${pct(stats.commonCoverage)} of values share a format with ≥ ${COMMON_SHARE * 100}% of their group — typical of free text, names or random codes (UUIDs, hashes).`);
     } else if (stats.commonCoverage < 0.95 || stats.maxCommon > 12 || dominance < 0.5) {
       verdict = "review";
       if (stats.commonCoverage < 0.95) reasons.push(`Only ${pct(stats.commonCoverage)} of values follow a common pattern.`);

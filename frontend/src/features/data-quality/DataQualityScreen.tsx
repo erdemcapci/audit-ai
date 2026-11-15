@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { Badge } from "../../components/Badge";
-import { parseCsv, type Dataset } from "./csv";
+import { decodeText, parseCsv, type Dataset } from "./csv";
 import { downloadFlagged, ExportButton, FindingDetail } from "./FindingDetail";
 import { analyzeDataset, DEFAULT_OPTIONS, profileDataset, type ColumnProfile, type Finding, type Options, type Priority } from "./patterns";
 
@@ -39,7 +39,7 @@ export function DataQualityScreen() {
   async function loadFile(file: File) {
     setError("");
     try {
-      const parsed = parseCsv(await file.text(), file.name);
+      const parsed = parseCsv(decodeText(await file.arrayBuffer()), file.name);
       if (!parsed.headers.length || !parsed.rows.length) throw new Error("The file has no data rows.");
       setData(parsed);
       setOptions(DEFAULT_OPTIONS);
