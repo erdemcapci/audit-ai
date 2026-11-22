@@ -57,9 +57,7 @@ class DataQualityStore:
     def delete_run(self, project_id: str, run_id: str) -> None:
         run = self.get_run(project_id, run_id)
         self._run_path(project_id, run_id).unlink()
-        content_hash = run.source.content_hash
-        if content_hash and not any(other.source.content_hash == content_hash for other in self.list_runs(project_id)):
-            self._file_path(project_id, content_hash).unlink(missing_ok=True)
+        self._remove_file_if_unused(project_id, run.source.content_hash)
 
     def store_file(self, project_id: str, compressed: bytes) -> StoredSourceFile:
         """Stores a gzip-compressed source file under the SHA-256 of its uncompressed content."""
@@ -89,15 +87,19 @@ class DataQualityStore:
             raise FileNotFoundError("The source file of this run is no longer stored.")
         return path
 
-    def delete_file(self, project_id: str, content_hash: str) -> None:
-        """Removes a stored source file; the runs that used it keep their results."""
-        self.file_path(project_id, content_hash).unlink()
-        runs_dir = self._root(project_id) / "runs"
-        for path in runs_dir.glob("*.json") if runs_dir.exists() else []:
-            run = DataQualityRun.model_validate(self._read(path))
-            if run.source.content_hash == content_hash and run.source.stored:
-                run.source.stored = False
-                project_store.file_store.write_json(path, run.model_dump())
+    def delete_run_file(self, project_id: str, run_id: str) -> DataQualityRun:
+        """Removes the source file from one run; the run keeps its results. Other runs on the same file are not affected."""
+        run = self.get_run(project_id, run_id)
+        if run.source.stored:
+            run.source.stored = False
+            project_store.file_store.write_json(self._run_path(project_id, run_id), run.model_dump())
+            self._remove_file_if_unused(project_id, run.source.content_hash)
+        return run
+
+    def _remove_file_if_unused(self, project_id: str, content_hash: str) -> None:
+        """Files are stored once per content, so the copy goes only when no run still shows it."""
+        if content_hash and not any(other.source.content_hash == content_hash and other.source.stored for other in self.list_runs(project_id)):
+            self._file_path(project_id, content_hash).unlink(missing_ok=True)
 
     def list_rules(self, project_id: str) -> list[SavedRule]:
         return [SavedRule.model_validate(rule) for rule in project_store.file_store.read_json(self._root(project_id) / "rules.json", [])]

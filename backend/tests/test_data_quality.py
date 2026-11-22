@@ -96,11 +96,27 @@ class DataQualityStoreTests(unittest.TestCase):
         stored = data_quality_store.store_file(self.project.id, gzip.compress(CSV))
         run = data_quality_store.create_run(self.project.id, self.run_payload(stored.content_hash))
 
-        data_quality_store.delete_file(self.project.id, stored.content_hash)
+        data_quality_store.delete_run_file(self.project.id, run.id)
 
         reloaded = data_quality_store.get_run(self.project.id, run.id)
         self.assertFalse(reloaded.source.stored)
         self.assertEqual(reloaded.source.name, "invoices.csv")
+        with self.assertRaises(FileNotFoundError):
+            data_quality_store.file_path(self.project.id, stored.content_hash)
+
+    def test_deleting_the_source_file_of_one_run_leaves_other_runs_on_the_same_file(self) -> None:
+        stored = data_quality_store.store_file(self.project.id, gzip.compress(CSV))
+        first = data_quality_store.create_run(self.project.id, self.run_payload(stored.content_hash))
+        second = data_quality_store.create_run(self.project.id, self.run_payload(stored.content_hash))
+
+        data_quality_store.delete_run_file(self.project.id, first.id)
+        self.assertFalse(data_quality_store.get_run(self.project.id, first.id).source.stored)
+        self.assertTrue(data_quality_store.get_run(self.project.id, second.id).source.stored)
+        self.assertTrue(data_quality_store.file_path(self.project.id, stored.content_hash).exists())
+
+        data_quality_store.delete_run(self.project.id, second.id)
+        with self.assertRaises(FileNotFoundError):
+            data_quality_store.file_path(self.project.id, stored.content_hash)
 
     def test_deleting_the_project_deletes_its_runs_and_files(self) -> None:
         stored = data_quality_store.store_file(self.project.id, gzip.compress(CSV))

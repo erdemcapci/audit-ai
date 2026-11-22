@@ -20,8 +20,7 @@ export function RunList({ projectId, canWrite, onNew, onOpen }: { projectId: str
   useEffect(() => { void load(); }, [projectId]);
 
   async function remove(run: RunSummary) {
-    const shared = (runs ?? []).some((other) => other.id !== run.id && other.source.content_hash === run.source.content_hash);
-    const removed = !run.source.stored ? "Its results are removed." : shared ?"Its results are removed. The stored source file is kept because another run uses it." : "Its results and stored source file are removed.";
+    const removed = run.source.stored ? "Its results and stored source file are removed." : "Its results are removed.";
     if (!window.confirm(`Delete the run on ${run.source.name} from ${formatRunDate(run.created_at)}?\n\n${removed} This cannot be undone.`)) return;
     try {
       await dataQualityApi.deleteRun(projectId, run.id);

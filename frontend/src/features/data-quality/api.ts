@@ -17,7 +17,7 @@ export const dataQualityApi = {
   uploadFile: (projectId: string, compressed: Blob) =>
     apiRequest<StoredSourceFile>(`${base(projectId)}/files`, { method: "POST", body: compressed, headers: { "Content-Type": "application/gzip" } }),
   downloadFile: (projectId: string, contentHash: string) => apiRequestBinary(`${base(projectId)}/files/${contentHash}`),
-  deleteFile: (projectId: string, contentHash: string) => apiRequest<{ message: string }>(`${base(projectId)}/files/${contentHash}`, { method: "DELETE" }),
+  deleteRunFile: (projectId: string, runId: string) => apiRequest<unknown>(`${base(projectId)}/runs/${runId}/file`, { method: "DELETE" }),
   /** AI review of the proposed plan; nothing is saved until the run is. */
   aiPlan: (projectId: string, request: AiPlanRequest) =>
     apiRequest<AiPlanResponse>(`${base(projectId)}/plan`, { method: "POST", body: JSON.stringify(request) }),

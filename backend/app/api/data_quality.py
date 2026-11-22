@@ -90,8 +90,7 @@ def save_rules(request: Request, project_id: str, rules: list[SavedRule]) -> lis
     return data_quality_store.save_rules(project_id, rules)
 
 
-@router.delete("/files/{content_hash}", response_model=MessageResponse)
-def delete_file(request: Request, project_id: str, content_hash: str) -> MessageResponse:
+@router.delete("/runs/{run_id}/file", response_model=DataQualityRun)
+def delete_run_file(request: Request, project_id: str, run_id: str) -> DataQualityRun:
     ensure_data_quality_write_allowed(request)
-    data_quality_store.delete_file(project_id, content_hash)
-    return MessageResponse(message="Source file deleted")
+    return data_quality_store.delete_run_file(project_id, run_id)

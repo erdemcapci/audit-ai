@@ -690,7 +690,9 @@ service is extended rather than bypassed.
   give identical results (same plan + same data = same results).
 - **Delete source file** on a run card removes the stored copy but keeps the
   results, for confidential data the auditor does not want kept. The run then
-  shows summaries only and says the file was removed.
+  shows summaries only and says the file was removed. It affects that run only:
+  a file is stored once per content, and the copy is removed when no run still
+  shows it, so other runs on the same file keep theirs.
 - Deleting a run deletes its file too, unless another run uses it. AI step
   entries in the agent run log follow that log's own retention rules.
 
@@ -780,7 +782,7 @@ Backend endpoints (implemented marked ✓):
 ✓ DELETE /api/projects/{project_id}/data-quality/runs/{run_id}
 ✓ POST   /api/projects/{project_id}/data-quality/files          body: gzip; returns content hash
 ✓ GET    /api/projects/{project_id}/data-quality/files/{content_hash}
-✓ DELETE /api/projects/{project_id}/data-quality/files/{content_hash}
+✓ DELETE /api/projects/{project_id}/data-quality/runs/{run_id}/file   removes the file from that run only
 ✓ GET    /api/projects/{project_id}/data-quality/rules
 ✓ PUT    /api/projects/{project_id}/data-quality/rules          replaces the list, one per id
 ✓ POST   /api/projects/{project_id}/data-quality/plan           AI #1; returns proposals, saves nothing
