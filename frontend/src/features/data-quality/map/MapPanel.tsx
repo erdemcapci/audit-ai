@@ -1,9 +1,10 @@
 import { TYPE_LABEL } from "../engine/profile";
 import { formatRunDate } from "../engine/report";
-import { VERDICT_LABEL } from "../engine/runner";
+import { ruleId, ruleLabel } from "../engine/rules";
+import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import type { RunRecord } from "../engine/session";
 import { getTemplate } from "../engine/templates/registry";
-import type { PlanChange, TemplateId, TestNodeResult } from "../engine/types";
+import { withDefaults, type PlanChange, type TemplateId, type TestNodeResult } from "../engine/types";
 import { formatBytes, SeverityBadge } from "../ui";
 
 const n = (value: number) => value.toLocaleString("en-US");
@@ -31,6 +32,7 @@ export function MapPanel({ nodeId, record, tests, onClose, onViewTest, onViewFil
       {step ? <p className="muted dq-hint">{formatRunDate(step.startedAt)}{step.durationMs ? ` · took ${seconds(step.durationMs)}` : ""}</p> : null}
       {nodeId === "source" ? <SourcePanel record={record} onViewFile={onViewFile} /> : null}
       {nodeId === "profile" ? <ProfilePanel record={record} /> : null}
+      {nodeId === "discovery" ? <DiscoveryPanel record={record} /> : null}
       {nodeId === "plan" ? <PlanPanel record={record} changes={(step?.detail.changes as PlanChange[] | undefined) ?? []} /> : null}
       {nodeId.startsWith("test:") ? <TestPanel test={tests.find((t) => `test:${t.template}` === nodeId)} onView={onViewTest} /> : null}
       {nodeId === "exceptions" ? <ExceptionsPanel record={record} tests={tests} onView={onViewTest} /> : null}
@@ -48,6 +50,7 @@ export function MapPanel({ nodeId, record, tests, onClose, onViewTest, onViewFil
 function title(nodeId: string, record: RunRecord) {
   if (nodeId === "source") return "Source file";
   if (nodeId === "profile") return "Column profile";
+  if (nodeId === "discovery") return "Relationship discovery";
   if (nodeId === "plan") return "Test plan";
   if (nodeId === "exceptions") return "Exceptions";
   if (nodeId === "result") return "Result";
@@ -88,20 +91,48 @@ function ProfilePanel({ record }: { record: RunRecord }) {
   );
 }
 
-function PlanPanel({ record, changes }: { record: RunRecord; changes: PlanChange[] }) {
-  const enabled = record.plan.filter((t) => t.enabled).length;
+function DiscoveryPanel({ record }: { record: RunRecord }) {
+  const relationships = record.profile.relationships ?? [];
+  const settings = withDefaults(record.settings);
+  const inPlan = new Map(record.plan.map((t) => [t.id, t.enabled]));
   return (
     <div className="dq-panel-body">
-      <p>{n(enabled)} of {n(record.plan.length)} proposed tests ran. All tests were standard tests chosen from the column types; no AI was used.</p>
+      <p>The code looked for relationships between columns in a sample of the rows. Each one that held for at least {settings.discoveryMinHoldPercent}% of the rows it applies to was proposed as a rule.</p>
+      {record.profile.discoveryNote ? <p className="muted dq-hint">{record.profile.discoveryNote}</p> : null}
+      {relationships.length ? (
+        <ul className="dq-panel-cards">
+          {relationships.map((r) => {
+            const enabled = inPlan.get(ruleId(r.rule));
+            return (
+              <li key={ruleId(r.rule)}>
+                <strong>{ruleLabel(r.rule)}</strong>
+                <span className="muted">Holds for {(r.holdRate * 100).toFixed(1)}% of {n(r.checked)} sampled rows · {enabled === undefined ? "not in the plan" : enabled ? "tested" : "switched off"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="muted dq-hint">No relationship between columns was strong enough to propose as a rule.</p>}
+    </div>
+  );
+}
+
+function PlanPanel({ record, changes }: { record: RunRecord; changes: PlanChange[] }) {
+  const enabled = record.plan.filter((t) => t.enabled).length;
+  const bySource = (source: string) => record.plan.filter((t) => t.enabled && t.source === source).length;
+  const settings = withDefaults(record.settings);
+  return (
+    <div className="dq-panel-body">
+      <p>{n(enabled)} of {n(record.plan.length)} proposed tests ran: {n(bySource("standard"))} standard, {n(bySource("discovered"))} discovered rules, {n(bySource("auditor"))} added by you{record.plan.some((t) => t.savedAt) ? `, ${n(record.plan.filter((t) => t.enabled && t.savedAt).length)} saved project rules` : ""}. No AI was used.</p>
       <h4>Your changes</h4>
       {changes.length ? (
         <ul className="dq-notes">{changes.map((c) => <li key={c.testId}>{getTemplate(c.template).title} — {c.subject}: {c.change === "switched_off" ? "switched off" : c.change === "switched_on" ? "switched on" : `changed (${c.detail})`}</li>)}</ul>
       ) : <p className="muted dq-hint">The standard plan was run as proposed.</p>}
       <h4>Settings</h4>
       <ul className="dq-notes">
-        <li>Blank tolerance: {record.settings.blankThresholdPercent}%</li>
-        <li>Rare-pattern threshold: {record.settings.patternThresholdPercent}%</li>
-        <li>Unusual amounts: {record.settings.outlierFactor} × interquartile range</li>
+        <li>Blank tolerance: {settings.blankThresholdPercent}%</li>
+        <li>Rare-pattern threshold: {settings.patternThresholdPercent}%</li>
+        <li>Unusual amounts: {settings.outlierFactor} × interquartile range</li>
+        <li>Rules: findings up to {settings.ruleFindingMaxPercent}% of rows, to confirm up to {settings.ruleUncertainMaxPercent}%</li>
       </ul>
     </div>
   );
@@ -118,13 +149,19 @@ function TestPanel({ test, onView }: { test?: TestNodeResult; onView: (template:
       </div>
     );
   }
-  const found = test.cards.filter((c) => c.exceptions > 0);
+  const found = test.cards.filter(isFinding);
+  const toConfirm = test.cards.filter((c) => c.classification === "uncertain");
+  const notHeld = test.cards.filter((c) => c.classification === "rule_did_not_hold");
+  const clean = test.cards.filter((c) => c.exceptions === 0).length;
+  const unit = test.template === "rule" ? "rule" : "column";
   return (
     <div className="dq-panel-body">
       <p>{template.summary}</p>
       <ul className="dq-panel-cards">
         {found.map((c) => <li key={c.testId}><SeverityBadge severity={c.severity} /> <strong>{c.subject}</strong> — {c.summary}</li>)}
-        {test.cards.length > found.length ? <li className="muted">{n(test.cards.length - found.length)} column{test.cards.length - found.length === 1 ? "" : "s"} clean</li> : null}
+        {toConfirm.map((c) => <li key={c.testId}><strong>To confirm: {c.subject}</strong> — {c.summary}</li>)}
+        {notHeld.length ? <li className="muted">{n(notHeld.length)} rule{notHeld.length === 1 ? "" : "s"} did not hold</li> : null}
+        {clean ? <li className="muted">{n(clean)} {unit}{clean === 1 ? "" : "s"} {unit === "rule" ? "hold" : "clean"}</li> : null}
       </ul>
       <button className="dq-btn dq-btn-primary" onClick={() => onView(test.template)}>View details</button>
     </div>
@@ -132,7 +169,7 @@ function TestPanel({ test, onView }: { test?: TestNodeResult; onView: (template:
 }
 
 function ExceptionsPanel({ record, tests, onView }: { record: RunRecord; tests: TestNodeResult[]; onView: (template: TemplateId) => void }) {
-  const found = tests.flatMap((t) => t.cards.filter((c) => c.exceptions > 0).map((c) => ({ t, c })));
+  const found = tests.flatMap((t) => t.cards.filter(isFinding).map((c) => ({ t, c })));
   const rank = { high: 0, medium: 1, low: 2, clean: 3 };
   found.sort((a, b) => rank[a.c.severity] - rank[b.c.severity] || b.c.rate - a.c.rate);
   return (

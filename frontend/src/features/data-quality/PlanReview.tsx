@@ -2,15 +2,19 @@ import { useState } from "react";
 import { TYPE_LABEL } from "./engine/profile";
 import { describeTest } from "./engine/runner";
 import { TEMPLATES } from "./engine/templates/registry";
-import type { DateFormat, DatasetProfile, Dimension, RunSettings, TestDefinition } from "./engine/types";
+import type { DateFormat, DatasetProfile, Dimension, RunSettings, TestDefinition, TestSource } from "./engine/types";
+import { RuleForm } from "./RuleForm";
 import { FileIcon } from "./ui";
 
 const DIMENSIONS: { id: Dimension; title: string; text: string }[] = [
   { id: "completeness", title: "Completeness", text: "Is anything missing?" },
   { id: "validity", title: "Validity", text: "Does each value have the right type, format and range?" },
   { id: "uniqueness", title: "Uniqueness", text: "Is anything duplicated?" },
-  { id: "accuracy", title: "Plausibility", text: "Does anything look unusual?" }
+  { id: "accuracy", title: "Plausibility", text: "Does anything look unusual?" },
+  { id: "consistency", title: "Consistency", text: "Do related columns agree?" }
 ];
+
+const SOURCE_LABEL: Record<TestSource, string> = { standard: "Standard", discovered: "Discovered", auditor: "Added by you", ai: "AI suggestion" };
 
 type Props = {
   fileName: string;
@@ -20,17 +24,21 @@ type Props = {
   settings: RunSettings;
   onPlanChange: (plan: TestDefinition[]) => void;
   onSettingsChange: (settings: RunSettings) => void;
+  /** Removes a saved rule from the project (it stays out of this plan too). */
+  onForgetRule: (id: string) => void;
   onRun: () => void;
   onCancel: () => void;
 };
 
 /** The auditor reviews the proposed tests as plain sentences and can switch any of them off. */
-export function PlanReview({ fileName, headers, profile, plan, settings, onPlanChange, onSettingsChange, onRun, onCancel }: Props) {
+export function PlanReview({ fileName, headers, profile, plan, settings, onPlanChange, onSettingsChange, onForgetRule, onRun, onCancel }: Props) {
+  const [addingRule, setAddingRule] = useState(false);
   const enabled = plan.filter((t) => t.enabled).length;
   const update = (id: string, patch: Partial<TestDefinition>) => onPlanChange(plan.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const setAll = (ids: string[], value: boolean) => onPlanChange(plan.map((t) => (ids.includes(t.id) ? { ...t, enabled: value } : t)));
+  const remove = (id: string) => onPlanChange(plan.filter((t) => t.id !== id));
   const ambiguous = profile.columns.filter((c) => c.date && (c.date.alternatives.length || settings.dateFormats[c.name]));
-  const notApplicable = TEMPLATES.filter((t) => !plan.some((d) => d.template === t.id));
+  const notApplicable = TEMPLATES.filter((t) => t.id !== "rule" && !plan.some((d) => d.template === t.id));
 
   return (
     <div className="dq-plan">
@@ -64,15 +72,24 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
 
       {DIMENSIONS.map((dimension) => {
         const templates = TEMPLATES.filter((t) => t.dimension === dimension.id && plan.some((d) => d.template === t.id));
-        if (!templates.length) return null;
+        const rules = dimension.id === "consistency";
+        if (!templates.length && !rules) return null;
         return (
           <section key={dimension.id} className="dq-plan-group">
-            <h4>{dimension.title} <span className="muted">— {dimension.text}</span></h4>
+            <div className="dq-section-head">
+              <h4>{dimension.title} <span className="muted">— {dimension.text}</span></h4>
+              {rules && !addingRule ? <button className="dq-btn" onClick={() => setAddingRule(true)}>Add rule</button> : null}
+            </div>
+            {rules && !templates.length && !addingRule ? <p className="muted dq-hint">No relationships between columns were found in this file. You can add your own rule, such as “the posting date should not be before the document date”.</p> : null}
+            {rules && addingRule ? (
+              <RuleForm profile={profile} existingIds={new Set(plan.map((t) => t.id))} onCancel={() => setAddingRule(false)}
+                onAdd={(rule) => { onPlanChange([...plan, rule]); setAddingRule(false); }} />
+            ) : null}
             {templates.map((template) => {
               const tests = plan.filter((d) => d.template === template.id);
               const on = tests.filter((t) => t.enabled).length;
               return (
-                <details key={template.id} className="dq-plan-test" open={tests.length <= 3}>
+                <details key={template.id} className="dq-plan-test" open={tests.length <= 3 || template.id === "rule"}>
                   <summary>
                     <span className="dq-plan-title">{template.title}</span>
                     <span className="muted">{template.summary}</span>
@@ -87,10 +104,14 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
                       <li key={test.id} className={test.enabled ? "" : "off"}>
                         <label className="dq-check">
                           <input type="checkbox" checked={test.enabled} onChange={(e) => update(test.id, { enabled: e.target.checked })} />
-                          <span>{describeTest(test)}</span>
+                          <span>{describeTest(test, profile)}</span>
                         </label>
-                        <span className="dq-source-chip">Standard</span>
-                        <p className="muted dq-hint">{test.reason}</p>
+                        <span className={`dq-source-chip dq-source-${test.savedAt ? "saved" : test.source}`}>{test.savedAt ? "Saved rule" : SOURCE_LABEL[test.source]}</span>
+                        <p className="muted dq-hint">
+                          {test.reason}
+                          {test.source === "auditor" && !test.savedAt ? <> <button className="dq-link" onClick={() => remove(test.id)}>Remove</button></> : null}
+                          {test.savedAt ? <> <button className="dq-link" onClick={() => onForgetRule(test.id)} title="Remove this rule from the project's saved rules">Forget this saved rule</button></> : null}
+                        </p>
                         {test.template === "validity.pattern" ? (
                           <label className="dq-inline-field">
                             Compare within
@@ -154,9 +175,11 @@ function ColumnOverview({ profile }: { profile: DatasetProfile }) {
 
 function AdvancedSettings({ settings, onChange }: { settings: RunSettings; onChange: (settings: RunSettings) => void }) {
   const [draft, setDraft] = useState(settings);
-  const number = (key: "blankThresholdPercent" | "patternThresholdPercent" | "outlierFactor", min: number, max: number) => (value: string) =>
+  type NumberKey = "blankThresholdPercent" | "patternThresholdPercent" | "outlierFactor" | "discoveryMinHoldPercent" | "ruleFindingMaxPercent" | "ruleUncertainMaxPercent";
+  const number = (key: NumberKey, min: number, max: number) => (value: string) =>
     setDraft((d) => ({ ...d, [key]: Math.min(max, Math.max(min, Number(value) || 0)) }));
-  const keys = ["blankThresholdPercent", "patternThresholdPercent", "outlierFactor", "keepSpecial"] as const;
+  const keys = ["blankThresholdPercent", "patternThresholdPercent", "outlierFactor", "keepSpecial", "discoveryMinHoldPercent", "ruleFindingMaxPercent", "ruleUncertainMaxPercent"] as const;
+  const invalid = draft.ruleFindingMaxPercent > draft.ruleUncertainMaxPercent;
   const changed = keys.some((k) => draft[k] !== settings[k]);
   const apply = () => onChange({ ...settings, ...Object.fromEntries(keys.map((k) => [k, draft[k]])) });
   return (
@@ -167,9 +190,15 @@ function AdvancedSettings({ settings, onChange }: { settings: RunSettings; onCha
         <label><span className="dq-label">Rare-pattern threshold (% of group)</span><input type="number" min={0} max={50} step={0.5} value={draft.patternThresholdPercent} onChange={(e) => number("patternThresholdPercent", 0, 50)(e.target.value)} /></label>
         <label><span className="dq-label">Unusual amounts (× interquartile range)</span><input type="number" min={1} max={10} step={0.5} value={draft.outlierFactor} onChange={(e) => number("outlierFactor", 1, 10)(e.target.value)} /></label>
         <label className="dq-check"><input type="checkbox" checked={draft.keepSpecial} onChange={(e) => setDraft((d) => ({ ...d, keepSpecial: e.target.checked }))} /> Keep special characters in patterns (otherwise “S”)</label>
-        <button className="dq-btn" onClick={apply} disabled={!changed}>Apply</button>
       </div>
-      <p className="muted dq-hint">Applying keeps the tests you switched off.</p>
+      <div className="dq-advanced">
+        <label><span className="dq-label">Propose a relationship when it holds for (%)</span><input type="number" min={50} max={100} step={0.5} value={draft.discoveryMinHoldPercent} onChange={(e) => number("discoveryMinHoldPercent", 50, 100)(e.target.value)} /></label>
+        <label><span className="dq-label">Rule exceptions are findings up to (% of rows)</span><input type="number" min={0} max={100} step={0.5} value={draft.ruleFindingMaxPercent} onChange={(e) => number("ruleFindingMaxPercent", 0, 100)(e.target.value)} /></label>
+        <label><span className="dq-label">Rule is to be confirmed up to (% of rows)</span><input type="number" min={0} max={100} step={0.5} value={draft.ruleUncertainMaxPercent} onChange={(e) => number("ruleUncertainMaxPercent", 0, 100)(e.target.value)} /></label>
+        <button className="dq-btn" onClick={apply} disabled={!changed || invalid}>Apply</button>
+      </div>
+      {invalid ? <p className="dq-hint dq-error-text">The “findings” limit cannot be higher than the “to be confirmed” limit.</p> : null}
+      <p className="muted dq-hint">Applying keeps the tests you switched off and the rules you added. Above the “to be confirmed” limit a rule is reported as not holding.</p>
     </details>
   );
 }

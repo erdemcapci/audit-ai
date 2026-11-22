@@ -1,5 +1,7 @@
-import { isMissing, parseNumber, type Dataset } from "./csv";
+import { isMissing, type Dataset } from "./csv";
+import { detectDecimalMark, parseAmount } from "./numbers";
 import { detectDateFormat, formatDay, isWeekend, parseDate } from "./dates";
+import { discoverRelationships } from "./discovery";
 import { profileDataset, sampleIndexes, type ColumnProfile } from "./patterns";
 import type { ColumnInfo, DatasetProfile, RunSettings, TechnicalType } from "./types";
 
@@ -15,11 +17,14 @@ const pct = (share: number) => `${(share * 100).toFixed(share >= 0.995 || share 
 export function buildProfile(data: Dataset, settings: RunSettings): DatasetProfile {
   const patterns = profileDataset(data, settings.keepSpecial);
   const sample = sampleIndexes(data.rows.length);
-  return {
-    rows: data.rows.length,
-    columns: data.headers.map((name, index) => columnInfo(data, sample, index, patterns[index], settings)),
-    patterns
-  };
+  const columns = data.headers.map((name, index) => columnInfo(data, sample, index, patterns[index], settings));
+  // Discovery only proposes rules; a failure there must never stop the standard tests.
+  try {
+    const { relationships, note } = discoverRelationships(data, sample, columns, settings.discoveryMinHoldPercent / 100);
+    return { rows: data.rows.length, columns, patterns, relationships, discoveryNote: note };
+  } catch (err) {
+    return { rows: data.rows.length, columns, patterns, relationships: [], discoveryNote: `Relationship discovery could not run: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 function columnInfo(data: Dataset, sample: number[], index: number, pattern: ColumnProfile, settings: RunSettings): ColumnInfo {
@@ -74,10 +79,12 @@ function columnInfo(data: Dataset, sample: number[], index: number, pattern: Col
   if (pair) return set("boolean", `Two values, “${topTwo[0][0]}” and “${topTwo[1][0]}”${ranked.length > 2 ? `, hold ${pct(topTwoShare)} of values` : ""}.`);
 
   if (pattern.isMeasure) {
-    const numbers = present.map(parseNumber).filter((n): n is number => n !== null).sort((a, b) => a - b);
+    const decimal = detectDecimalMark(present);
+    const numbers = present.map((v) => parseAmount(v, decimal)).filter((n): n is number => n !== null).sort((a, b) => a - b);
     return {
-      ...set("measure", "Numbers whose length reflects their size: amounts, quantities or counts."),
+      ...set("measure", `Numbers whose length reflects their size: amounts, quantities or counts${decimal === "," ? " (decimal comma, e.g. 1.234,56)" : ""}.`),
       measure: {
+        decimal,
         parsedShare: numbers.length / present.length,
         min: numbers[0] ?? 0,
         max: numbers[numbers.length - 1] ?? 0,

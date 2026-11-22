@@ -1,5 +1,6 @@
 import { apiRequest, apiRequestBinary } from "../../api/client";
 import type { RunRecord, RunRecordContent, RunSummary } from "./engine/session";
+import type { RuleParams, TestDefinition } from "./engine/types";
 
 const base = (projectId: string) => `/api/projects/${projectId}/data-quality`;
 
@@ -15,5 +16,9 @@ export const dataQualityApi = {
   uploadFile: (projectId: string, compressed: Blob) =>
     apiRequest<StoredSourceFile>(`${base(projectId)}/files`, { method: "POST", body: compressed, headers: { "Content-Type": "application/gzip" } }),
   downloadFile: (projectId: string, contentHash: string) => apiRequestBinary(`${base(projectId)}/files/${contentHash}`),
-  deleteFile: (projectId: string, contentHash: string) => apiRequest<{ message: string }>(`${base(projectId)}/files/${contentHash}`, { method: "DELETE" })
+  deleteFile: (projectId: string, contentHash: string) => apiRequest<{ message: string }>(`${base(projectId)}/files/${contentHash}`, { method: "DELETE" }),
+  /** Rules kept in the project and proposed again in later runs. */
+  listRules: (projectId: string) => apiRequest<TestDefinition<RuleParams>[]>(`${base(projectId)}/rules`),
+  saveRules: (projectId: string, rules: TestDefinition<RuleParams>[]) =>
+    apiRequest<TestDefinition<RuleParams>[]>(`${base(projectId)}/rules`, { method: "PUT", body: JSON.stringify(rules) })
 };

@@ -23,6 +23,8 @@ class RunTotals(BaseModel):
     medium: int = 0
     low: int = 0
     exceptions: int = 0
+    uncertain: int = 0
+    notHeld: int = 0
 
 
 class DataQualityRunSummary(BaseModel):
@@ -55,6 +57,19 @@ class DataQualityRunCreate(DataQualityRunContent):
     totals: RunTotals = Field(default_factory=RunTotals)
     verdict: str = ""
     ai_used: bool = False
+
+
+class SavedRule(BaseModel):
+    """A rule test definition kept in the project for later runs. Its params are owned by the frontend engine."""
+
+    id: str
+    template: str = "rule"
+    subject: str
+    params: dict[str, Any]
+    source: str
+    reason: str = ""
+    enabled: bool = True
+    savedAt: str = ""
 
 
 class StoredSourceFile(BaseModel):

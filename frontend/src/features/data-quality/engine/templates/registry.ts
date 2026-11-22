@@ -2,6 +2,7 @@ import type { TemplateId, TestTemplate } from "../types";
 import { outliers, weekendDates } from "./accuracy";
 import { blankValues, placeholderValues } from "./completeness";
 import { characterPatterns } from "./pattern";
+import { datasetRules } from "./rules";
 import { duplicateRows, uniqueKey } from "./uniqueness";
 import { allowedValues, typeConformance, valueRange } from "./validity";
 
@@ -16,7 +17,8 @@ export const TEMPLATES: TestTemplate<any>[] = [
   uniqueKey,
   duplicateRows,
   outliers,
-  weekendDates
+  weekendDates,
+  datasetRules
 ];
 
 export function getTemplate(id: TemplateId): TestTemplate<any> {

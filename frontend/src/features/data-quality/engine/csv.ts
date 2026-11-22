@@ -1,10 +1,15 @@
+import { parseAmount } from "./numbers";
+
 export type Dataset = { name: string; headers: string[]; rows: string[][] };
 
 // Only unambiguous placeholders: "NA" (Namibia) and "None" can be real values.
 const MISSING = new Set(["", "null", "n/a", "#n/a", "nan", "-", "--"]);
 
 export function isMissing(value: string | undefined) {
-  return MISSING.has((value ?? "").trim().toLowerCase());
+  if (value === undefined) return true;
+  // Fast path for the common case: every placeholder above is at most 4 characters once trimmed.
+  if (value.length > 4 && value.charCodeAt(0) > 32 && value.charCodeAt(value.length - 1) > 32) return false;
+  return MISSING.has(value.trim().toLowerCase());
 }
 
 /** RFC 4180-style parser: quoted fields, escaped quotes, CRLF, embedded newlines. Delimiter is sniffed. */
@@ -45,10 +50,9 @@ export function parseCsv(text: string, name = "dataset"): Dataset {
   return { name, headers, rows };
 }
 
+/** Number with a dot decimal mark (commas are thousands separators); see parseAmount for the rules. */
 export function parseNumber(value: string): number | null {
-  const cleaned = value.trim().replace(/%$/, "").replace(/[,\s$€£]/g, "");
-  if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(cleaned)) return null;
-  return Number(cleaned);
+  return parseAmount(value, ".");
 }
 
 

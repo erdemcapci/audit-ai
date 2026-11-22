@@ -1,5 +1,5 @@
 import { TYPE_LABEL } from "./profile";
-import { VERDICT_LABEL } from "./runner";
+import { isFinding, VERDICT_LABEL } from "./runner";
 import { getTemplate } from "./templates/registry";
 import type { ColumnInfo, PlanChange, ResultCard, RunResults, RunSettings, Severity, TestNodeResult } from "./types";
 
@@ -29,12 +29,15 @@ export function buildReport(input: ReportInput): string {
   const { results } = input;
   const { totals } = results;
   const lines: string[] = [];
-  const findings = results.tests.flatMap((t) => t.cards.filter((c) => c.exceptions > 0).map((c) => ({ test: t, card: c })));
+  const findings = results.tests.flatMap((t) => t.cards.filter(isFinding).map((c) => ({ test: t, card: c })));
+  const rules = results.tests.flatMap((t) => t.cards);
+  const toConfirm = rules.filter((c) => c.classification === "uncertain");
+  const notHeld = rules.filter((c) => c.classification === "rule_did_not_hold");
 
   lines.push(`# Data quality report — ${input.fileName}`, "");
   lines.push(`- Run: ${formatRunDate(input.createdAt)}`);
   lines.push(`- File: ${input.fileName} · ${n(input.rows)} rows · ${n(input.columns.length)} columns`);
-  lines.push(`- Result: **${VERDICT_LABEL[results.verdict]}** — ${n(totals.tests)} tests, ${n(totals.findings)} with findings (${n(totals.high)} high, ${n(totals.medium)} medium, ${n(totals.low)} low)`);
+  lines.push(`- Result: **${VERDICT_LABEL[results.verdict]}** — ${n(totals.tests)} tests, ${n(totals.findings)} with findings (${n(totals.high)} high, ${n(totals.medium)} medium, ${n(totals.low)} low)${totals.uncertain ? `, ${n(totals.uncertain)} rule${totals.uncertain === 1 ? "" : "s"} to confirm` : ""}`);
   lines.push("- Prepared by: automated standard tests. No AI was used.", "");
 
   lines.push("## Findings", "");
@@ -46,6 +49,17 @@ export function buildReport(input: ReportInput): string {
     group.forEach(({ test, card }) => lines.push(`- **${test.title} — ${card.subject}:** ${card.summary}${examplesText(card)}`));
     lines.push("");
   });
+
+  if (toConfirm.length) {
+    lines.push("## Rules to confirm", "", "These rules are broken by too many rows to treat the rows as exceptions. Confirm with the client whether each rule applies before relying on it.", "");
+    toConfirm.forEach((c) => lines.push(`- **${c.subject}:** ${c.summary}`));
+    lines.push("");
+  }
+  if (notHeld.length) {
+    lines.push("## Assumptions that did not hold", "", "Not findings: the data does not follow these rules, so they were probably wrong for this file.", "");
+    notHeld.forEach((c) => lines.push(`- ${c.subject}: ${c.summary}`));
+    lines.push("");
+  }
 
   lines.push("## Tests without findings", "");
   const clean = results.tests.filter((t) => t.status === "done" && t.cards.some((c) => c.exceptions === 0));
@@ -75,6 +89,8 @@ export function buildReport(input: ReportInput): string {
   lines.push(`- Blank tolerance: ${input.settings.blankThresholdPercent}%`);
   lines.push(`- Rare-pattern threshold: ${input.settings.patternThresholdPercent}%`);
   lines.push(`- Unusual amounts: more than ${input.settings.outlierFactor} × the interquartile range outside the middle half`);
+  lines.push(`- Rules: up to ${input.settings.ruleFindingMaxPercent}% of rows breaking a rule are findings, up to ${input.settings.ruleUncertainMaxPercent}% the rule is to be confirmed, above that it did not hold`);
+  lines.push(`- Relationships proposed as rules when they hold for at least ${input.settings.discoveryMinHoldPercent}% of sampled rows`);
   const formats = Object.entries(input.settings.dateFormats);
   if (formats.length) lines.push(`- Date formats confirmed: ${formats.map(([column, format]) => `${column} = ${format}`).join(", ")}`);
   lines.push("");

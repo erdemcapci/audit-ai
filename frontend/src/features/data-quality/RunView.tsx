@@ -6,7 +6,7 @@ import { formatRunDate } from "./engine/report";
 import { VERDICT_LABEL } from "./engine/runner";
 import { readSource, replayRun, type RunRecord } from "./engine/session";
 import { gunzip } from "./engine/source";
-import type { TemplateId, TestNodeResult } from "./engine/types";
+import type { RuleParams, TemplateId, TestDefinition, TestNodeResult } from "./engine/types";
 import { MapPanel } from "./map/MapPanel";
 import { RunMap } from "./map/RunMap";
 import type { RunCache } from "./NewRun";
@@ -14,7 +14,7 @@ import { ReportView } from "./ReportView";
 import type { RunSection } from "./RunList";
 import { SourceFileView } from "./SourceFileView";
 import { TestResultScreen, type FullState } from "./TestResultScreen";
-import { formatBytes, VERDICT_TONE } from "./ui";
+import { formatBytes, VERDICT_TONE, Working } from "./ui";
 
 type Section = RunSection | { test: TemplateId };
 type Full = { data: Dataset; bytes: ArrayBuffer; tests: TestNodeResult[] };
@@ -33,6 +33,24 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [savedRuleIds, setSavedRuleIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!canWrite) return;
+    dataQualityApi.listRules(projectId).then((rules) => setSavedRuleIds(new Set(rules.map((r) => r.id)))).catch(() => undefined);
+  }, [projectId, canWrite]);
+
+  async function saveRule(testId: string) {
+    const rule = record?.plan.find((t) => t.id === testId && t.template === "rule");
+    if (!rule) return;
+    try {
+      const current = await dataQualityApi.listRules(projectId);
+      const saved = await dataQualityApi.saveRules(projectId, [...current.filter((r) => r.id !== rule.id), { ...(rule as TestDefinition<RuleParams>), enabled: true, savedAt: undefined }]);
+      setSavedRuleIds(new Set(saved.map((r) => r.id)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save the rule.");
+    }
+  }
 
   useEffect(() => {
     if (cache) return;
@@ -102,11 +120,12 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
       </div>
       {error ? <div className="error-banner">{error}</div> : null}
       {warning ? <div className="dq-banner">{warning}</div> : null}
+      {fullState === "loading" && typeof section === "string" && section !== "report" ? <Working>Loading the stored source file and rebuilding the full exception lists… the summaries below are already complete.</Working> : null}
 
       {section === "map" ? (
         <div className={`dq-map-layout${selected ? " with-panel" : ""}`}>
           <RunMap
-            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
+            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, relationships: record.profile.relationships, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
             selected={selected}
             onSelect={setSelected}
           />
@@ -119,7 +138,8 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
       {typeof section === "object" ? (() => {
         const stored = tests.find((t) => t.template === section.test);
         if (!stored) return null;
-        return <TestResultScreen key={section.test} stored={stored} full={full?.tests.find((t) => t.template === section.test) ?? null} fullState={fullState} onBack={() => setSection("map")} />;
+        return <TestResultScreen key={section.test} stored={stored} full={full?.tests.find((t) => t.template === section.test) ?? null} fullState={fullState} onBack={() => setSection("map")}
+          ruleSaving={canWrite ? { savedIds: savedRuleIds, onSave: (id) => void saveRule(id) } : undefined} />;
       })() : null}
       {section === "file" ? <SourceFileView fileName={record.source.name} data={full?.data ?? null} bytes={full?.bytes ?? null} state={fullState} stored={record.source.stored} /> : null}
       {section === "report" ? <ReportView markdown={record.report_markdown} fileName={record.source.name} /> : null}

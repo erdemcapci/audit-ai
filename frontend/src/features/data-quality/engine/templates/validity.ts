@@ -1,5 +1,7 @@
-import { isMissing, parseNumber } from "../csv";
+import { isMissing } from "../csv";
 import { dayFromIso, formatDay, parseDate } from "../dates";
+import { parseAmount } from "../numbers";
+import { orderedReader } from "../rules";
 import type { DateFormat, TestTemplate } from "../types";
 import { card, Collector, column, count, definition, fileRow, percent, quote, severityOf } from "./common";
 import { PLACEHOLDER_DAYS, PLACEHOLDER_TOKENS } from "./completeness";
@@ -31,14 +33,22 @@ export const typeConformance: TestTemplate<TypeParams> = {
     const allowed = new Set((params.values ?? []).map((v) => v.trim()));
     const collector = new Collector();
     let tested = 0;
+    // "" = valid, null = not tested (reported by the blank and placeholder tests), else the reason.
+    const judge = (raw: string): string | null => {
+      const value = raw.trim();
+      if (isMissing(raw) || PLACEHOLDERS.has(value.toLowerCase())) return null;
+      if (params.expected === "date") return parseDate(value, params.format ?? "yyyy-MM-dd") === null ? `Not a valid date in the format ${params.format}` : "";
+      if (params.expected === "measure") return parseAmount(value, info.measure?.decimal ?? ".") === null ? "Not a number" : "";
+      return allowed.has(value) ? "" : `Not one of ${[...allowed].map(quote).join(" or ")}`;
+    };
+    const verdicts = new Map<string, string | null>(); // repeated values are judged once
     data.rows.forEach((r, i) => {
       const raw = r[info.index] ?? "";
-      const value = raw.trim();
-      if (isMissing(raw) || PLACEHOLDERS.has(value.toLowerCase())) return; // reported by the blank and placeholder tests
+      let verdict = verdicts.get(raw);
+      if (verdict === undefined) { verdict = judge(raw); verdicts.set(raw, verdict); }
+      if (verdict === null) return;
       tested++;
-      if (params.expected === "date" && parseDate(value, params.format ?? "yyyy-MM-dd") === null) collector.add(fileRow(i), raw, `Not a valid date in the format ${params.format}`);
-      else if (params.expected === "measure" && parseNumber(value) === null) collector.add(fileRow(i), raw, "Not a number");
-      else if (params.expected === "boolean" && !allowed.has(value)) collector.add(fileRow(i), raw, `Not one of ${[...allowed].map(quote).join(" or ")}`);
+      if (verdict) collector.add(fileRow(i), raw, verdict);
     });
     const rate = tested ? (collector.total / tested) * 100 : 0;
     const what = params.expected === "date" ? "are not valid dates" : params.expected === "measure" ? "are not numbers" : "are not one of the two expected values";
@@ -70,12 +80,18 @@ export const allowedValues: TestTemplate<AllowedParams> = {
     const collector = new Collector();
     let tested = 0;
     const allowed = params.allowed ? new Set(params.allowed) : null;
-    // Most frequent exact spelling per normalised value.
+    // Most frequent exact spelling per normalised value. Each distinct spelling is normalised once.
+    const keys = new Map<string, string>();
+    const keyOf = (raw: string) => {
+      let key = keys.get(raw);
+      if (key === undefined) { key = normalise(raw); keys.set(raw, key); }
+      return key;
+    };
     const spellings = new Map<string, Map<string, number>>();
     data.rows.forEach((r) => {
       const raw = r[info.index] ?? "";
       if (isMissing(raw)) return;
-      const key = normalise(raw);
+      const key = keyOf(raw);
       const variants = spellings.get(key) ?? new Map<string, number>();
       variants.set(raw, (variants.get(raw) ?? 0) + 1);
       spellings.set(key, variants);
@@ -91,7 +107,7 @@ export const allowedValues: TestTemplate<AllowedParams> = {
         if (!allowed.has(raw.trim())) collector.add(fileRow(i), raw, "Not an allowed value");
         return;
       }
-      const expected = usual.get(normalise(raw))!;
+      const expected = usual.get(keyOf(raw))!;
       if (raw !== expected) collector.add(fileRow(i), raw, `Written ${shown(raw)}, usually ${shown(expected)}`);
     });
     const rate = tested ? (collector.total / tested) * 100 : 0;
@@ -133,6 +149,7 @@ export const valueRange: TestTemplate<RangeParams> = {
     const min = params.kind === "date" ? dayFromIso(params.minDate) : 0;
     const max = params.kind === "date" ? dayFromIso(params.maxDate) : 0;
     const format = info.date?.format ?? "yyyy-MM-dd";
+    const readNumber = orderedReader(info);
     data.rows.forEach((r, i) => {
       const raw = r[info.index] ?? "";
       if (isMissing(raw)) return;
@@ -143,7 +160,7 @@ export const valueRange: TestTemplate<RangeParams> = {
         if (day > max) collector.add(fileRow(i), raw, `After ${params.maxDate}`);
         else if (day < min) collector.add(fileRow(i), raw, `Before ${params.minDate}`);
       } else {
-        const n = parseNumber(raw);
+        const n = readNumber(raw);
         if (n === null) return;
         tested++;
         if (n < 0) collector.add(fileRow(i), raw, "Negative value");

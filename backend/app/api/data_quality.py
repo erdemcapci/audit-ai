@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from app.features.data_quality.models import DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, StoredSourceFile
+from app.features.data_quality.models import DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, SavedRule, StoredSourceFile
 from app.features.data_quality.store import data_quality_store
 from app.models import MessageResponse
 from app.runtime import ensure_data_quality_write_allowed
@@ -50,6 +50,17 @@ async def upload_file(request: Request, project_id: str) -> StoredSourceFile:
 @router.get("/files/{content_hash}")
 def download_file(project_id: str, content_hash: str) -> FileResponse:
     return FileResponse(data_quality_store.file_path(project_id, content_hash), media_type="application/gzip")
+
+
+@router.get("/rules", response_model=list[SavedRule])
+def list_rules(project_id: str) -> list[SavedRule]:
+    return data_quality_store.list_rules(project_id)
+
+
+@router.put("/rules", response_model=list[SavedRule])
+def save_rules(request: Request, project_id: str, rules: list[SavedRule]) -> list[SavedRule]:
+    ensure_data_quality_write_allowed(request)
+    return data_quality_store.save_rules(project_id, rules)
 
 
 @router.delete("/files/{content_hash}", response_model=MessageResponse)

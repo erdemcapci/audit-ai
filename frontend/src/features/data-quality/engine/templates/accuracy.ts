@@ -1,5 +1,6 @@
-import { isMissing, parseNumber } from "../csv";
+import { isMissing } from "../csv";
 import { isWeekend, parseDate, weekday } from "../dates";
+import { orderedReader } from "../rules";
 import type { TestTemplate } from "../types";
 import { card, Collector, column, count, definition, fileRow, percent, quote, severityOf } from "./common";
 import { PLACEHOLDER_DAYS } from "./completeness";
@@ -14,13 +15,32 @@ function quantile(sorted: number[], q: number) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+export type HistogramBin = { from: number; to: number; count: number; outside: boolean };
+export type Distribution = { bins: HistogramBin[]; lower: number; upper: number; scale: "linear" | "log" };
+
+const BINS = 40;
+
+/** Equal-width bins on the test's own scale; bounds and bin edges are returned as real values. */
+function histogram(sorted: number[], lower: number, upper: number, log: boolean): Distribution {
+  const back = (v: number) => (log ? 10 ** v : v);
+  const min = Math.min(sorted[0], lower), max = Math.max(sorted[sorted.length - 1], upper);
+  const width = (max - min) / BINS || 1;
+  const counts = new Array<number>(BINS).fill(0);
+  sorted.forEach((v) => { counts[Math.min(BINS - 1, Math.floor((v - min) / width))]++; });
+  const bins = counts.map((n, i) => {
+    const from = min + i * width, to = from + width;
+    return { from: back(from), to: back(to), count: n, outside: to <= lower || from >= upper };
+  });
+  return { bins, lower: back(lower), upper: back(upper), scale: log ? "log" : "linear" };
+}
+
 export const outliers: TestTemplate<OutlierParams> = {
   id: "accuracy.outlier",
   title: "Unusual amounts",
   dimension: "accuracy",
   summary: "Finds numbers far outside the range where most values lie.",
   appliesTo: "Number columns with at least 30 values",
-  detailView: "records",
+  detailView: "distribution",
   autoInstances: (profile, settings) => profile.columns
     .filter((c) => c.type === "measure" && c.measure && (c.rows - c.blank) * c.measure.parsedShare >= 30)
     .map((c) => {
@@ -38,10 +58,11 @@ export const outliers: TestTemplate<OutlierParams> = {
     const info = column(ctx.profile, params.column);
     const log = params.scale === "log";
     const entries: { index: number; raw: string; value: number }[] = [];
+    const read = orderedReader(info);
     data.rows.forEach((r, i) => {
       const raw = r[info.index] ?? "";
       if (isMissing(raw)) return;
-      const n = parseNumber(raw);
+      const n = read(raw);
       if (n === null || (log && n <= 0)) return;
       entries.push({ index: i, raw, value: log ? Math.log10(n) : n });
     });
@@ -62,7 +83,8 @@ export const outliers: TestTemplate<OutlierParams> = {
     const summary = collector.total ? `${count(collector.total)} values lie outside the usual range of ${range} (${percent(rate)}).` : `Every value lies within ${range}.`;
     return card({
       testId: ctx.testId, subject: params.column, tested, collector, severity: severityOf(collector.total, rate, 1, info.type), summary,
-      facts: { "Usual range": range, "Middle half of values": `${formatNumber(back(q1))} – ${formatNumber(back(q3))}`, Scale: log ? "Logarithmic" : "Linear" }
+      facts: { "Usual range": range, "Middle half of values": `${formatNumber(back(q1))} – ${formatNumber(back(q3))}`, Scale: log ? "Logarithmic" : "Linear" },
+      detail: histogram(sorted, lower, upper, log)
     });
   }
 };

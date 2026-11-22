@@ -1,6 +1,6 @@
 import type { Dataset } from "./csv";
 import { getTemplate, TEMPLATES } from "./templates/registry";
-import type { DatasetProfile, PlanChange, RunResults, RunSettings, RunTotals, Severity, TemplateId, TestDefinition, TestNodeResult, Verdict } from "./types";
+import type { DatasetProfile, PlanChange, ResultCard, RunResults, RunSettings, RunTotals, Severity, SkipNote, TemplateId, TestDefinition, TestNodeResult, Verdict } from "./types";
 
 const SEVERITY_RANK: Record<Severity, number> = { high: 0, medium: 1, low: 2, clean: 3 };
 
@@ -9,8 +9,8 @@ export function buildStandardPlan(profile: DatasetProfile, settings: RunSettings
   return TEMPLATES.flatMap((t) => t.autoInstances(profile, settings));
 }
 
-export function describeTest(test: TestDefinition): string {
-  return getTemplate(test.template).describe(test);
+export function describeTest(test: TestDefinition, profile?: DatasetProfile): string {
+  return getTemplate(test.template).describe(test, profile);
 }
 
 /** What the auditor changed compared with the standard plan. */
@@ -19,7 +19,7 @@ export function planChanges(standard: TestDefinition[], final: TestDefinition[])
   return final.flatMap((t): PlanChange[] => {
     const original = before.get(t.id);
     const base = { testId: t.id, subject: t.subject, template: t.template };
-    if (!original) return [{ ...base, change: "switched_on", detail: "Added" }];
+    if (!original) return [{ ...base, change: "switched_on", detail: t.savedAt ? "Saved project rule" : t.source === "auditor" ? "Added by you" : "Added" }];
     if (original.enabled !== t.enabled) return [{ ...base, change: t.enabled ? "switched_on" : "switched_off" }];
     if (JSON.stringify(original.params) !== JSON.stringify(t.params)) return [{ ...base, change: "changed", detail: describeTest(t) }];
     return [];
@@ -27,10 +27,13 @@ export function planChanges(standard: TestDefinition[], final: TestDefinition[])
 }
 
 const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const YIELD_EVERY_MS = 50;
 
 /**
- * Runs every enabled test of the plan, one template at a time. Yields between templates so the page
- * can show progress; `onProgress` reports each template as it starts and finishes.
+ * Runs every enabled test of the plan, one template at a time. Yields to the browser at least every
+ * 50 ms so the page stays responsive and shows progress; `onProgress` reports each template as it
+ * starts and finishes. A test that fails is reported in its template's notes and the run continues:
+ * one unexpected value must never cost the auditor the whole run.
  */
 export async function runPlan(
   data: Dataset,
@@ -49,27 +52,41 @@ export async function runPlan(
     onProgress?.(template.id, "running");
     await yieldToBrowser();
     const started = performance.now();
-    const cards = enabled
-      .map((t) => template.run(data, t.params, { profile, settings, testId: t.id }))
-      .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.rate - a.rate);
+    let lastYield = started;
+    const cards: ResultCard[] = [];
+    const failed: SkipNote[] = [];
+    for (const t of enabled) {
+      try {
+        cards.push(template.run(data, t.params, { profile, settings, testId: t.id }));
+      } catch (err) {
+        failed.push({ subject: t.subject, reason: `Could not run: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      if (performance.now() - lastYield > YIELD_EVERY_MS) { await yieldToBrowser(); lastYield = performance.now(); }
+    }
+    cards.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.rate - a.rate);
     const switchedOff = all.filter((t) => !t.enabled).map((t) => ({ subject: t.subject, reason: "Switched off in the test plan." }));
-    tests.push({ ...base, notes: [...switchedOff, ...base.notes], status: "done", cards, durationMs: Math.round(performance.now() - started) });
+    tests.push({ ...base, notes: [...failed, ...switchedOff, ...base.notes], status: "done", cards, durationMs: Math.round(performance.now() - started) });
     onProgress?.(template.id, "done");
   }
   const totals = totalsOf(tests);
   return { tests, totals, verdict: verdictOf(totals) };
 }
 
+/** A card counts as a finding when it has exceptions, unless it is a rule still to confirm or one that did not hold. */
+export const isFinding = (card: ResultCard) => card.exceptions > 0 && (!card.classification || card.classification === "finding");
+
 export function totalsOf(tests: TestNodeResult[]): RunTotals {
   const cards = tests.flatMap((t) => t.cards);
-  const found = cards.filter((c) => c.exceptions > 0);
+  const found = cards.filter(isFinding);
   return {
     tests: cards.length,
     findings: found.length,
     high: found.filter((c) => c.severity === "high").length,
     medium: found.filter((c) => c.severity === "medium").length,
     low: found.filter((c) => c.severity === "low").length,
-    exceptions: found.reduce((n, c) => n + c.exceptions, 0)
+    exceptions: found.reduce((n, c) => n + c.exceptions, 0),
+    uncertain: cards.filter((c) => c.classification === "uncertain").length,
+    notHeld: cards.filter((c) => c.classification === "rule_did_not_hold").length
   };
 }
 

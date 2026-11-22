@@ -246,8 +246,16 @@ function baseProfile(data: Dataset, sample: number[], index: number, keepSpecial
   };
 }
 
+/** Group labels of a candidate column, computed once per profiling run (every target column reuses them). */
+const labelCache = new WeakMap<Base, string[]>();
+function labelsOf(base: Base): string[] {
+  let labels = labelCache.get(base);
+  if (!labels) { labels = base.raw.map(groupLabel); labelCache.set(base, labels); }
+  return labels;
+}
+
 function evaluateGrouping(target: Base, candidate: Base, scale: number): GroupingEvaluation {
-  const labels = candidate.raw.map(groupLabel);
+  const labels = labelsOf(candidate);
   const byGroup = groupedCounts(target.patterns, labels);
   const grouped = consistency(byGroup);
   // How many of the records that look rare overall are ordinary inside their own group? Groups that
@@ -338,7 +346,7 @@ export function profileDataset(data: Dataset, keepSpecial: boolean): ColumnProfi
           : "No grouping applied: no column has a suitable number of groups.";
     }
 
-    const labels = grouping ? bases[data.headers.indexOf(grouping.column)].raw.map(groupLabel) : null;
+    const labels = grouping ? labelsOf(bases[data.headers.indexOf(grouping.column)]) : null;
     const stats = consistency(groupedCounts(base.patterns, labels));
     const dominance = stats.dominance;
     let verdict: Verdict;

@@ -13,6 +13,11 @@ export function Kpi({ label, value, tone }: { label: string; value: string; tone
   return <div className={`dq-kpi${tone ? ` dq-kpi-${tone}` : ""}`}><span>{label}</span><strong>{value}</strong></div>;
 }
 
+/** Visible "still working" notice with a spinner, for steps that take a while on large files. */
+export function Working({ children }: { children: string }) {
+  return <div className="dq-banner dq-working" role="status" aria-live="polite"><span className="dq-spinner" aria-hidden="true" />{children}</div>;
+}
+
 export const formatBytes = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} B`;
 

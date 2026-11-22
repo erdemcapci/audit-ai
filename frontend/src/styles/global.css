@@ -2063,3 +2063,31 @@ h3 {
 @media (max-width: 1100px) {
   .dq-map-layout.with-panel, .dq-result-layout { grid-template-columns: 1fr; }
 }
+
+/* Data quality: rules and distribution (phase 2) */
+.dq-error-text { color: #b91c1c; }
+.dq-list-group { margin: 8px 0 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; }
+.dq-finding-subject { overflow-wrap: anywhere; }
+.dq-finding-muted { border-top-color: #cbd5e1; background: #f8fafc; }
+.dq-source-discovered { background: #e0e7ff; color: #3730a3; }
+.dq-source-auditor { background: #dcfce7; color: #166534; }
+.dq-source-saved { background: #fef3c7; color: #92400e; }
+.dq-source-ai { background: #f3e8ff; color: #6b21a8; }
+.dq-rule-form { display: grid; gap: 12px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.dq-rule-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.dq-rule-kinds button { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.dq-rule-kinds button span { font-size: 0.8rem; color: #64748b; }
+.dq-rule-kinds button.active { border-color: #0f172a; background: #fff; box-shadow: inset 0 0 0 1px #0f172a; }
+.dq-rule-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.9rem; }
+.dq-rule-row select, .dq-rule-row input { height: 34px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; font-size: 0.88rem; background: #fff; }
+.dq-rule-row input[type="number"] { width: 90px; }
+.dq-rule-word { min-width: 44px; font-weight: 800; }
+.dq-rule-preview { margin: 0; padding: 8px 10px; border-radius: 6px; background: #f1f5f9; font-size: 0.88rem; }
+.dq-dist { display: grid; gap: 6px; margin: 0; }
+.dq-dist svg { width: 100%; height: auto; max-width: 760px; }
+.dq-dist-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: #334155; }
+.dq-dist-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; vertical-align: -1px; }
+.dq-dist-axis { font-size: 10px; fill: #64748b; }
+.dq-dist-readout { min-height: 1.3em; }
+.dq-working { gap: 10px; border-color: #bfdbfe; background: #eff6ff; color: #1e3a8a; }
+.dq-spinner { flex: none; width: 14px; height: 14px; border: 2px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: dq-spin 0.8s linear infinite; }

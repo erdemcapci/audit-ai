@@ -10,6 +10,7 @@ export function RecordsDetail({ card, complete }: { card: ResultCard; complete: 
   const rows = complete && card.records ? card.records : card.examples;
   const [shown, setShown] = useState(PAGE);
   if (!card.exceptions) return <p className="muted dq-hint">No exceptions for {card.subject}.</p>;
+  if (!rows.length) return <p className="muted dq-hint">No list of rows is kept for this result{card.recordsCapped ? " — every row is affected, so a list would add nothing" : ""}.</p>;
   return (
     <div className="dq-detail">
       <div className="dq-section-head">
@@ -33,7 +34,7 @@ export function RecordsDetail({ card, complete }: { card: ResultCard; complete: 
       </div>
       <p className="muted dq-hint">
         Showing {Math.min(shown, rows.length).toLocaleString()} of {card.exceptions.toLocaleString()} exception{card.exceptions === 1 ? "" : "s"}
-        {card.recordsCapped ? " (the in-memory list is capped)" : ""}.
+        {card.recordsCapped ? ` (only the first ${rows.length.toLocaleString()} are kept for viewing and export)` : ""}.
         {rows.length > shown ? <> <button className="dq-link" onClick={() => setShown((s) => s + PAGE)}>Show more</button></> : null}
       </p>
     </div>

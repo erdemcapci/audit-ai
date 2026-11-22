@@ -1,9 +1,10 @@
 # Data Quality Tests — Design
 
-Status: Phase 1 (standard tests, run map, run storage) is implemented in
+Status: Phase 1 (standard tests, run map, run storage) and Phase 2 (relationship
+discovery, dataset rules, saved rules) are implemented in
 `frontend/src/features/data-quality/` and `backend/app/features/data_quality/`.
-Phases 2–4 are design only. Where Phase 1 differs from the original design, the
-section says so under "Phase 1 implementation".
+Phases 3–4 (AI) are design only. Where the implementation differs from the
+original design, the section says so under "Phase 1/2 implementation".
 
 ## 1. Goal
 
@@ -147,6 +148,28 @@ remaining 1%. Those rows are the exceptions the auditor needs to see.
 Discovery carries the hold rate and the number of rows checked, so both AI and
 the auditor can judge it.
 
+Phase 2 implementation (`engine/discovery.ts`, run inside `buildProfile`):
+
+- The hold rate threshold is a run setting (`discoveryMinHoldPercent`, default 97).
+- **Dependency:** A is an identifier or category whose values repeat (≥ 1.5 rows per
+  value); B is an identifier, category, text or yes/no column whose most common
+  value covers < 90% (otherwise it holds by chance). Checked on values of A seen at
+  least twice, with ≥ 50 rows and ≥ 10 such values. A one-to-one pair (number ↔
+  name) is proposed once, from the code-like column (identifier, else shorter
+  values) to the descriptive one.
+- **Date order:** pairs of date columns; skipped when > 90% of rows have the same
+  date in both.
+- **Conditional completeness**, both directions: `status = v ⇒ B filled in` (or
+  blank) for category values with ≥ 30 rows, and `B filled in ⇒ status ∈ {v}`.
+- **Arithmetic:** sums and products of two number columns (tolerance 0.01), at
+  most 15 number columns; skipped when an input is (nearly) always 0 or 1.
+- At most 8 relationships per kind, strongest first. Discovered rules holding for
+  ≥ 99% of sampled rows are switched on; weaker ones are proposed switched off.
+- On the bundled samples discovery finds `customer_id → country`,
+  `tax_number → country` and `customer_id → tax_number` (the last one breaks on 72
+  rows where the same customer's tax number is written differently), and
+  `created_on ≤ last_changed_on` in the material master.
+
 ## 7. Template catalog
 
 ### 7.1 Template interface
@@ -203,6 +226,15 @@ type TestDefinition<P = unknown> = {
 Conditional operators: `empty`, `not_empty`, `eq`, `neq`, `in`, `not_in`, `gt`,
 `gte`, `lt`, `lte`. Comparisons take a constant or another column.
 
+Phase 2 implementation: the four rule kinds are one template, `rule`, whose
+params carry `kind: "compare" | "conditional" | "dependency" | "arithmetic"`. One
+template keeps every rule on one map node and one result screen. Conditions
+compare with constants only (column-to-column comparison is the `compare` kind).
+Dates compare as dates in the column's own format, numbers as numbers, text
+exactly (after trimming). A rule's id is `rule:<label>`, e.g.
+`rule:vendor_id → vendor_name`, so the same rule found again or saved earlier is
+recognised. The examples below use the original per-kind names.
+
 The existing pattern engine becomes `validity.pattern` without behaviour change.
 Its tests (`data-quality.test.mjs`, `data-quality-robustness.test.mjs`) keep
 passing.
@@ -251,6 +283,12 @@ Rule results are classified by violation rate:
 
 The bounds are configurable defaults. Standard templates are not classified
 this way; they measure a property directly.
+
+Phase 2 implementation: a rule with no exceptions is classified `holds`. Only
+`finding` cards count as findings (totals, verdict, map severity); the run totals
+also count `uncertain` and `notHeld`. The result screen lists findings first, then
+"To confirm" and "Did not hold" in their own sections; the report adds "Rules to
+confirm" and "Assumptions that did not hold".
 
 ## 8. Severity (code)
 
@@ -607,8 +645,8 @@ service is extended rather than bypassed.
 Follows `docs/architecture.md`: the capability owns its prompts, schemas and
 normalisation; `llm/` stays generic.
 
-Phase 1 as implemented (later phases add `discovery.ts`, rule templates,
-`payload.ts` and the backend prompt/service files):
+As implemented in Phases 1–2 (later phases add `payload.ts` and the backend
+prompt/service files):
 
 ```
 frontend/src/features/data-quality/
@@ -618,6 +656,8 @@ frontend/src/features/data-quality/
     patterns.ts               character-pattern engine (existing, unchanged)
     dates.ts                  date format detection and parsing
     profile.ts                column profile and technical types
+    discovery.ts              relationship discovery on the profile sample
+    rules.ts                  rule comparison, labels, sentences, validation
     templates/
       registry.ts             explicit list of templates (no auto-discovery)
       common.ts               severity, result-card helpers
@@ -625,7 +665,8 @@ frontend/src/features/data-quality/
       validity.ts             wrong data type, inconsistent spelling, out of range
       pattern.ts              format / pattern (wraps patterns.ts)
       uniqueness.ts           duplicate keys, duplicate rows
-      accuracy.ts             unusual amounts, weekend dates
+      accuracy.ts             unusual amounts (with histogram), weekend dates
+      rules.ts                dataset rules: the four kinds, classification
     runner.ts                 standard plan, plan changes, runs a plan, verdict
     report.ts                 Markdown result report (template sentences)
     session.ts                step log, saved-run record, replay
@@ -635,14 +676,16 @@ frontend/src/features/data-quality/
   RunList.tsx, NewRun.tsx, PlanReview.tsx, RunView.tsx
   TestResultScreen.tsx, RecordsDetail.tsx, FindingDetail.tsx (existing)
   SourceFileView.tsx, ReportView.tsx, api.ts, ui.tsx
+  RuleForm.tsx                "Add rule" form on the plan screen
+  DistributionDetail.tsx      histogram for unusual amounts
 
 backend/app/features/data_quality/
-  models.py                   run record, source file metadata
-  store.py                    runs and gzip source files per project
+  models.py                   run record, source file metadata, saved rule
+  store.py                    runs, gzip source files and saved rules per project
 backend/app/api/data_quality.py
 ```
 
-Backend endpoints (Phase 1 marked ✓):
+Backend endpoints (implemented marked ✓):
 
 ```
 ✓ GET    /api/projects/{project_id}/data-quality/runs
@@ -652,10 +695,10 @@ Backend endpoints (Phase 1 marked ✓):
 ✓ POST   /api/projects/{project_id}/data-quality/files          body: gzip; returns content hash
 ✓ GET    /api/projects/{project_id}/data-quality/files/{content_hash}
 ✓ DELETE /api/projects/{project_id}/data-quality/files/{content_hash}
+✓ GET    /api/projects/{project_id}/data-quality/rules
+✓ PUT    /api/projects/{project_id}/data-quality/rules          replaces the list, one per id
   POST   /api/projects/{project_id}/data-quality/plan           AI #1
   POST   /api/projects/{project_id}/data-quality/interpret      AI #2
-  GET    /api/projects/{project_id}/data-quality/rules
-  PUT    /api/projects/{project_id}/data-quality/rules
 ```
 
 Storage:
@@ -671,6 +714,50 @@ Phase 1 implementation: the runner runs on the page and yields to the browser
 between templates, so the run map shows progress. Both samples (25k and 30k rows)
 finish in under a second. Moving it to a Web Worker is deferred until large files
 show a need; a worker would hold a second copy of the data.
+
+### 15.1 Any-file guarantees
+
+The engine has to work on whatever CSV an auditor loads. What is guaranteed, and
+checked by `frontend/tests/data-quality-any-file.test.mjs`:
+
+- **It completes.** 150 random files per test run (random column mixes, junk
+  values such as `1e999`, emoji, formulas, line breaks, odd and duplicate headers,
+  all four delimiters, 1–3,000 rows, 1–40 columns) and degenerate shapes (one cell,
+  one row, blank columns) run every test without an error, with consistent counts.
+  `DQ_SEED` explores other random files.
+- **One failing test never stops a run.** Each test runs in isolation; a failure is
+  listed as "Could not run: …" in its template's notes. Relationship discovery
+  failing leaves the standard tests untouched.
+- **Numbers are read the way the export writes them.** The decimal mark is
+  detected per column (`1.234,56` vs `1,234.56`); currency signs, spaces and
+  apostrophes as thousands separators, accounting brackets `(500.00)` and SAP's
+  trailing minus `500.00-` are understood; infinite values are not numbers.
+- **Common export date formats:** ISO with or without time, `dd.MM.yyyy`,
+  `dd/MM/yyyy`, `MM/dd/yyyy`, `dd-MM-yyyy`, `yyyy/MM/dd`, `15-Jan-2024`, SAP
+  `yyyyMMdd` (years 1900–2100 only, so 8-digit identifiers stay identifiers) and
+  two-digit years (`dd.MM.yy`, `dd/MM/yy`, `MM/dd/yy`, pivot at 50). Ambiguous
+  day/month order is confirmed by the auditor.
+- **Wide and large files stay within a browser tab.** Exception lists are capped at
+  20,000 rows per result (counts stay complete); a completely blank column is one
+  finding without a row list; discovery searches a capped number of candidate
+  columns on very wide files and says so. Measured: 100,000 rows × 120 columns
+  (81 MB) profile in ~4 s and run 407 tests in ~14 s; 300,000 rows × 30 columns in
+  ~1 s and ~8 s. The page yields every 50 ms while tests run.
+
+Known limits:
+
+- **CSV only.** Excel files are recognised and the auditor is asked to save them as
+  CSV; reading `.xlsx` directly would need a spreadsheet library.
+- **Files up to 250 MB**, because everything runs in the browser tab.
+- **Profiling is not interruptible:** on very wide files the page is busy for a few
+  seconds while the columns are read; a notice with a spinner says so, and while
+  tests run or a saved run reloads its file the page shows the same kind of notice.
+- **Row numbers** count records after the header; blank lines inside a file are
+  skipped, so after a blank line the numbers no longer match the text editor's
+  line numbers.
+- Number columns whose values all have the same number of digits (e.g. every
+  quantity between 100 and 999) are read as codes, not amounts, so they get no
+  outlier or range test.
 
 ## 16. Phases
 
@@ -693,7 +780,13 @@ Each phase ships something usable on its own.
 **Phase 2 — Discovery and rules (still no AI)**
 - Relationship discovery; rule templates; classification (finding / uncertain /
   did not hold); "Add rule" form; `distribution` detail view; saved project rules.
-- Done when: seeded rule breaks in the samples are found via discovery alone.
+- Done when: seeded rule breaks are found via discovery alone.
+- Phase 2 implementation: the seeded rule breaks live in a synthetic test file
+  (`frontend/tests/data-quality-rules.test.mjs`); the bundled samples were not
+  changed, but discovery finds a real inconsistency in the invoices sample
+  (customers with differently written tax numbers). Saved rules are proposed in
+  later runs of the same audit when their columns exist and the rule is valid for
+  the file; a discovered rule that was saved is marked "Saved rule".
 
 **Phase 3 — AI test plan**
 - AI #1 endpoint, prompt, validation; semantic roles; plan review screen with

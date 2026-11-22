@@ -138,7 +138,8 @@ test("switched-off and not applicable tests are reported, not run", async () => 
   const profile = profileMod.buildProfile(data, types.DEFAULT_SETTINGS);
   const tiny = await runner.runPlan(data, profile, runner.buildStandardPlan(profile, types.DEFAULT_SETTINGS), types.DEFAULT_SETTINGS);
   assert.equal(tiny.tests.find((t) => t.template === "accuracy.calendar").status, "not_applicable");
-  assert.equal(tiny.tests.length, 10, "every template appears once");
+  assert.equal(tiny.tests.length, 11, "every template appears once");
+  assert.equal(tiny.tests.find((t) => t.template === "rule").status, "not_applicable", "no relationships, no rules added");
 });
 
 test("totals and the code verdict summarise the cards", async () => {

@@ -1,4 +1,4 @@
-import { isMissing, parseNumber } from "../csv";
+import { isMissing } from "../csv";
 import { dayFromIso, parseDate } from "../dates";
 import type { TestTemplate } from "../types";
 import { card, Collector, column, count, definition, fileRow, percent, quote, severityOf } from "./common";
@@ -17,17 +17,22 @@ export const blankValues: TestTemplate<ColumnParams> = {
   run(data, params, ctx) {
     const info = column(ctx.profile, params.column);
     const collector = new Collector();
+    // A column that is blank in every row is one finding; listing every row would say nothing more.
+    const empty = info.type === "empty";
     data.rows.forEach((r, i) => {
       const value = r[info.index] ?? "";
-      if (isMissing(value)) collector.add(fileRow(i), value, value.trim() ? `Placeholder ${quote(value.trim())}` : "Blank");
+      if (!isMissing(value)) return;
+      if (empty) collector.count();
+      else collector.add(fileRow(i), value, value.trim() ? `Placeholder ${quote(value.trim())}` : "Blank");
     });
     const tested = data.rows.length;
     const rate = tested ? (collector.total / tested) * 100 : 0;
     const withinTolerance = collector.total > 0 && rate <= ctx.settings.blankThresholdPercent;
     const severity = withinTolerance ? "low" : severityOf(collector.total, rate, 2, info.type);
-    const summary = collector.total
-      ? `${count(collector.total)} of ${count(tested)} values are blank (${percent(rate)})${withinTolerance ? `, within the ${ctx.settings.blankThresholdPercent}% tolerance` : ""}.`
-      : "No blank values.";
+    const summary = !collector.total
+      ? "No blank values."
+      : empty && collector.total === tested ? `The column is blank in every row (${count(tested)} rows).`
+      : `${count(collector.total)} of ${count(tested)} values are blank (${percent(rate)})${withinTolerance ? `, within the ${ctx.settings.blankThresholdPercent}% tolerance` : ""}.`;
     return card({ testId: ctx.testId, subject: params.column, tested, collector, severity, summary });
   }
 };
@@ -55,19 +60,23 @@ export const placeholderValues: TestTemplate<PlaceholderParams> = {
     const tokens = new Set(params.tokens.map((t) => t.toLowerCase()));
     const collector = new Collector();
     let tested = 0;
+    const reasonFor = (raw: string) => {
+      const value = raw.trim();
+      if (tokens.has(value.toLowerCase())) return `Placeholder text ${quote(value)}`;
+      if (info.type === "date" && info.date) {
+        const day = parseDate(value, info.date.format);
+        return day !== null && PLACEHOLDER_DAYS.has(day) ? "Placeholder date" : "";
+      }
+      if (info.type === "measure") return /^-?9{5,}([.,]0+)?$/.test(value) ? "Filler number made of nines" : "";
+      return (info.type === "identifier" || info.type === "category") && /^(.)\1{2,}$/.test(value) ? `Repeated character ${quote(value)}` : "";
+    };
+    const reasons = new Map<string, string>(); // repeated values are judged once
     data.rows.forEach((r, i) => {
       const raw = r[info.index] ?? "";
       if (isMissing(raw)) return;
       tested++;
-      const value = raw.trim();
-      let reason = "";
-      if (tokens.has(value.toLowerCase())) reason = `Placeholder text ${quote(value)}`;
-      else if (info.type === "date" && info.date) {
-        const day = parseDate(value, info.date.format);
-        if (day !== null && PLACEHOLDER_DAYS.has(day)) reason = "Placeholder date";
-      } else if (info.type === "measure") {
-        if (/^-?9{5,}(\.0+)?$/.test(value) && parseNumber(value) !== null) reason = "Filler number made of nines";
-      } else if ((info.type === "identifier" || info.type === "category") && /^(.)\1{2,}$/.test(value)) reason = `Repeated character ${quote(value)}`;
+      let reason = reasons.get(raw);
+      if (reason === undefined) { reason = reasonFor(raw); reasons.set(raw, reason); }
       if (reason) collector.add(fileRow(i), raw, reason);
     });
     const rate = tested ? (collector.total / tested) * 100 : 0;

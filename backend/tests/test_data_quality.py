@@ -13,7 +13,7 @@ from starlette.requests import Request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings
-from app.features.data_quality.models import DataQualityRunCreate, SourceFile
+from app.features.data_quality.models import DataQualityRunCreate, SavedRule, SourceFile
 from app.features.data_quality.store import data_quality_store
 from app.models import AuditCreate
 from app.runtime import ADMIN_COOKIE, create_admin_token, ensure_data_quality_write_allowed
@@ -110,6 +110,27 @@ class DataQualityStoreTests(unittest.TestCase):
         project_store.delete_project(self.project.id)
 
         self.assertFalse((project_dir / "data_quality").exists())
+
+    def test_saved_rules_are_kept_per_project_once_per_id(self) -> None:
+        rule = SavedRule(id="rule:vendor_id → vendor_name", subject="vendor_id → vendor_name", params={"kind": "dependency", "from": "vendor_id", "to": "vendor_name"}, source="discovered")
+
+        saved = data_quality_store.save_rules(self.project.id, [rule, rule.model_copy(update={"reason": "again"})])
+
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(saved[0].reason, "again")
+        self.assertTrue(saved[0].savedAt)
+        self.assertEqual([r.id for r in data_quality_store.list_rules(self.project.id)], [rule.id])
+        self.assertEqual(data_quality_store.list_rules(self.other.id), [])
+
+    def test_old_runs_without_rule_totals_still_load(self) -> None:
+        run = data_quality_store.create_run(self.project.id, self.run_payload())
+        path = project_store.project_dir(self.project.id) / "data_quality" / "runs" / f"{run.id}.json"
+        raw = project_store.file_store.read_json(path, {})
+        raw["totals"] = {"tests": 3, "findings": 1, "high": 0, "medium": 1, "low": 0, "exceptions": 4}
+        project_store.file_store.write_json(path, raw)
+
+        reloaded = data_quality_store.get_run(self.project.id, run.id)
+        self.assertEqual((reloaded.totals.uncertain, reloaded.totals.notHeld), (0, 0))
 
     def test_rejects_ids_that_could_escape_the_project_folder(self) -> None:
         with self.assertRaises(ValueError):

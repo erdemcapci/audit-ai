@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from app.features.data_quality.models import DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, StoredSourceFile
+from app.features.data_quality.models import DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, SavedRule, StoredSourceFile
 from app.store.project_store import project_store
 from app.time_utils import utc_now
 
@@ -90,6 +90,23 @@ class DataQualityStore:
             if run.source.content_hash == content_hash and run.source.stored:
                 run.source.stored = False
                 project_store.file_store.write_json(path, run.model_dump())
+
+    def list_rules(self, project_id: str) -> list[SavedRule]:
+        return [SavedRule.model_validate(rule) for rule in project_store.file_store.read_json(self._root(project_id) / "rules.json", [])]
+
+    def save_rules(self, project_id: str, rules: list[SavedRule]) -> list[SavedRule]:
+        """Replaces the project's saved rules; one entry per rule id, the last one wins."""
+        unique: dict[str, SavedRule] = {}
+        for rule in rules:
+            if not rule.id or len(rule.id) > 500:
+                raise ValueError("Every saved rule needs an id of at most 500 characters.")
+            rule.savedAt = rule.savedAt or utc_now()
+            unique[rule.id] = rule
+        if len(unique) > 500:
+            raise ValueError("A project can keep at most 500 saved rules.")
+        saved = list(unique.values())
+        project_store.file_store.write_json(self._root(project_id) / "rules.json", [rule.model_dump() for rule in saved])
+        return saved
 
     def _root(self, project_id: str) -> Path:
         return project_store.project_dir(project_id) / "data_quality"

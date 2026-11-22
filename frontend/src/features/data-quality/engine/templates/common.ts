@@ -1,6 +1,11 @@
 import type { ColumnInfo, DatasetProfile, ExceptionRecord, ResultCard, Severity, TechnicalType, TemplateId, TestDefinition } from "../types";
 
-export const MAX_RECORDS = 100000;
+/**
+ * Exception rows kept in memory per result card (for the detail table and the CSV export). Wide files
+ * can produce hundreds of cards, so the cap keeps the page within a browser tab's memory. Counts are
+ * always complete; only the list is capped.
+ */
+export const MAX_RECORDS = 20000;
 export const STORED_EXAMPLES = 20;
 
 /** How much a finding in a column of this type matters: amounts and keys more than descriptions. */
@@ -38,6 +43,10 @@ export class Collector {
   add(row: number, value: string, reason: string) {
     this.total++;
     if (this.records.length < MAX_RECORDS) this.records.push({ row, value, reason });
+  }
+  /** Counts an exception without listing it (when a list would say nothing, e.g. an empty column). */
+  count() {
+    this.total++;
   }
 }
 
