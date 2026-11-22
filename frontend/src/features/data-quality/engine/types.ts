@@ -153,6 +153,8 @@ export type TestDefinition<P = Record<string, unknown>> = {
   enabled: boolean;
   /** Set when the test comes from the project's saved rules. */
   savedAt?: string;
+  /** What the AI review changed about this test, and why. */
+  aiNote?: string;
 };
 
 /** Rule results are judged by violation rate: a wrong assumption must not look like broken data. */
@@ -212,7 +214,7 @@ export type RunResults = { tests: TestNodeResult[]; totals: RunTotals; verdict: 
 
 export type RunStep = {
   id: string;
-  kind: "file" | "code" | "auditor";
+  kind: "file" | "code" | "auditor" | "ai";
   title: string;
   startedAt: string;
   durationMs: number;

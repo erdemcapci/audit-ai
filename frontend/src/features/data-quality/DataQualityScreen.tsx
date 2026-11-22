@@ -27,7 +27,7 @@ export function DataQualityScreen({ projectId, runtime }: { projectId: string; r
       </div>
       {view.kind === "list" ? <RunList projectId={projectId} canWrite={canWrite} onNew={() => setView({ kind: "new" })} onOpen={(runId, section) => setView({ kind: "run", runId, section })} /> : null}
       {view.kind === "new" && canWrite ? (
-        <NewRun projectId={projectId} allowUpload={!hosted} onCancel={showList}
+        <NewRun projectId={projectId} allowUpload={!hosted} aiAvailable={Boolean(runtime?.agentExecutionEnabled)} onCancel={showList}
           onSaved={(saved) => { setCache(saved); setView({ kind: "run", runId: saved.record.id, section: "map" }); }} />
       ) : null}
       {view.kind === "run" ? (

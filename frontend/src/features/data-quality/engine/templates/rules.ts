@@ -115,10 +115,12 @@ function runDependency(data: Dataset, params: Extract<RuleParams, { kind: "depen
   usual.forEach((u, key) => { if (groups.get(key)!.size > 1) conflicting++; });
   data.rows.forEach((r, i) => {
     const a = (r[from.index] ?? "").trim(), b = (r[to.index] ?? "").trim();
-    const u = usual.get(a);
-    if (!u || isMissing(b)) return;
+    if (isMissing(a) || isMissing(b)) return;
+    // Every row with both values is tested: a value seen once trivially keeps the rule, so the rate is
+    // over all rows (29 conflicting invoices of 25,000 is 0.1%, not 15% of the repeated numbers).
     tested++;
-    if (b !== u.value) collector.add(fileRow(i), `${a} | ${b}`, `${quote(a)} usually comes with ${quote(u.value)} (${count(u.count)} of ${count(u.total)} rows)`);
+    const u = usual.get(a);
+    if (u && b !== u.value) collector.add(fileRow(i), `${a} | ${b}`, `${quote(a)} usually comes with ${quote(u.value)} (${count(u.count)} of ${count(u.total)} rows)`);
   });
   return ruleCard(params, ctx, tested, collector, conflicting ? { [`${params.from} values with more than one ${params.to}`]: conflicting } : undefined);
 }

@@ -1,4 +1,5 @@
 import { decodeText, parseCsv, type Dataset } from "./csv";
+import type { AppliedAiPlan } from "./aiPlan";
 import { buildProfile } from "./profile";
 import { buildReport } from "./report";
 import { planChanges, runPlan } from "./runner";
@@ -26,6 +27,8 @@ export type RunRecordContent = {
   totals: RunTotals;
   verdict: Verdict;
   ai_used: boolean;
+  /** The AI review of the plan as applied to this run; null when AI was not used. */
+  ai_plan?: AppliedAiPlan | null;
 };
 
 export type RunRecord = RunRecordContent & { id: string; created_at: string };
@@ -40,27 +43,40 @@ export function readSource(bytes: ArrayBuffer, name: string): LoadedSource {
   return { bytes, data };
 }
 
-export type ExecutedRun = { profile: DatasetProfile; results: RunResults; steps: RunStep[]; changes: PlanChange[] };
+export type ExecutedRun = { profile: DatasetProfile; results: RunResults; steps: RunStep[]; changes: PlanChange[]; ai?: AppliedAiPlan | null };
 
-/** Runs the plan and records every step: profile, the auditor's plan review, each test. */
+/**
+ * Runs the plan and records every step: profile, discovery, the AI review (if used), the auditor's plan
+ * review, each test. `proposedPlan` is what the auditor was shown (standard plan, after the AI review
+ * when there was one), so "changes" are the auditor's own.
+ */
 export async function executeRun(
   data: Dataset,
   profile: DatasetProfile,
-  standardPlan: TestDefinition[],
+  proposedPlan: TestDefinition[],
   plan: TestDefinition[],
   settings: RunSettings,
-  timing: { loadedAt: string; loadMs: number; profileMs: number; reviewStartedAt: string },
+  timing: { loadedAt: string; loadMs: number; profileMs: number; reviewStartedAt: string; ai?: AppliedAiPlan | null },
   onProgress?: (template: TemplateId, state: "running" | "done") => void
 ): Promise<ExecutedRun> {
-  const changes = planChanges(standardPlan, plan);
+  const changes = planChanges(proposedPlan, plan);
+  const ai = timing.ai ?? null;
   const reviewEnded = new Date().toISOString();
   const steps: RunStep[] = [
     { id: "source", kind: "file", title: "Load file", startedAt: timing.loadedAt, durationMs: timing.loadMs, detail: { name: data.name, rows: data.rows.length, columns: data.headers.length } },
     { id: "profile", kind: "code", title: "Column profile", startedAt: timing.loadedAt, durationMs: timing.profileMs, detail: { columns: profile.columns.length } },
     { id: "discovery", kind: "code", title: "Relationship discovery", startedAt: timing.loadedAt, durationMs: 0, detail: { relationships: profile.relationships.length } },
+    ...(ai ? [{
+      id: "ai_plan", kind: "ai" as const, title: "AI test plan", startedAt: ai.requestedAt, durationMs: ai.durationMs,
+      detail: {
+        provider: ai.response.provider, model: ai.response.model, demo: ai.response.demo, log_run_id: ai.response.log_run_id,
+        estimated_tokens: ai.response.estimated_tokens, sample_rows_sent: ai.response.sample_rows_sent,
+        switched_off: ai.switchedOff.length, switched_on: ai.switchedOn.length, added_rules: ai.addedRules.length, rejected_rules: ai.rejectedRules.length
+      }
+    }] : []),
     {
       id: "plan", kind: "auditor", title: "Test plan review", startedAt: timing.reviewStartedAt, durationMs: Date.parse(reviewEnded) - Date.parse(timing.reviewStartedAt),
-      detail: { proposed: standardPlan.length, enabled: plan.filter((t) => t.enabled).length, changes }
+      detail: { proposed: proposedPlan.length, enabled: plan.filter((t) => t.enabled).length, changes }
     }
   ];
   const started: Record<string, string> = {};
@@ -72,7 +88,7 @@ export async function executeRun(
     if (t.status !== "done") return;
     steps.push({ id: `test:${t.template}`, kind: "code", title: t.title, startedAt: started[t.template] ?? reviewEnded, durationMs: t.durationMs, detail: { tests: t.cards.length, exceptions: t.cards.reduce((n, c) => n + c.exceptions, 0) } });
   });
-  return { profile, results, steps, changes };
+  return { profile, results, steps, changes, ai };
 }
 
 /** Re-executes a saved run from its source file. Same plan + same data = same results. */
@@ -89,7 +105,7 @@ export function buildRecordContent(input: { source: SourceInfo; executed: Execut
   const { executed } = input;
   const report = buildReport({
     fileName: input.source.name, rows: executed.profile.rows, columns: executed.profile.columns, createdAt: input.createdAt,
-    results: executed.results, settings: input.settings, changes: executed.changes
+    results: executed.results, settings: input.settings, changes: executed.changes, ai: executed.ai ?? null
   });
   return {
     engine_version: ENGINE_VERSION,
@@ -102,6 +118,7 @@ export function buildRecordContent(input: { source: SourceInfo; executed: Execut
     source: input.source,
     totals: executed.results.totals,
     verdict: executed.results.verdict,
-    ai_used: false
+    ai_used: Boolean(executed.ai),
+    ai_plan: executed.ai ?? null
   };
 }

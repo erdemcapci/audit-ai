@@ -46,6 +46,8 @@ class DataQualityRunContent(BaseModel):
     steps: list[dict[str, Any]] = Field(default_factory=list)
     results: list[dict[str, Any]] = Field(default_factory=list)
     report_markdown: str = ""
+    # The AI test plan as applied to this run (Phase 3); None when AI was not used.
+    ai_plan: dict[str, Any] | None = None
 
 
 class DataQualityRun(DataQualityRunSummary, DataQualityRunContent):
@@ -70,6 +72,80 @@ class SavedRule(BaseModel):
     reason: str = ""
     enabled: bool = True
     savedAt: str = ""
+
+
+SEMANTIC_ROLES = [
+    "record_id", "document_number", "party_id", "party_name", "amount", "quantity", "unit_price", "currency",
+    "document_date", "posting_date", "due_date", "close_date", "status", "country", "cost_center", "account",
+    "user", "description", "other",
+]
+
+
+class AiPlanColumn(BaseModel):
+    name: str
+    type: str
+    blank_percent: float = 0
+    distinct: int = 0
+    unique_percent: float = 0
+    top_values: list[str] = Field(default_factory=list)
+    date_format: str = ""
+    decimal: str = ""
+
+
+class AiPlanTest(BaseModel):
+    id: str
+    template: str
+    subject: str
+    sentence: str
+    enabled: bool
+    source: str = "standard"
+
+
+class AiPlanRequest(BaseModel):
+    """Built by the browser engine: a profile summary, the proposed plan and a small sample of rows."""
+
+    file_name: str
+    rows: int
+    columns: list[AiPlanColumn]
+    relationships: list[str] = Field(default_factory=list)
+    tests: list[AiPlanTest]
+    sample_rows: list[list[str]] = Field(default_factory=list, max_length=50)
+
+
+class AiColumnRole(BaseModel):
+    column: str
+    role: str
+    meaning: str = ""
+
+
+class AiTestChange(BaseModel):
+    test_id: str
+    reason: str
+
+
+class AiNewRule(BaseModel):
+    rule: dict[str, Any]
+    reason: str
+
+
+class AiIdea(BaseModel):
+    idea: str
+    reason: str = ""
+
+
+class AiPlanResponse(BaseModel):
+    summary: str = ""
+    columns: list[AiColumnRole] = Field(default_factory=list)
+    switch_off: list[AiTestChange] = Field(default_factory=list)
+    switch_on: list[AiTestChange] = Field(default_factory=list)
+    new_rules: list[AiNewRule] = Field(default_factory=list)
+    not_testable: list[AiIdea] = Field(default_factory=list)
+    provider: str = ""
+    model: str = ""
+    demo: bool = False
+    log_run_id: str | None = None
+    estimated_tokens: int = 0
+    sample_rows_sent: int = 0
 
 
 class StoredSourceFile(BaseModel):

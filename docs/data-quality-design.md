@@ -1,10 +1,11 @@
 # Data Quality Tests — Design
 
-Status: Phase 1 (standard tests, run map, run storage) and Phase 2 (relationship
-discovery, dataset rules, saved rules) are implemented in
-`frontend/src/features/data-quality/` and `backend/app/features/data_quality/`.
-Phases 3–4 (AI) are design only. Where the implementation differs from the
-original design, the section says so under "Phase 1/2 implementation".
+Status: Phase 1 (standard tests, run map, run storage), Phase 2 (relationship
+discovery, dataset rules, saved rules) and Phase 3 (AI review of the test plan)
+are implemented in `frontend/src/features/data-quality/` and
+`backend/app/features/data_quality/`. Phase 4 (AI interpretation of results) is
+design only. Where the implementation differs from the original design, the
+section says so under "Phase 1/2/3 implementation".
 
 ## 1. Goal
 
@@ -21,9 +22,10 @@ the design is judged against those two constraints.
 1. **AI decides, code computes.** AI chooses which tests to run and interprets the
    results. Every test itself is deterministic, pre-written and tested code. AI
    never writes or executes code (see decision D1).
-2. **AI sees profiles, not rows.** AI receives column statistics, discovered
-   relationships, result summaries and, optionally, a small masked sample. Cost
-   and data exposure do not grow with the number of rows.
+2. **AI sees profiles, not the file.** AI receives column statistics, discovered
+   relationships, result summaries and 30 sample rows as they are (no masking:
+   the AI environment is treated as confidential, decision D15). Cost does not
+   grow with the number of rows.
 3. **AI is optional.** Every test runs without AI. AI adds semantic rules and
    interpretation on top; switching it off leaves a complete, useful product.
 4. **One engine, one result format, one screen skeleton.** Standard tests and
@@ -334,8 +336,8 @@ prompt and calls the configured provider through `llm/router.py`.
 - The standard plan (so AI tunes it rather than repeating it).
 - Audit context from planning: title, objectives, key risks. This lets AI tailor
   rules to the audit (a procurement audit puts vendor and invoice rules first).
-- Optional sample: 30 **random** rows (exports are often sorted, so the first
-  rows are not representative), subject to the sample setting (section 12).
+- Sample: 30 rows spread evenly over the file (exports are often sorted, so the
+  first rows are not representative), values sent as they are.
 
 Budget: roughly 100–150 tokens per column. Very wide datasets (> 150 columns)
 send the columns with the most signal first and say so.
@@ -378,6 +380,42 @@ Semantic roles (closed list, `other` allowed): `record_id`, `document_number`,
   tests. It cannot run code, read files or send data anywhere.
 - One retry on malformed JSON; then the run continues with the standard plan and
   the AI node shows the error.
+
+**Phase 3 implementation**
+
+- The AI review is optional and on request: the plan screen shows **Ask AI to
+  review the plan** when AI is available (`agentExecutionEnabled`); without it
+  the standard plan is used as before. There is no separate AI-mode setting.
+- Request (`engine/aiPlan.ts` → `POST …/data-quality/plan`): file name, row count,
+  per column name, type, blank %, distinct and unique %, top values, date format
+  and decimal mark; discovered relationships as text; every proposed test as an
+  id plus its plain sentence; 30 sample rows with values cut at 60 characters.
+  The backend adds the audit context (title, description, process area, initial
+  concern, objective and risk titles) and renders the prompt
+  (`features/data_quality/prompts.py`).
+- Response: `summary`, `columns` (role + plain meaning), `switch_off` and
+  `switch_on` (existing test ids with a reason), `new_rules` (rule params in the
+  rule-template shapes), `not_testable` (ideas for fieldwork). Parameter changes
+  and new standard tests are not part of Phase 3.
+- The backend keeps only what refers to this file and plan (known columns and
+  test ids, closed role list, known rule kinds, at most 8 rules and 5 ideas). The
+  browser validates each rule with `validateRule`; rules that do not fit are
+  listed as "not used" with the reason and never run. A proposed rule already in
+  the plan is switched on instead of duplicated.
+- The plan shows AI changes with an "AI" note per test and an "AI suggestion"
+  source label; **Discard AI suggestions** restores the plan from before the
+  review. Changing settings rebuilds the plan and applies the same AI answer again.
+- Column roles are shown (plan screen column overview, AI panel) but do not yet
+  change severity weights.
+- **Demo mode** answers with fixed rules instead of a model: roles guessed from
+  column names (e.g. `BUDAT` → posting date), a "document number → party"
+  dependency rule when both exist, batch-number keys switched off, and a
+  duplicate-payment idea for fieldwork. It is labelled "Demo — fixed rules, no AI
+  model" everywhere.
+- Every review is logged through `AgentRunLogService` as agent "Data quality: AI
+  test plan" (prompt and response when full logging is on), and the run records
+  an `ai_plan` step with provider, model, token estimate, sample rows sent and
+  counts of applied, rejected and proposed changes.
 
 ## 10. AI stage 2 — interpretation
 
@@ -455,8 +493,9 @@ for data quality.
   where AI was involved.
 - States: `pending`, `running`, `done`, `skipped` (AI off), `not_applicable`,
   `error`. Badges show counts.
-- Edges carry information: clicking Profile → AI shows what was sent (payload
-  summary, whether a sample was included and how it was masked, token count).
+- What was sent to the AI (payload summary, sample rows, token estimate) is shown
+  in the AI node's panel. Phase 3 implementation: edges carry no information of
+  their own.
 
 ### 11.3 Click levels
 
@@ -513,9 +552,9 @@ The Data Quality page opens on a list of completed runs, one card per run, plus 
 ### 12.1 Start and plan review
 
 - Load file → profile and discovery run immediately (seconds, no AI).
-- Two clear actions: **Run standard tests** and **Create test plan with AI**. The
-  default comes from settings; AI is unavailable (and explained) when no provider
-  is configured, in demo mode, or when disabled by policy.
+- The standard plan is shown first; **Ask AI to review the plan** is an extra step
+  when AI is available (a provider is configured, or demo mode). Without it the
+  button is not shown and nothing changes.
 - The plan screen lists tests as plain sentences, grouped by dimension, each with
   its source label (Standard / Discovered / AI suggestion / Added by you), its
   reason and a toggle. Technical parameters sit behind "Edit".
@@ -572,7 +611,7 @@ Every run records:
 
 - Source file metadata: file name, size, row count, headers, content hash, and a
   reference to the stored copy (section 13.3).
-- Settings used: AI mode, sample setting, thresholds.
+- Settings used: thresholds, date formats; whether and how AI reviewed the plan.
 - Each step with timestamps, status and duration:
   - code steps: templates, parameters, rows processed, exceptions found;
   - AI steps: reference to the agent run log entry;
@@ -613,15 +652,12 @@ service is extended rather than bypassed.
 
 | Setting | Values | Default |
 | --- | --- | --- |
-| AI mode | `off`, `plan_only`, `full` | `full` when a provider is configured, otherwise `off` |
-| Sample sent to AI | `none`, `masked`, `raw` | `masked` (letters → x, digits → 9, structure kept) |
 | Rule classification bounds | percentages | 5% / 30% |
 | Discovery minimum hold rate | percentage | 97% |
 
-- `none` still works: names, statistics and discovered relationships are enough
-  for most proposals.
-- With Ollama, nothing leaves the machine regardless of the sample setting; the
-  settings screen says so.
+- AI is used only when the auditor asks for it on the plan screen. Sample rows are
+  sent as they are; there is no masking (D15). With Ollama nothing leaves the
+  machine.
 - **Hosted showcase is read-only for data quality.** No file upload exists in
   hosted mode, for anyone. Visitors can only open runs that already exist: run
   map, results, source file and report. They cannot create, re-run, interpret or
@@ -645,8 +681,7 @@ service is extended rather than bypassed.
 Follows `docs/architecture.md`: the capability owns its prompts, schemas and
 normalisation; `llm/` stays generic.
 
-As implemented in Phases 1–2 (later phases add `payload.ts` and the backend
-prompt/service files):
+As implemented in Phases 1–3:
 
 ```
 frontend/src/features/data-quality/
@@ -670,6 +705,7 @@ frontend/src/features/data-quality/
     runner.ts                 standard plan, plan changes, runs a plan, verdict
     report.ts                 Markdown result report (template sentences)
     session.ts                step log, saved-run record, replay
+    aiPlan.ts                 AI review: request, applying and validating the answer
     source.ts                 gzip, downloads, exception CSV
   map/                        run map model, canvas and side panel
   DataQualityScreen.tsx       run list / new run / run view
@@ -682,6 +718,8 @@ frontend/src/features/data-quality/
 backend/app/features/data_quality/
   models.py                   run record, source file metadata, saved rule
   store.py                    runs, gzip source files and saved rules per project
+  prompts.py                  AI test plan prompt (audit context + file profile)
+  ai_plan.py                  AI test plan: provider or demo answer, normalising, logging
 backend/app/api/data_quality.py
 ```
 
@@ -697,7 +735,7 @@ Backend endpoints (implemented marked ✓):
 ✓ DELETE /api/projects/{project_id}/data-quality/files/{content_hash}
 ✓ GET    /api/projects/{project_id}/data-quality/rules
 ✓ PUT    /api/projects/{project_id}/data-quality/rules          replaces the list, one per id
-  POST   /api/projects/{project_id}/data-quality/plan           AI #1
+✓ POST   /api/projects/{project_id}/data-quality/plan           AI #1; returns proposals, saves nothing
   POST   /api/projects/{project_id}/data-quality/interpret      AI #2
 ```
 
@@ -788,10 +826,11 @@ Each phase ships something usable on its own.
   later runs of the same audit when their columns exist and the rule is valid for
   the file; a discovered rule that was saved is marked "Saved rule".
 
-**Phase 3 — AI test plan**
+**Phase 3 — AI test plan** (implemented)
 - AI #1 endpoint, prompt, validation; semantic roles; plan review screen with
-  sources; AI nodes on the map; privacy settings; agent run logging.
-- Provider contract fixture like the readiness review's.
+  sources; AI node on the map; agent run logging; demo mode.
+- Phase 3 implementation: no privacy settings (D15, D16) and no provider contract
+  fixture; the prompt is covered by backend tests instead.
 
 **Phase 4 — AI interpretation and report**
 - AI #2 endpoint; number check; adjusted severities; actions; client questions;
@@ -828,3 +867,5 @@ Each phase ships something usable on its own.
 | D12 | The hosted showcase is read-only: no uploads, visitors only view runs an admin created from bundled sample files. | Prevents bots from flooding the server with uploads, runs and AI calls; enforced in the backend. |
 | D13 | Thresholds have defaults and are editable per run. | Auditors need the defaults; experienced users and unusual datasets need control. |
 | D14 | The result report is exported as Markdown and opened from the run card. | Simple first step; reporting-phase integration later. |
+| D15 | Sample rows go to the AI as they are, without masking. | The AI environment is treated as confidential; real values help the AI understand columns ("Closed" vs "Open"); less complexity. A masking option can be added if an external provider must not see values. |
+| D16 | The AI review runs only when the auditor asks for it, and demo mode answers with fixed rules. | AI stays optional and visible; the showcase can show the AI step without a model. |

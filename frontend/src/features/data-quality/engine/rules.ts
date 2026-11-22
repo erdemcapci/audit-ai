@@ -137,7 +137,7 @@ export function validateRule(rule: RuleParams, profile: DatasetProfile): string[
   const errors: string[] = [];
   const column = (name: string) => profile.columns.find((c) => c.name === name);
   const missing = ruleColumns(rule).filter((name) => !name || !column(name));
-  if (missing.length) return [`Choose ${missing.length === 1 ? "a column" : "the columns"} that exist in this file.`];
+  if (missing.length) return [missing.length === 1 ? "Choose a column that exists in this file." : "Choose columns that exist in this file."];
   switch (rule.kind) {
     case "compare": {
       const l = column(rule.left)!, r = column(rule.right)!;

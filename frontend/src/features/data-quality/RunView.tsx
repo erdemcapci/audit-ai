@@ -125,7 +125,7 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
       {section === "map" ? (
         <div className={`dq-map-layout${selected ? " with-panel" : ""}`}>
           <RunMap
-            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, relationships: record.profile.relationships, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
+            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, relationships: record.profile.relationships, ai: record.ai_plan, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
             selected={selected}
             onSelect={setSelected}
           />

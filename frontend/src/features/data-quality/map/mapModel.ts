@@ -1,4 +1,5 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
+import type { AppliedAiPlan } from "../engine/aiPlan";
 import { TYPE_LABEL } from "../engine/profile";
 import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import { TEMPLATES } from "../engine/templates/registry";
@@ -9,12 +10,12 @@ import type { ColumnInfo, Relationship, RunTotals, Severity, TemplateId, TestDef
  * stays readable on wide files). The map is the visual face of the run log.
  */
 
-export type MapNodeKind = "source" | "profile" | "discovery" | "plan" | "test" | "exceptions" | "result";
+export type MapNodeKind = "source" | "profile" | "discovery" | "ai" | "plan" | "test" | "exceptions" | "result";
 export type MapNodeState = "pending" | "running" | "done" | "not_applicable" | "switched_off";
 
 export type MapNodeData = {
   kind: MapNodeKind;
-  actor: "File" | "Code" | "Auditor" | "Result";
+  actor: "File" | "Code" | "AI" | "Auditor" | "Result";
   title: string;
   subtitle: string;
   state: MapNodeState;
@@ -32,11 +33,13 @@ export type MapInput = {
   /** Null while the tests are running. */
   tests: TestNodeResult[] | null;
   progress?: Partial<Record<TemplateId, "running" | "done">>;
+  /** The AI review of the plan, when one was used. */
+  ai?: AppliedAiPlan | null;
   totals?: RunTotals;
   verdict?: Verdict;
 };
 
-const X = [0, 290, 580, 870, 1180, 1510, 1800];
+const STEP = 290;
 const ROW = 96;
 const worst = (severities: Severity[]): Severity => (["high", "medium", "low"] as const).find((s) => severities.includes(s)) ?? "clean";
 const n = (value: number) => value.toLocaleString("en-US");
@@ -51,12 +54,18 @@ export function buildMap(input: MapInput): { nodes: Node<MapNodeData>[]; edges: 
   const done = input.tests !== null;
 
   const relationships = input.relationships;
-  const nodes: Node<MapNodeData>[] = [
-    node("source", X[0], middle, { kind: "source", actor: "File", title: input.fileName, subtitle: `${n(input.rows)} rows · ${n(input.columns.length)} columns`, state: "done" }),
-    node("profile", X[1], middle, { kind: "profile", actor: "Code", title: "Column profile", subtitle: [...typeCounts.entries()].map(([type, count]) => `${count} ${type.toLowerCase()}`).join(" · "), state: "done" }),
-    ...(relationships ? [node("discovery", X[2], middle, { kind: "discovery", actor: "Code", title: "Relationship discovery", subtitle: relationships.length ? `${n(relationships.length)} relationship${relationships.length === 1 ? "" : "s"} found` : "No relationships found", state: "done" })] : []),
-    node("plan", X[3], middle, { kind: "plan", actor: "Auditor", title: "Test plan", subtitle: `${n(enabled)} tests${off ? ` · ${n(off)} switched off` : ""}`, state: "done" })
+  const ai = input.ai;
+  const aiChanges = ai ? ai.switchedOff.length + ai.switchedOn.length + ai.addedRules.length : 0;
+  // The steps before the tests, left to right; optional steps only appear when they happened.
+  const chain: [string, MapNodeData][] = [
+    ["source", { kind: "source", actor: "File", title: input.fileName, subtitle: `${n(input.rows)} rows · ${n(input.columns.length)} columns`, state: "done" }],
+    ["profile", { kind: "profile", actor: "Code", title: "Column profile", subtitle: [...typeCounts.entries()].map(([type, count]) => `${count} ${type.toLowerCase()}`).join(" · "), state: "done" }],
+    ...(relationships ? [["discovery", { kind: "discovery", actor: "Code", title: "Relationship discovery", subtitle: relationships.length ? `${n(relationships.length)} relationship${relationships.length === 1 ? "" : "s"} found` : "No relationships found", state: "done" }] as [string, MapNodeData]] : []),
+    ...(ai ? [["ai", { kind: "ai", actor: "AI", title: ai.response.demo ? "AI test plan (demo)" : "AI test plan", subtitle: aiChanges ? `${n(aiChanges)} change${aiChanges === 1 ? "" : "s"} proposed` : "No changes proposed", state: "done" }] as [string, MapNodeData]] : []),
+    ["plan", { kind: "plan", actor: "Auditor", title: "Test plan", subtitle: `${n(enabled)} tests${off ? ` · ${n(off)} switched off` : ""}`, state: "done" }]
   ];
+  const nodes: Node<MapNodeData>[] = chain.map(([id, data], i) => node(id, i * STEP, middle, data));
+  const testX = chain.length * STEP + 10;
 
   TEMPLATES.forEach((template, i) => {
     const result = input.tests?.find((t) => t.template === template.id);
@@ -78,26 +87,24 @@ export function buildMap(input: MapInput): { nodes: Node<MapNodeData>[]; edges: 
       state = !planned.length ? "not_applicable" : !active ? "switched_off" : input.progress?.[template.id] ?? "pending";
       subtitle = state === "not_applicable" ? "Not applicable" : state === "switched_off" ? "Switched off" : `${n(active)} ${unit}${active === 1 ? "" : "s"} · ${state === "running" ? "running…" : state === "done" ? "done" : "waiting"}`;
     }
-    nodes.push(node(`test:${template.id}`, X[4], i * ROW, { kind: "test", actor: "Code", title: template.title, subtitle, state, severity, template: template.id }));
+    nodes.push(node(`test:${template.id}`, testX, i * ROW, { kind: "test", actor: "Code", title: template.title, subtitle, state, severity, template: template.id }));
   });
 
   const totals = input.totals;
-  nodes.push(node("exceptions", X[5], middle, {
+  nodes.push(node("exceptions", testX + 330, middle, {
     kind: "exceptions", actor: "Code", title: "Exceptions",
     subtitle: totals ? `${totals.findings ? `${n(totals.findings)} findings · ${n(totals.exceptions)} records` : "No exceptions"}${totals.uncertain ? ` · ${n(totals.uncertain)} to confirm` : ""}` : "Waiting for tests",
     state: done ? "done" : "pending",
     severity: totals ? (totals.high ? "high" : totals.medium ? "medium" : totals.low ? "low" : "clean") : undefined
   }));
-  nodes.push(node("result", X[6], middle, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
+  nodes.push(node("result", testX + 620, middle, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
 
   const edge = (source: string, target: string, dim = false): Edge => ({
     id: `${source}->${target}`, source, target, type: "smoothstep", animated: false,
     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
     style: { stroke: dim ? "#cbd5e1" : "#64748b", strokeWidth: dim ? 1 : 1.5, strokeDasharray: dim ? "4 4" : undefined }
   });
-  const edges: Edge[] = relationships
-    ? [edge("source", "profile"), edge("profile", "discovery"), edge("discovery", "plan"), edge("exceptions", "result")]
-    : [edge("source", "profile"), edge("profile", "plan"), edge("exceptions", "result")];
+  const edges: Edge[] = [...chain.slice(1).map(([id], i) => edge(chain[i][0], id)), edge("exceptions", "result")];
   nodes.filter((nd) => nd.data.kind === "test").forEach((nd) => {
     const inactive = nd.data.state === "not_applicable" || nd.data.state === "switched_off";
     edges.push(edge("plan", nd.id, inactive));

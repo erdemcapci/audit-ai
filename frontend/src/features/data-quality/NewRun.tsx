@@ -5,6 +5,7 @@ import { buildProfile } from "./engine/profile";
 import { buildStandardPlan } from "./engine/runner";
 import { buildRecordContent, executeRun, readSource, type RunRecord } from "./engine/session";
 import { gzip } from "./engine/source";
+import { applyAiPlan, buildAiRequest, type AppliedAiPlan } from "./engine/aiPlan";
 import { validateRule } from "./engine/rules";
 import { DEFAULT_SETTINGS, type DatasetProfile, type RuleParams, type RunResults, type RunSettings, type TemplateId, type TestDefinition } from "./engine/types";
 import { RunMap } from "./map/RunMap";
@@ -51,7 +52,7 @@ function withSavedRules(standard: TestDefinition[], saved: TestDefinition<RulePa
   return plan;
 }
 
-export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectId: string; allowUpload: boolean; onCancel: () => void; onSaved: (cache: RunCache) => void }) {
+export function NewRun({ projectId, allowUpload, aiAvailable, onCancel, onSaved }: { projectId: string; allowUpload: boolean; aiAvailable: boolean; onCancel: () => void; onSaved: (cache: RunCache) => void }) {
   const savedRules = useRef<Promise<TestDefinition<RuleParams>[]> | null>(null);
   if (!savedRules.current) savedRules.current = dataQualityApi.listRules(projectId).catch(() => []);
   const [saved, setSaved] = useState<TestDefinition<RuleParams>[]>([]);
@@ -65,6 +66,12 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
   const [progress, setProgress] = useState<Partial<Record<TemplateId, "running" | "done">>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  // AI review of the plan: the plan before it (to discard) and right after it (what the auditor was shown).
+  const [ai, setAi] = useState<AppliedAiPlan | null>(null);
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [planBeforeAi, setPlanBeforeAi] = useState<TestDefinition[] | null>(null);
+  const [planAfterAi, setPlanAfterAi] = useState<TestDefinition[] | null>(null);
   const pending = useRef<(() => Promise<void>) | null>(null);
 
   async function load(read: () => Promise<{ bytes: ArrayBuffer; name: string }>) {
@@ -87,6 +94,10 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
       setProfile(nextProfile);
       setStandardPlan(nextPlan);
       setPlan(withSavedRules(nextPlan, projectRules, nextProfile));
+      setAi(null);
+      setPlanBeforeAi(null);
+      setPlanAfterAi(null);
+      setAiError("");
       setReviewStartedAt(new Date().toISOString());
       setStage("plan");
     } catch (err) {
@@ -114,10 +125,49 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
     setSettings(next);
     setProfile(nextProfile);
     setStandardPlan(nextStandard);
-    setPlan(withSavedRules(nextStandard, saved, nextProfile, added).map((t) => {
-      const old = previous.get(t.id);
-      return old ? { ...t, enabled: old.enabled, params: t.template === "validity.pattern" ? old.params : t.params } : t;
-    }));
+    // Grouping choices made on pattern tests survive the rebuild.
+    const keepParams = (t: TestDefinition) => (t.template === "validity.pattern" && previous.has(t.id) ? { ...t, params: previous.get(t.id)!.params } : t);
+    if (!ai) {
+      setPlan(withSavedRules(nextStandard, saved, nextProfile, added).map((t) => (previous.has(t.id) ? { ...keepParams(t), enabled: previous.get(t.id)!.enabled } : t)));
+      return;
+    }
+    // With an AI review: rebuild without it, apply the same AI answer again, then the auditor's own
+    // on/off choices made after the review.
+    const base = withSavedRules(nextStandard, saved, nextProfile, added.filter((t) => t.source !== "ai")).map(keepParams);
+    const reapplied = applyAiPlan(base, ai.response, nextProfile, { requestedAt: ai.requestedAt, durationMs: ai.durationMs });
+    const afterAi = new Map((planAfterAi ?? []).map((t) => [t.id, t.enabled]));
+    const own = new Map(plan.filter((t) => afterAi.has(t.id) && afterAi.get(t.id) !== t.enabled).map((t) => [t.id, t.enabled]));
+    setPlanBeforeAi(base);
+    setPlanAfterAi(reapplied.plan);
+    setAi(reapplied.applied);
+    setPlan(reapplied.plan.map((t) => (own.has(t.id) ? { ...t, enabled: own.get(t.id)! } : t)));
+  }
+
+  async function askAi() {
+    if (!loaded || !profile) return;
+    setAiRunning(true);
+    setAiError("");
+    const requestedAt = new Date().toISOString();
+    const started = performance.now();
+    try {
+      const response = await dataQualityApi.aiPlan(projectId, buildAiRequest(loaded.data, profile, plan));
+      const result = applyAiPlan(plan, response, profile, { requestedAt, durationMs: Math.round(performance.now() - started) });
+      setPlanBeforeAi(plan);
+      setPlanAfterAi(result.plan);
+      setPlan(result.plan);
+      setAi(result.applied);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "The AI review could not be completed.");
+    } finally {
+      setAiRunning(false);
+    }
+  }
+
+  function discardAi() {
+    if (planBeforeAi) setPlan(planBeforeAi);
+    setAi(null);
+    setPlanBeforeAi(null);
+    setPlanAfterAi(null);
   }
 
   async function forgetRule(id: string) {
@@ -137,8 +187,8 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
     setProgress({});
     setError("");
     try {
-      const executed = await executeRun(loaded.data, profile, standardPlan, plan, settings,
-        { loadedAt: loaded.loadedAt, loadMs: loaded.loadMs, profileMs: loaded.profileMs, reviewStartedAt },
+      const executed = await executeRun(loaded.data, profile, ai && planAfterAi ? planAfterAi : standardPlan, plan, settings,
+        { loadedAt: loaded.loadedAt, loadMs: loaded.loadMs, profileMs: loaded.profileMs, reviewStartedAt, ai },
         (template, state) => setProgress((p) => ({ ...p, [template]: state })));
       const save = async () => {
         setStage("saving");
@@ -172,7 +222,8 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
       <>
         {error ? <div className="error-banner">{error}</div> : null}
         <PlanReview fileName={loaded.data.name} headers={loaded.data.headers} profile={profile} plan={plan} settings={settings}
-          onPlanChange={setPlan} onSettingsChange={changeSettings} onForgetRule={(id) => void forgetRule(id)} onRun={() => void run()} onCancel={onCancel} />
+          onPlanChange={setPlan} onSettingsChange={changeSettings} onForgetRule={(id) => void forgetRule(id)} onRun={() => void run()} onCancel={onCancel}
+          ai={{ available: aiAvailable, running: aiRunning, error: aiError, applied: ai, onAsk: () => void askAi(), onDiscard: discardAi }} />
       </>
     );
   }
@@ -192,7 +243,7 @@ export function NewRun({ projectId, allowUpload, onCancel, onSaved }: { projectI
         {stage === "running" ? <Working>Running the tests. Large files can take up to a minute; the map shows each test as it finishes.</Working> : null}
         {stage === "saving" ? <Working>Saving the results and a compressed copy of the file…</Working> : null}
         {error ? <div className="error-banner">{error}</div> : null}
-        <RunMap input={{ fileName: loaded.data.name, rows: loaded.data.rows.length, columns: profile.columns, relationships: profile.relationships, plan, tests: null, progress }} selected={null} onSelect={() => undefined} />
+        <RunMap input={{ fileName: loaded.data.name, rows: loaded.data.rows.length, columns: profile.columns, relationships: profile.relationships, ai, plan, tests: null, progress }} selected={null} onSelect={() => undefined} />
       </div>
     );
   }

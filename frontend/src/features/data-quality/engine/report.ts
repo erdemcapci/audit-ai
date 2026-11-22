@@ -1,3 +1,4 @@
+import type { AppliedAiPlan } from "./aiPlan";
 import { TYPE_LABEL } from "./profile";
 import { isFinding, VERDICT_LABEL } from "./runner";
 import { getTemplate } from "./templates/registry";
@@ -16,6 +17,7 @@ export type ReportInput = {
   results: RunResults;
   settings: RunSettings;
   changes: PlanChange[];
+  ai?: AppliedAiPlan | null;
 };
 
 const n = (value: number) => value.toLocaleString("en-US");
@@ -38,7 +40,10 @@ export function buildReport(input: ReportInput): string {
   lines.push(`- Run: ${formatRunDate(input.createdAt)}`);
   lines.push(`- File: ${input.fileName} · ${n(input.rows)} rows · ${n(input.columns.length)} columns`);
   lines.push(`- Result: **${VERDICT_LABEL[results.verdict]}** — ${n(totals.tests)} tests, ${n(totals.findings)} with findings (${n(totals.high)} high, ${n(totals.medium)} medium, ${n(totals.low)} low)${totals.uncertain ? `, ${n(totals.uncertain)} rule${totals.uncertain === 1 ? "" : "s"} to confirm` : ""}`);
-  lines.push("- Prepared by: automated standard tests. No AI was used.", "");
+  const ai = input.ai;
+  lines.push(ai
+    ? `- Prepared by: automated tests. The test plan was reviewed by ${ai.response.demo ? "the demo AI (fixed rules, no model)" : `AI (${ai.response.provider}${ai.response.model ? `, ${ai.response.model}` : ""})`} and approved by the auditor; every result was computed by the tests, not by AI.`
+    : "- Prepared by: automated standard tests. No AI was used.", "");
 
   lines.push("## Findings", "");
   if (!findings.length) lines.push("No test found any exceptions.", "");
@@ -74,6 +79,18 @@ export function buildReport(input: ReportInput): string {
   const notTested = notTestedLines(results.tests);
   if (!notTested.length) lines.push("Every test applied to this file.");
   lines.push(...notTested, "");
+
+  if (ai) {
+    lines.push("## AI review of the test plan", "");
+    if (ai.response.summary) lines.push(ai.response.summary, "");
+    ai.switchedOff.forEach((c) => lines.push(`- Switched off: ${c.subject} — ${c.reason}`));
+    ai.switchedOn.forEach((c) => lines.push(`- Switched on: ${c.subject} — ${c.reason}`));
+    ai.addedRules.forEach((c) => lines.push(`- Rule added: ${c.subject} — ${c.reason}`));
+    ai.rejectedRules.forEach((c) => lines.push(`- Proposal not used: ${c.problem} (${c.reason})`));
+    ai.response.not_testable.forEach((c) => lines.push(`- Idea for fieldwork: ${c.idea}${c.reason ? ` — ${c.reason}` : ""}`));
+    if (!ai.switchedOff.length && !ai.switchedOn.length && !ai.addedRules.length && !ai.response.not_testable.length) lines.push("- The AI review proposed no changes.");
+    lines.push("");
+  }
 
   if (input.changes.length) {
     lines.push("## Changes to the standard plan", "");

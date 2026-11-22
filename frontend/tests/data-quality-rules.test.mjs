@@ -129,7 +129,7 @@ test("rules read as plain sentences and invalid rules explain why", async () => 
   assert.match(rules.validateRule({ kind: "compare", left: "doc_date", op: "lte", right: "net" }, profile)[0], /date column can only be compared with another date/);
   assert.match(rules.validateRule({ kind: "arithmetic", formula: "sum", inputs: ["net", "status"], result: "gross", tolerance: 0.01 }, profile)[0], /number columns/);
   assert.match(rules.validateRule({ kind: "conditional", if: { column: "status", op: "eq", value: "" }, then: { column: "close_date", op: "not_empty" } }, profile)[0], /Enter the value/);
-  assert.match(rules.validateRule({ kind: "dependency", from: "nope", to: "vendor_name" }, profile)[0], /exist in this file/);
+  assert.match(rules.validateRule({ kind: "dependency", from: "nope", to: "vendor_name" }, profile)[0], /exists? in this file/);
 });
 
 test("conditions compare dates and numbers by value, text exactly", async () => {

@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from app.features.data_quality.models import DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, SavedRule, StoredSourceFile
+from app.features.data_quality.ai_plan import data_quality_ai_plan_service
+from app.features.data_quality.models import AiPlanRequest, AiPlanResponse, DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, SavedRule, StoredSourceFile
 from app.features.data_quality.store import data_quality_store
 from app.models import MessageResponse
-from app.runtime import ensure_data_quality_write_allowed
+from app.runtime import actor_id_for_request, ensure_agent_execution_allowed, ensure_data_quality_write_allowed
 
 
 router = APIRouter(prefix="/api/projects/{project_id}/data-quality", tags=["data-quality"])
@@ -50,6 +51,19 @@ async def upload_file(request: Request, project_id: str) -> StoredSourceFile:
 @router.get("/files/{content_hash}")
 def download_file(project_id: str, content_hash: str) -> FileResponse:
     return FileResponse(data_quality_store.file_path(project_id, content_hash), media_type="application/gzip")
+
+
+@router.post("/plan", response_model=AiPlanResponse)
+async def ai_plan(request: Request, project_id: str, payload: AiPlanRequest) -> AiPlanResponse:
+    """AI review of the proposed test plan. Nothing is saved here; the run saves what the auditor accepts."""
+    ensure_data_quality_write_allowed(request)
+    ensure_agent_execution_allowed(request)
+    try:
+        return await data_quality_ai_plan_service.review(project_id, payload, actor_id_for_request(request))
+    except FileNotFoundError:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The AI review could not be completed: {exc}") from exc
 
 
 @router.get("/rules", response_model=list[SavedRule])

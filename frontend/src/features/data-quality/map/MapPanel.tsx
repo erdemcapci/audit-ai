@@ -1,5 +1,6 @@
 import { TYPE_LABEL } from "../engine/profile";
 import { formatRunDate } from "../engine/report";
+import type { AppliedAiPlan } from "../engine/aiPlan";
 import { ruleId, ruleLabel } from "../engine/rules";
 import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import type { RunRecord } from "../engine/session";
@@ -33,6 +34,7 @@ export function MapPanel({ nodeId, record, tests, onClose, onViewTest, onViewFil
       {nodeId === "source" ? <SourcePanel record={record} onViewFile={onViewFile} /> : null}
       {nodeId === "profile" ? <ProfilePanel record={record} /> : null}
       {nodeId === "discovery" ? <DiscoveryPanel record={record} /> : null}
+      {nodeId === "ai" && record.ai_plan ? <AiPanel ai={record.ai_plan} /> : null}
       {nodeId === "plan" ? <PlanPanel record={record} changes={(step?.detail.changes as PlanChange[] | undefined) ?? []} /> : null}
       {nodeId.startsWith("test:") ? <TestPanel test={tests.find((t) => `test:${t.template}` === nodeId)} onView={onViewTest} /> : null}
       {nodeId === "exceptions" ? <ExceptionsPanel record={record} tests={tests} onView={onViewTest} /> : null}
@@ -51,6 +53,7 @@ function title(nodeId: string, record: RunRecord) {
   if (nodeId === "source") return "Source file";
   if (nodeId === "profile") return "Column profile";
   if (nodeId === "discovery") return "Relationship discovery";
+  if (nodeId === "ai") return "AI test plan";
   if (nodeId === "plan") return "Test plan";
   if (nodeId === "exceptions") return "Exceptions";
   if (nodeId === "result") return "Result";
@@ -116,13 +119,60 @@ function DiscoveryPanel({ record }: { record: RunRecord }) {
   );
 }
 
+/** What the AI review saw and proposed, and what became of each proposal. */
+function AiPanel({ ai }: { ai: AppliedAiPlan }) {
+  const r = ai.response;
+  const roles = r.columns.filter((c) => c.role !== "other" || c.meaning);
+  return (
+    <div className="dq-panel-body">
+      {r.summary ? <p>{r.summary}</p> : null}
+      <dl className="dq-facts">
+        <dt>Model</dt><dd>{r.demo ? "Demo mode — fixed rules, no AI model" : `${r.provider}${r.model ? ` · ${r.model}` : ""}`}</dd>
+        <dt>Sent to the AI</dt><dd>Column profile, proposed tests, audit context and {n(r.sample_rows_sent)} sample rows (≈ {n(r.estimated_tokens)} tokens)</dd>
+        {r.log_run_id ? <><dt>Log</dt><dd>Agent Logs · {r.log_run_id}</dd></> : null}
+      </dl>
+      <h4>Changes to the plan</h4>
+      {ai.switchedOff.length || ai.switchedOn.length || ai.addedRules.length ? (
+        <ul className="dq-panel-cards">
+          {ai.switchedOff.map((c) => <li key={`off-${c.testId}`}><strong>Switched off: {c.subject}</strong><span className="muted">{c.reason}</span></li>)}
+          {ai.switchedOn.map((c) => <li key={`on-${c.testId}`}><strong>Switched on: {c.subject}</strong><span className="muted">{c.reason}</span></li>)}
+          {ai.addedRules.map((c) => <li key={`add-${c.testId}`}><strong>Rule added: {c.subject}</strong><span className="muted">{c.reason}</span></li>)}
+        </ul>
+      ) : <p className="muted dq-hint">None proposed.</p>}
+      {ai.rejectedRules.length ? (
+        <>
+          <h4>Proposals not used</h4>
+          <ul className="dq-panel-cards">{ai.rejectedRules.map((c, i) => <li key={i}><strong>{c.problem}</strong><span className="muted">{c.reason}</span></li>)}</ul>
+        </>
+      ) : null}
+      {r.not_testable.length ? (
+        <>
+          <h4>Ideas for fieldwork</h4>
+          <ul className="dq-panel-cards">{r.not_testable.map((c, i) => <li key={i}><strong>{c.idea}</strong>{c.reason ? <span className="muted">{c.reason}</span> : null}</li>)}</ul>
+        </>
+      ) : null}
+      {roles.length ? (
+        <>
+          <h4>Column meanings</h4>
+          <div className="dq-table-wrap">
+            <table className="dq-table">
+              <thead><tr><th>Column</th><th>Meaning</th><th>Role</th></tr></thead>
+              <tbody>{roles.map((c) => <tr key={c.column}><td>{c.column}</td><td>{c.meaning}</td><td className="dq-mono">{c.role}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function PlanPanel({ record, changes }: { record: RunRecord; changes: PlanChange[] }) {
   const enabled = record.plan.filter((t) => t.enabled).length;
   const bySource = (source: string) => record.plan.filter((t) => t.enabled && t.source === source).length;
   const settings = withDefaults(record.settings);
   return (
     <div className="dq-panel-body">
-      <p>{n(enabled)} of {n(record.plan.length)} proposed tests ran: {n(bySource("standard"))} standard, {n(bySource("discovered"))} discovered rules, {n(bySource("auditor"))} added by you{record.plan.some((t) => t.savedAt) ? `, ${n(record.plan.filter((t) => t.enabled && t.savedAt).length)} saved project rules` : ""}. No AI was used.</p>
+      <p>{n(enabled)} of {n(record.plan.length)} proposed tests ran: {n(bySource("standard"))} standard, {n(bySource("discovered"))} discovered rules, {n(bySource("auditor"))} added by you{bySource("ai") ? `, ${n(bySource("ai"))} AI suggestions` : ""}{record.plan.some((t) => t.savedAt) ? `, ${n(record.plan.filter((t) => t.enabled && t.savedAt).length)} saved project rules` : ""}.{record.ai_used ? " The plan was reviewed by AI before you approved it." : " No AI was used."}</p>
       <h4>Your changes</h4>
       {changes.length ? (
         <ul className="dq-notes">{changes.map((c) => <li key={c.testId}>{getTemplate(c.template).title} — {c.subject}: {c.change === "switched_off" ? "switched off" : c.change === "switched_on" ? "switched on" : `changed (${c.detail})`}</li>)}</ul>
