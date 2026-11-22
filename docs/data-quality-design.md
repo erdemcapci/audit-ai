@@ -1,11 +1,11 @@
 # Data Quality Tests — Design
 
-Status: Phase 1 (standard tests, run map, run storage), Phase 2 (relationship
-discovery, dataset rules, saved rules) and Phase 3 (AI review of the test plan)
-are implemented in `frontend/src/features/data-quality/` and
-`backend/app/features/data_quality/`. Phase 4 (AI interpretation of results) is
-design only. Where the implementation differs from the original design, the
-section says so under "Phase 1/2/3 implementation".
+Status: all four phases are implemented in `frontend/src/features/data-quality/`
+and `backend/app/features/data_quality/`: standard tests, run map and run storage
+(1), relationship discovery, dataset rules and saved rules (2), AI review of the
+test plan (3) and AI interpretation of the results (4). Where the implementation
+differs from the original design, the section says so under "Phase N
+implementation".
 
 ## 1. Goal
 
@@ -459,6 +459,40 @@ in the output text is checked against the numbers in the input (with rounding
 tolerance). On a mismatch, retry once; if it persists, show the interpretation
 with a visible warning on the affected card.
 
+### 10.4 Phase 4 implementation
+
+- **Interpret results with AI** on a saved run (shown when AI is available and the
+  user may write; **Interpret again** replaces the previous interpretation). It
+  calls `POST …/data-quality/runs/{run_id}/interpret`; the backend builds the input
+  from the saved run, so the browser sends nothing and the file never reaches the
+  AI.
+- Input (`features/data_quality/interpret.py`, `results_summary`): file name, row
+  count, columns with type, blank % and the AI plan's roles when there are any;
+  totals and the code verdict; up to 60 result cards with exceptions (findings
+  first, then rules to confirm or that did not hold) with test, subject, tested,
+  exceptions, rate, code severity, classification, summary and up to 3 example
+  values; which tests passed; which were not run. Plus the audit context.
+- Output as in 10.2. Unknown cards are dropped; invalid severities fall back to the
+  test's own, invalid actions to "no action"; at most 10 questions and 8
+  limitations.
+- Number check: every number in the AI's text is compared with the numbers in the
+  input (thousands separators ignored; within 0.05 or 0.5%; whole numbers up to 10
+  always allowed). If any is unknown the AI is asked once more, naming the
+  numbers; numbers still unknown are stored per card (and for the summary) and
+  shown as "check this note" warnings.
+- The interpretation is saved with the run (`ai_interpretation`, and
+  `ai_verdict` for the run card). Code severities, totals and the code verdict are
+  never changed: the AI severity is shown next to the test's own.
+- Shown as: an "AI interpretation" node between Exceptions and the result report
+  (verdict, questions for the client, limitations, what was sent, model, log);
+  an AI note on each result card (meaning, action, AI severity and why); an
+  "AI: …" verdict badge on the run card; and an "AI interpretation" section placed
+  at the top of the report (and in the Markdown download).
+- Demo mode answers with fixed sentences built from the results only (verdict
+  "usable with conditions" when there are findings, an action per test type,
+  questions for findings that need the client), labelled as demo.
+- Logged in Agent Logs as "Data quality: AI interpretation".
+
 ## 11. Run map
 
 A KNIME-style flow built with `@xyflow/react`, reusing the audit map's node
@@ -706,6 +740,7 @@ frontend/src/features/data-quality/
     report.ts                 Markdown result report (template sentences)
     session.ts                step log, saved-run record, replay
     aiPlan.ts                 AI review: request, applying and validating the answer
+    interpretation.ts         AI interpretation: types, labels, report section
     source.ts                 gzip, downloads, exception CSV
   map/                        run map model, canvas and side panel
   DataQualityScreen.tsx       run list / new run / run view
@@ -720,6 +755,7 @@ backend/app/features/data_quality/
   store.py                    runs, gzip source files and saved rules per project
   prompts.py                  AI test plan prompt (audit context + file profile)
   ai_plan.py                  AI test plan: provider or demo answer, normalising, logging
+  interpret.py                AI interpretation: results summary, number check, retry, demo, saving
 backend/app/api/data_quality.py
 ```
 
@@ -736,7 +772,7 @@ Backend endpoints (implemented marked ✓):
 ✓ GET    /api/projects/{project_id}/data-quality/rules
 ✓ PUT    /api/projects/{project_id}/data-quality/rules          replaces the list, one per id
 ✓ POST   /api/projects/{project_id}/data-quality/plan           AI #1; returns proposals, saves nothing
-  POST   /api/projects/{project_id}/data-quality/interpret      AI #2
+✓ POST   /api/projects/{project_id}/data-quality/runs/{run_id}/interpret   AI #2; saves it with the run
 ```
 
 Storage:
@@ -832,9 +868,11 @@ Each phase ships something usable on its own.
 - Phase 3 implementation: no privacy settings (D15, D16) and no provider contract
   fixture; the prompt is covered by backend tests instead.
 
-**Phase 4 — AI interpretation and report**
+**Phase 4 — AI interpretation and report** (implemented, section 10.4)
 - AI #2 endpoint; number check; adjusted severities; actions; client questions;
   result report; "Interpret with AI" on an existing run.
+- Phase 4 implementation: AI severities are shown next to the code's, not
+  applied to totals; AI column roles still do not change code severity weights.
 
 **Later**
 - Rule library across projects; multi-file tests; analytics templates (time

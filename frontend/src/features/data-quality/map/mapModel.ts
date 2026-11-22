@@ -1,5 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { AppliedAiPlan } from "../engine/aiPlan";
+import { AI_VERDICT_LABEL, type AiInterpretation } from "../engine/interpretation";
 import { TYPE_LABEL } from "../engine/profile";
 import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import { TEMPLATES } from "../engine/templates/registry";
@@ -10,7 +11,7 @@ import type { ColumnInfo, Relationship, RunTotals, Severity, TemplateId, TestDef
  * stays readable on wide files). The map is the visual face of the run log.
  */
 
-export type MapNodeKind = "source" | "profile" | "discovery" | "ai" | "plan" | "test" | "exceptions" | "result";
+export type MapNodeKind = "source" | "profile" | "discovery" | "ai" | "plan" | "test" | "exceptions" | "interpretation" | "result";
 export type MapNodeState = "pending" | "running" | "done" | "not_applicable" | "switched_off";
 
 export type MapNodeData = {
@@ -35,6 +36,8 @@ export type MapInput = {
   progress?: Partial<Record<TemplateId, "running" | "done">>;
   /** The AI review of the plan, when one was used. */
   ai?: AppliedAiPlan | null;
+  /** The AI interpretation of the results, when one was made. */
+  interpretation?: AiInterpretation | null;
   totals?: RunTotals;
   verdict?: Verdict;
 };
@@ -97,14 +100,22 @@ export function buildMap(input: MapInput): { nodes: Node<MapNodeData>[]; edges: 
     state: done ? "done" : "pending",
     severity: totals ? (totals.high ? "high" : totals.medium ? "medium" : totals.low ? "low" : "clean") : undefined
   }));
-  nodes.push(node("result", testX + 620, middle, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
+  const interpretation = input.interpretation;
+  if (interpretation) {
+    nodes.push(node("interpretation", testX + 620, middle, {
+      kind: "interpretation", actor: "AI", title: interpretation.demo ? "AI interpretation (demo)" : "AI interpretation",
+      subtitle: `${AI_VERDICT_LABEL[interpretation.verdict]} · ${n(interpretation.client_questions.length)} question${interpretation.client_questions.length === 1 ? "" : "s"} for the client`, state: "done"
+    }));
+  }
+  nodes.push(node("result", testX + (interpretation ? 910 : 620), middle, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
 
   const edge = (source: string, target: string, dim = false): Edge => ({
     id: `${source}->${target}`, source, target, type: "smoothstep", animated: false,
     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
     style: { stroke: dim ? "#cbd5e1" : "#64748b", strokeWidth: dim ? 1 : 1.5, strokeDasharray: dim ? "4 4" : undefined }
   });
-  const edges: Edge[] = [...chain.slice(1).map(([id], i) => edge(chain[i][0], id)), edge("exceptions", "result")];
+  const tail = interpretation ? [edge("exceptions", "interpretation"), edge("interpretation", "result")] : [edge("exceptions", "result")];
+  const edges: Edge[] = [...chain.slice(1).map(([id], i) => edge(chain[i][0], id)), ...tail];
   nodes.filter((nd) => nd.data.kind === "test").forEach((nd) => {
     const inactive = nd.data.state === "not_applicable" || nd.data.state === "switched_off";
     edges.push(edge("plan", nd.id, inactive));

@@ -34,6 +34,8 @@ class DataQualityRunSummary(BaseModel):
     totals: RunTotals = Field(default_factory=RunTotals)
     verdict: str = ""
     ai_used: bool = False
+    # The AI's overall verdict on fitness for use, when the results were interpreted (Phase 4).
+    ai_verdict: str = ""
 
 
 class DataQualityRunContent(BaseModel):
@@ -48,6 +50,8 @@ class DataQualityRunContent(BaseModel):
     report_markdown: str = ""
     # The AI test plan as applied to this run (Phase 3); None when AI was not used.
     ai_plan: dict[str, Any] | None = None
+    # The AI interpretation of the results (Phase 4); None until requested.
+    ai_interpretation: dict[str, Any] | None = None
 
 
 class DataQualityRun(DataQualityRunSummary, DataQualityRunContent):
@@ -146,6 +150,39 @@ class AiPlanResponse(BaseModel):
     log_run_id: str | None = None
     estimated_tokens: int = 0
     sample_rows_sent: int = 0
+
+
+AI_VERDICTS = ["usable", "usable_with_conditions", "not_usable"]
+AI_ACTIONS = ["ask_client", "exclude_records", "document_limitation", "investigate_in_fieldwork", "no_action"]
+AI_SEVERITIES = ["high", "medium", "low"]
+
+
+class AiCardInterpretation(BaseModel):
+    card_id: str
+    severity: str
+    severity_reason: str = ""
+    meaning: str = ""
+    action: str = "no_action"
+    action_text: str = ""
+    unverified_numbers: list[str] = Field(default_factory=list)
+
+
+class AiInterpretation(BaseModel):
+    verdict: str
+    summary: str = ""
+    cards: list[AiCardInterpretation] = Field(default_factory=list)
+    client_questions: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    # Numbers in the summary, questions or limitations that are not in the results sent to the AI.
+    unverified_numbers: list[str] = Field(default_factory=list)
+    provider: str = ""
+    model: str = ""
+    demo: bool = False
+    log_run_id: str | None = None
+    estimated_tokens: int = 0
+    cards_sent: int = 0
+    attempts: int = 1
+    created_at: str = ""
 
 
 class StoredSourceFile(BaseModel):

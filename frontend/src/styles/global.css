@@ -2101,3 +2101,6 @@ h3 {
 .dq-map-panel .dq-table-wrap { overflow-x: auto; }
 .dq-map-panel > *, .dq-panel-body > * { min-width: 0; }
 .dq-map-panel .dq-table { table-layout: fixed; }
+.dq-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.dq-ai-badge { padding: 1px 8px; border-radius: 999px; background: #fae8ff; color: #86198f; font-size: 0.72rem; font-weight: 800; text-transform: capitalize; }
+.dq-ai-card { gap: 4px; }

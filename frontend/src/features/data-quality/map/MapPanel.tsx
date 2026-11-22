@@ -1,6 +1,7 @@
 import { TYPE_LABEL } from "../engine/profile";
 import { formatRunDate } from "../engine/report";
 import type { AppliedAiPlan } from "../engine/aiPlan";
+import { AI_VERDICT_LABEL, type AiInterpretation } from "../engine/interpretation";
 import { ruleId, ruleLabel } from "../engine/rules";
 import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import type { RunRecord } from "../engine/session";
@@ -35,11 +36,13 @@ export function MapPanel({ nodeId, record, tests, onClose, onViewTest, onViewFil
       {nodeId === "profile" ? <ProfilePanel record={record} /> : null}
       {nodeId === "discovery" ? <DiscoveryPanel record={record} /> : null}
       {nodeId === "ai" && record.ai_plan ? <AiPanel ai={record.ai_plan} /> : null}
+      {nodeId === "interpretation" && record.ai_interpretation ? <InterpretationPanel ai={record.ai_interpretation} onViewReport={onViewReport} /> : null}
       {nodeId === "plan" ? <PlanPanel record={record} changes={(step?.detail.changes as PlanChange[] | undefined) ?? []} /> : null}
       {nodeId.startsWith("test:") ? <TestPanel test={tests.find((t) => `test:${t.template}` === nodeId)} onView={onViewTest} /> : null}
       {nodeId === "exceptions" ? <ExceptionsPanel record={record} tests={tests} onView={onViewTest} /> : null}
       {nodeId === "result" ? (
         <div className="dq-panel-body">
+          {record.ai_interpretation ? <p>AI verdict: <strong>{AI_VERDICT_LABEL[record.ai_interpretation.verdict]}</strong></p> : null}
           <p><strong>{VERDICT_LABEL[record.verdict]}</strong> — {n(record.totals.tests)} tests, {n(record.totals.findings)} with findings ({n(record.totals.high)} high, {n(record.totals.medium)} medium, {n(record.totals.low)} low).</p>
           <p className="muted dq-hint">The verdict grades the findings. Whether the data is fit for your audit work remains your judgement.</p>
           <button className="dq-btn dq-btn-primary" onClick={onViewReport}>View report</button>
@@ -54,6 +57,7 @@ function title(nodeId: string, record: RunRecord) {
   if (nodeId === "profile") return "Column profile";
   if (nodeId === "discovery") return "Relationship discovery";
   if (nodeId === "ai") return "AI test plan";
+  if (nodeId === "interpretation") return "AI interpretation";
   if (nodeId === "plan") return "Test plan";
   if (nodeId === "exceptions") return "Exceptions";
   if (nodeId === "result") return "Result";
@@ -115,6 +119,37 @@ function DiscoveryPanel({ record }: { record: RunRecord }) {
           })}
         </ul>
       ) : <p className="muted dq-hint">No relationship between columns was strong enough to propose as a rule.</p>}
+    </div>
+  );
+}
+
+/** The AI's reading of the results: verdict, questions for the client, limitations. */
+function InterpretationPanel({ ai, onViewReport }: { ai: AiInterpretation; onViewReport: () => void }) {
+  const unverified = [...new Set([...ai.unverified_numbers, ...ai.cards.flatMap((c) => c.unverified_numbers)])];
+  return (
+    <div className="dq-panel-body">
+      <p><strong>{AI_VERDICT_LABEL[ai.verdict]}</strong>{ai.summary ? ` — ${ai.summary}` : ""}</p>
+      {unverified.length ? <div className="dq-banner">The AI used numbers that are not in the results ({unverified.join(", ")}). Check those statements before relying on them.</div> : null}
+      <dl className="dq-facts">
+        <dt>Model</dt><dd>{ai.demo ? "Demo mode — fixed rules, no AI model" : `${ai.provider}${ai.model ? ` · ${ai.model}` : ""}`}</dd>
+        <dt>Sent to the AI</dt><dd>Result summaries of {n(ai.cards_sent)} findings with counts and up to 3 example values each (≈ {n(ai.estimated_tokens)} tokens); not the file</dd>
+        {ai.attempts > 1 ? <><dt>Number check</dt><dd>Asked again once because the first answer used numbers not in the results</dd></> : null}
+        {ai.log_run_id ? <><dt>Log</dt><dd>Agent Logs · {ai.log_run_id}</dd></> : null}
+      </dl>
+      {ai.client_questions.length ? (
+        <>
+          <h4>Questions for the client</h4>
+          <ol className="dq-notes">{ai.client_questions.map((q, i) => <li key={i}>{q}</li>)}</ol>
+        </>
+      ) : null}
+      {ai.limitations.length ? (
+        <>
+          <h4>Limitations</h4>
+          <ul className="dq-notes">{ai.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul>
+        </>
+      ) : null}
+      <p className="muted dq-hint">Per-finding meanings and actions are shown on each test's result screen. The test results and the code verdict are unchanged.</p>
+      <button className="dq-btn dq-btn-primary" onClick={onViewReport}>View report</button>
     </div>
   );
 }

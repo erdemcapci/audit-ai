@@ -32,7 +32,7 @@ export function DataQualityScreen({ projectId, runtime }: { projectId: string; r
       ) : null}
       {view.kind === "run" ? (
         <RunView key={view.runId} projectId={projectId} runId={view.runId} initialSection={view.section}
-          cache={cache?.record.id === view.runId ? cache : null} canWrite={canWrite} onBack={showList} />
+          cache={cache?.record.id === view.runId ? cache : null} canWrite={canWrite} aiAvailable={Boolean(runtime?.agentExecutionEnabled)} onBack={showList} />
       ) : null}
     </section>
   );

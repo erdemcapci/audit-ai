@@ -12,7 +12,7 @@ guide describes existing code, not a roadmap of future product modules.
 | `features/planning_readiness/` | Readiness schemas, deterministic scoring, fingerprint/staleness logic, saved review/error handling and exact AI review prompt rendering. |
 | `features/findings/` | Finding generation/refinement, persistence/link updates, prompt, demo and canvas definition. |
 | `features/reporting/` | Report generation, Markdown export, report output normalization, prompt, demo and canvas definition. |
-| `features/data_quality/` | Persistence of data quality runs, their gzip source files and saved rules per project, and the AI test plan review (prompt, demo answer, normalisation, logging). The test engine runs in the browser; the backend stores its output as-is. |
+| `features/data_quality/` | Persistence of data quality runs, their gzip source files and saved rules per project, the AI test plan review and the AI interpretation of results (prompts, demo answers, normalisation, number check, logging). The test engine runs in the browser; the backend stores its output as-is. |
 | `services/fieldwork_service.py` | Existing planning-to-fieldwork transition and layout coordination. |
 | `services/agent_service.py` | Canvas agent lifecycle, context preparation, output application and graph mutations; explicit integration of current agent definitions. |
 | `services/audit_map_service.py`, `audit_graph_service.py` | Audit-specific canvas layout and cross-phase graph projection/traversal. |

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.features.data_quality.ai_plan import data_quality_ai_plan_service
+from app.features.data_quality.interpret import data_quality_interpretation_service
 from app.features.data_quality.models import AiPlanRequest, AiPlanResponse, DataQualityRun, DataQualityRunCreate, DataQualityRunSummary, SavedRule, StoredSourceFile
 from app.features.data_quality.store import data_quality_store
 from app.models import MessageResponse
@@ -64,6 +65,18 @@ async def ai_plan(request: Request, project_id: str, payload: AiPlanRequest) -> 
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"The AI review could not be completed: {exc}") from exc
+
+
+@router.post("/runs/{run_id}/interpret", response_model=DataQualityRun)
+async def interpret_run(request: Request, project_id: str, run_id: str) -> DataQualityRun:
+    """AI interpretation of a saved run's results; the run is saved with it and returned."""
+    ensure_data_quality_write_allowed(request)
+    ensure_agent_execution_allowed(request)
+    data_quality_store.get_run(project_id, run_id)  # unknown run -> 404, invalid id -> 400, before any AI call
+    try:
+        return await data_quality_interpretation_service.interpret(project_id, run_id, actor_id_for_request(request))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The AI interpretation could not be completed: {exc}") from exc
 
 
 @router.get("/rules", response_model=list[SavedRule])

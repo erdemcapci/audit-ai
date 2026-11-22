@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { dataQualityApi } from "./api";
+import { AI_VERDICT_LABEL, type AiVerdict } from "./engine/interpretation";
 import { formatRunDate } from "./engine/report";
 import { VERDICT_LABEL } from "./engine/runner";
 import type { RunSummary } from "./engine/session";
@@ -52,7 +53,10 @@ export function RunList({ projectId, canWrite, onNew, onOpen }: { projectId: str
           <article key={run.id} className="dq-run-card">
             <div className="dq-finding-head">
               <strong className="dq-run-file" title={run.source.name}>{run.source.name}</strong>
-              <Badge tone={VERDICT_TONE[run.verdict as keyof typeof VERDICT_TONE] ?? "neutral"}>{VERDICT_LABEL[run.verdict as keyof typeof VERDICT_LABEL] ?? run.verdict}</Badge>
+              <span className="dq-badges">
+                <Badge tone={VERDICT_TONE[run.verdict as keyof typeof VERDICT_TONE] ?? "neutral"}>{VERDICT_LABEL[run.verdict as keyof typeof VERDICT_LABEL] ?? run.verdict}</Badge>
+                {run.ai_verdict ? <Badge tone="purple">{`AI: ${AI_VERDICT_LABEL[run.ai_verdict as AiVerdict] ?? run.ai_verdict}`}</Badge> : null}
+              </span>
             </div>
             <p className="muted dq-hint">{formatRunDate(run.created_at)} · {n(run.source.rows)} rows · {n(run.source.columns)} columns · {formatBytes(run.source.size)}</p>
             <p className="dq-run-totals">

@@ -21,6 +21,8 @@ export const dataQualityApi = {
   /** AI review of the proposed plan; nothing is saved until the run is. */
   aiPlan: (projectId: string, request: AiPlanRequest) =>
     apiRequest<AiPlanResponse>(`${base(projectId)}/plan`, { method: "POST", body: JSON.stringify(request) }),
+  /** AI interpretation of a saved run; the backend saves it with the run and returns the run. */
+  interpret: (projectId: string, runId: string) => apiRequest<RunRecord>(`${base(projectId)}/runs/${runId}/interpret`, { method: "POST" }),
   /** Rules kept in the project and proposed again in later runs. */
   listRules: (projectId: string) => apiRequest<TestDefinition<RuleParams>[]>(`${base(projectId)}/rules`),
   saveRules: (projectId: string, rules: TestDefinition<RuleParams>[]) =>

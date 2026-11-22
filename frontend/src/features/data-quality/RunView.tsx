@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { dataQualityApi } from "./api";
 import type { Dataset } from "./engine/csv";
+import { cardInterpretations, reportWithInterpretation } from "./engine/interpretation";
 import { formatRunDate } from "./engine/report";
 import { VERDICT_LABEL } from "./engine/runner";
 import { readSource, replayRun, type RunRecord } from "./engine/session";
@@ -23,8 +24,8 @@ type Full = { data: Dataset; bytes: ArrayBuffer; tests: TestNodeResult[] };
  * A saved run. The map and summaries come from the saved record and show at once; the stored source
  * file is then loaded and the plan re-executed in the browser, which restores every exception record.
  */
-export function RunView({ projectId, runId, initialSection, cache, canWrite, onBack }: {
-  projectId: string; runId: string; initialSection: RunSection; cache: RunCache | null; canWrite: boolean; onBack: () => void;
+export function RunView({ projectId, runId, initialSection, cache, canWrite, aiAvailable, onBack }: {
+  projectId: string; runId: string; initialSection: RunSection; cache: RunCache | null; canWrite: boolean; aiAvailable: boolean; onBack: () => void;
 }) {
   const [record, setRecord] = useState<RunRecord | null>(cache?.record ?? null);
   const [full, setFull] = useState<Full | null>(cache ? { data: cache.data, bytes: cache.bytes, tests: cache.results.tests } : null);
@@ -33,6 +34,7 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [interpreting, setInterpreting] = useState(false);
   const [savedRuleIds, setSavedRuleIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -79,6 +81,22 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
     return () => { cancelled = true; };
   }, [projectId, runId, cache]);
 
+  async function interpret() {
+    if (!record) return;
+    setInterpreting(true);
+    setError("");
+    try {
+      const updated = await dataQualityApi.interpret(projectId, record.id);
+      setRecord(updated);
+      setSelected("interpretation");
+      setSection("map");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The AI interpretation could not be completed.");
+    } finally {
+      setInterpreting(false);
+    }
+  }
+
   async function deleteRun() {
     if (!record || !window.confirm(`Delete this run on ${record.source.name}?\n\nIts results and stored source file are removed. This cannot be undone.`)) return;
     try { await dataQualityApi.deleteRun(projectId, record.id); onBack(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to delete the run."); }
@@ -108,6 +126,11 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
         </div>
         <div className="dq-file-bar">
           {canWrite && record.source.stored ? <button className="dq-btn" onClick={() => void deleteFile()}>Delete source file</button> : null}
+          {canWrite && aiAvailable ? (
+            <button className="dq-btn" onClick={() => void interpret()} disabled={interpreting} title="Ask the AI what the results mean and what to do next">
+              {record.ai_interpretation ? "Interpret again with AI" : "Interpret results with AI"}
+            </button>
+          ) : null}
           {canWrite ? <button className="dq-btn dq-btn-danger" onClick={() => void deleteRun()}>Delete run</button> : null}
         </div>
       </div>
@@ -120,12 +143,13 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
       </div>
       {error ? <div className="error-banner">{error}</div> : null}
       {warning ? <div className="dq-banner">{warning}</div> : null}
+      {interpreting ? <Working>The AI is reading the results and writing its interpretation. This usually takes 10–60 seconds.</Working> : null}
       {fullState === "loading" && typeof section === "string" && section !== "report" ? <Working>Loading the stored source file and rebuilding the full exception lists… the summaries below are already complete.</Working> : null}
 
       {section === "map" ? (
         <div className={`dq-map-layout${selected ? " with-panel" : ""}`}>
           <RunMap
-            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, relationships: record.profile.relationships, ai: record.ai_plan, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
+            input={{ fileName: record.source.name, rows: record.source.rows, columns: record.profile.columns, relationships: record.profile.relationships, ai: record.ai_plan, interpretation: record.ai_interpretation, plan: record.plan, tests, totals: record.totals, verdict: record.verdict }}
             selected={selected}
             onSelect={setSelected}
           />
@@ -139,10 +163,11 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, onB
         const stored = tests.find((t) => t.template === section.test);
         if (!stored) return null;
         return <TestResultScreen key={section.test} stored={stored} full={full?.tests.find((t) => t.template === section.test) ?? null} fullState={fullState} onBack={() => setSection("map")}
+          interpretations={cardInterpretations(record.ai_interpretation)}
           ruleSaving={canWrite ? { savedIds: savedRuleIds, onSave: (id) => void saveRule(id) } : undefined} />;
       })() : null}
       {section === "file" ? <SourceFileView fileName={record.source.name} data={full?.data ?? null} bytes={full?.bytes ?? null} state={fullState} stored={record.source.stored} /> : null}
-      {section === "report" ? <ReportView markdown={record.report_markdown} fileName={record.source.name} /> : null}
+      {section === "report" ? <ReportView markdown={reportWithInterpretation(record.report_markdown, record.ai_interpretation, record.results)} fileName={record.source.name} interpreted={Boolean(record.ai_interpretation)} /> : null}
     </div>
   );
 }

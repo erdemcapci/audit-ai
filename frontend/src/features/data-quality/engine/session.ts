@@ -1,5 +1,6 @@
 import { decodeText, parseCsv, type Dataset } from "./csv";
 import type { AppliedAiPlan } from "./aiPlan";
+import type { AiInterpretation } from "./interpretation";
 import { buildProfile } from "./profile";
 import { buildReport } from "./report";
 import { planChanges, runPlan } from "./runner";
@@ -29,11 +30,14 @@ export type RunRecordContent = {
   ai_used: boolean;
   /** The AI review of the plan as applied to this run; null when AI was not used. */
   ai_plan?: AppliedAiPlan | null;
+  /** The AI interpretation of the results, added after the run (Phase 4). */
+  ai_interpretation?: AiInterpretation | null;
+  ai_verdict?: string;
 };
 
 export type RunRecord = RunRecordContent & { id: string; created_at: string };
 
-export type RunSummary = Pick<RunRecord, "id" | "created_at" | "source" | "totals" | "verdict" | "ai_used">;
+export type RunSummary = Pick<RunRecord, "id" | "created_at" | "source" | "totals" | "verdict" | "ai_used" | "ai_verdict">;
 
 export type LoadedSource = { bytes: ArrayBuffer; data: Dataset };
 

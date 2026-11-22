@@ -26,12 +26,12 @@ function render(markdown: string) {
   return blocks;
 }
 
-export function ReportView({ markdown, fileName }: { markdown: string; fileName: string }) {
+export function ReportView({ markdown, fileName, interpreted = false }: { markdown: string; fileName: string; interpreted?: boolean }) {
   const name = `data-quality-report-${fileName.replace(/\.[^.]+$/, "")}.md`;
   return (
     <div className="dq-detail">
       <div className="dq-section-head">
-        <span className="muted dq-hint">Built from the test results with standard sentences.</span>
+        <span className="muted dq-hint">{interpreted ? "Built from the test results with standard sentences; the “AI interpretation” section was written by AI." : "Built from the test results with standard sentences."}</span>
         <ExportButton label="Download Markdown" title={`Download ${name}`} onClick={() => downloadBlob(new Blob([markdown], { type: "text/markdown" }), name)} />
       </div>
       <article className="dq-report">{render(markdown)}</article>

@@ -46,6 +46,14 @@ class DataQualityStore:
         project_store.file_store.write_json(self._run_path(project_id, run.id), run.model_dump())
         return run
 
+    def save_run(self, project_id: str, run: DataQualityRun) -> DataQualityRun:
+        """Overwrites an existing run (used to attach the AI interpretation)."""
+        path = self._run_path(project_id, run.id)
+        if not path.exists():
+            raise FileNotFoundError(f"Data quality run not found: {run.id}")
+        project_store.file_store.write_json(path, run.model_dump())
+        return run
+
     def delete_run(self, project_id: str, run_id: str) -> None:
         run = self.get_run(project_id, run_id)
         self._run_path(project_id, run_id).unlink()
