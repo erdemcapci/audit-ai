@@ -259,7 +259,7 @@ function ExceptionsPanel({ record, tests, onView }: { record: RunRecord; tests: 
   found.sort((a, b) => rank[a.c.severity] - rank[b.c.severity] || b.c.rate - a.c.rate);
   return (
     <div className="dq-panel-body">
-      <p>{n(record.totals.findings)} findings affecting {n(record.totals.exceptions)} records.</p>
+      <p>{n(record.totals.findings)} finding{record.totals.findings === 1 ? "" : "s"} affecting {n(record.totals.exceptions)} record{record.totals.exceptions === 1 ? "" : "s"}.</p>
       <ul className="dq-panel-cards">
         {found.map(({ t, c }) => (
           <li key={c.testId}>

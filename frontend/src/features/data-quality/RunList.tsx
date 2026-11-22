@@ -20,7 +20,9 @@ export function RunList({ projectId, canWrite, onNew, onOpen }: { projectId: str
   useEffect(() => { void load(); }, [projectId]);
 
   async function remove(run: RunSummary) {
-    if (!window.confirm(`Delete the run on ${run.source.name} from ${formatRunDate(run.created_at)}?\n\nIts results and stored source file are removed. This cannot be undone.`)) return;
+    const shared = (runs ?? []).some((other) => other.id !== run.id && other.source.content_hash === run.source.content_hash);
+    const removed = !run.source.stored ? "Its results are removed." : shared ?"Its results are removed. The stored source file is kept because another run uses it." : "Its results and stored source file are removed.";
+    if (!window.confirm(`Delete the run on ${run.source.name} from ${formatRunDate(run.created_at)}?\n\n${removed} This cannot be undone.`)) return;
     try {
       await dataQualityApi.deleteRun(projectId, run.id);
       await load();
@@ -60,7 +62,7 @@ export function RunList({ projectId, canWrite, onNew, onOpen }: { projectId: str
             </div>
             <p className="muted dq-hint">{formatRunDate(run.created_at)} · {n(run.source.rows)} rows · {n(run.source.columns)} columns · {formatBytes(run.source.size)}</p>
             <p className="dq-run-totals">
-              {n(run.totals.tests)} tests · {n(run.totals.findings)} findings
+              {n(run.totals.tests)} tests · {n(run.totals.findings)} finding{run.totals.findings === 1 ? "" : "s"}
               {run.totals.findings ? ` (${n(run.totals.high)} high, ${n(run.totals.medium)} medium, ${n(run.totals.low)} low)` : ""}
               {" · "}{run.ai_used ? "AI used" : "No AI"}
             </p>

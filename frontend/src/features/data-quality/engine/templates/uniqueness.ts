@@ -66,7 +66,7 @@ export const duplicateRows: TestTemplate<Record<string, never>> = {
     });
     const tested = data.rows.length;
     const rate = tested ? (collector.total / tested) * 100 : 0;
-    const summary = collector.total ? `${count(collector.total)} records are exact copies of an earlier record (${percent(rate)}).` : "No duplicate records.";
+    const summary = collector.total ? `${count(collector.total)} record${collector.total === 1 ? " is an exact copy" : "s are exact copies"} of an earlier record (${percent(rate)}).` : "No duplicate records.";
     return card({ testId: ctx.testId, subject: WHOLE_DATASET, tested, collector, severity: severityOf(collector.total, rate, 2), summary });
   }
 };

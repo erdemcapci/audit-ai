@@ -96,7 +96,7 @@ export function buildMap(input: MapInput): { nodes: Node<MapNodeData>[]; edges: 
   const totals = input.totals;
   nodes.push(node("exceptions", testX + 330, middle, {
     kind: "exceptions", actor: "Code", title: "Exceptions",
-    subtitle: totals ? `${totals.findings ? `${n(totals.findings)} findings · ${n(totals.exceptions)} records` : "No exceptions"}${totals.uncertain ? ` · ${n(totals.uncertain)} to confirm` : ""}` : "Waiting for tests",
+    subtitle: totals ? `${totals.findings ? `${n(totals.findings)} finding${totals.findings === 1 ? "" : "s"} · ${n(totals.exceptions)} record${totals.exceptions === 1 ? "" : "s"}` : "No exceptions"}${totals.uncertain ? ` · ${n(totals.uncertain)} to confirm` : ""}` : "Waiting for tests",
     state: done ? "done" : "pending",
     severity: totals ? (totals.high ? "high" : totals.medium ? "medium" : totals.low ? "low" : "clean") : undefined
   }));

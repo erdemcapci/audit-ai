@@ -20,6 +20,12 @@ import { formatBytes, VERDICT_TONE, Working } from "./ui";
 type Section = RunSection | { test: TemplateId };
 type Full = { data: Dataset; bytes: ArrayBuffer; tests: TestNodeResult[] };
 
+/** Stored files are shared by content, so other runs on the same file are affected by a file deletion. */
+async function otherRunsOnFile(projectId: string, record: RunRecord): Promise<number> {
+  const runs = await dataQualityApi.listRuns(projectId).catch(() => []);
+  return runs.filter((run) => run.id !== record.id && run.source.content_hash === record.source.content_hash).length;
+}
+
 /**
  * A saved run. The map and summaries come from the saved record and show at once; the stored source
  * file is then loaded and the plan re-executed in the browser, which restores every exception record.
@@ -98,12 +104,18 @@ export function RunView({ projectId, runId, initialSection, cache, canWrite, aiA
   }
 
   async function deleteRun() {
-    if (!record || !window.confirm(`Delete this run on ${record.source.name}?\n\nIts results and stored source file are removed. This cannot be undone.`)) return;
+    if (!record) return;
+    const others = record.source.stored ? await otherRunsOnFile(projectId, record) : 0;
+    const removed = !record.source.stored ? "Its results are removed." : others ?"Its results are removed. The stored source file is kept because another run uses it." : "Its results and stored source file are removed.";
+    if (!window.confirm(`Delete this run on ${record.source.name}?\n\n${removed} This cannot be undone.`)) return;
     try { await dataQualityApi.deleteRun(projectId, record.id); onBack(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to delete the run."); }
   }
 
   async function deleteFile() {
-    if (!record || !window.confirm(`Delete the stored copy of ${record.source.name}?\n\nThe results stay, but the file and the full exception lists can no longer be shown. This cannot be undone.`)) return;
+    if (!record) return;
+    const others = await otherRunsOnFile(projectId, record);
+    const alsoUsed = others ? ` The same file is used by ${others} other run${others === 1 ? "" : "s"}; ${others === 1 ? "it loses" : "they lose"} the file too.` : "";
+    if (!window.confirm(`Delete the stored copy of ${record.source.name}?\n\nThe results stay, but the file and the full exception lists can no longer be shown.${alsoUsed} This cannot be undone.`)) return;
     try {
       await dataQualityApi.deleteFile(projectId, record.source.content_hash);
       setRecord({ ...record, source: { ...record.source, stored: false } });
