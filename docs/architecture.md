@@ -12,6 +12,7 @@ guide describes existing code, not a roadmap of future product modules.
 | `features/planning_readiness/` | Readiness schemas, deterministic scoring, fingerprint/staleness logic, saved review/error handling and exact AI review prompt rendering. |
 | `features/findings/` | Finding generation/refinement, persistence/link updates, prompt, demo and canvas definition. |
 | `features/reporting/` | Report generation, Markdown export, report output normalization, prompt, demo and canvas definition. |
+| `features/data_quality/` | Persistence of data quality runs and their gzip source files per project. The test engine runs in the browser; the backend stores its output as-is. |
 | `services/fieldwork_service.py` | Existing planning-to-fieldwork transition and layout coordination. |
 | `services/agent_service.py` | Canvas agent lifecycle, context preparation, output application and graph mutations; explicit integration of current agent definitions. |
 | `services/audit_map_service.py`, `audit_graph_service.py` | Audit-specific canvas layout and cross-phase graph projection/traversal. |
@@ -35,6 +36,9 @@ On the frontend, `App.tsx` owns navigation and project selection.
 it refreshes on project/planning changes and after saving edits. The panel derives
 a decision summary from the existing response and links findings to current map
 cards through workspace selection, viewport focus and the existing detail panel.
+`features/data-quality/` owns the data quality tests: the deterministic test engine
+(`engine/`: profile, templates, runner, report), the run map and the run, plan and
+result screens. See the [data quality design](data-quality-design.md).
 
 `components/` contains generic controls. `api/client.ts` owns HTTP transport,
 base URL, credentials and error handling. The remaining phase screens/APIs and

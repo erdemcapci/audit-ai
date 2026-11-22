@@ -141,7 +141,8 @@ export function toPatternKey(value: string, keepSpecial = false): string {
 const pct = (share: number) => `${(share * 100).toFixed(share >= 0.995 || share === 0 ? 0 : 1)}%`;
 const groupLabel = (value: string) => (isMissing(value) ? "(blank)" : value.trim());
 
-function sampleIndexes(total: number) {
+/** Deterministic, evenly spread sample of row indexes (all rows when the file is small). */
+export function sampleIndexes(total: number) {
   if (total <= PROFILE_SAMPLE) return Array.from({ length: total }, (_, i) => i);
   const stride = total / PROFILE_SAMPLE;
   return Array.from({ length: PROFILE_SAMPLE }, (_, i) => Math.floor(i * stride));

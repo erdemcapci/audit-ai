@@ -675,7 +675,7 @@ export function AuditWorkspace({
           agentExecutionMessage={runtime?.deploymentMode === "hosted" ? "AI agent execution is disabled in this hosted showcase." : "No AI provider is configured."}
         />
       ) : null}
-      {activeScreen === "Data Quality" ? <DataQualityScreen /> : null}
+      {activeScreen === "Data Quality" ? <DataQualityScreen key={projectId} projectId={projectId} runtime={runtime} /> : null}
       {activeScreen === "Settings" && project ? (
         <SettingsScreen
           projectId={projectId}

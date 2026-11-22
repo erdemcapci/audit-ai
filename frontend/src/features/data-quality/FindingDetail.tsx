@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnomalyRecord, Finding, GroupPattern } from "./patterns";
+import type { Finding, GroupPattern } from "./engine/patterns";
 
 /** Downloads flagged records (rare patterns and blanks). One row per record, with its column, group and pattern. */
 export function downloadFlagged(findings: Finding[], filename: string, group?: string) {

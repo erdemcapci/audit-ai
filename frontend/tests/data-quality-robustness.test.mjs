@@ -11,8 +11,8 @@ import { createServer } from "vite";
 let server, csv, dq;
 before(async () => {
   server = await createServer({ configFile: false, logLevel: "silent", optimizeDeps: { noDiscovery: true, entries: [] }, server: { middlewareMode: true, ws: false }, appType: "custom" });
-  csv = await server.ssrLoadModule("/src/features/data-quality/csv.ts");
-  dq = await server.ssrLoadModule("/src/features/data-quality/patterns.ts");
+  csv = await server.ssrLoadModule("/src/features/data-quality/engine/csv.ts");
+  dq = await server.ssrLoadModule("/src/features/data-quality/engine/patterns.ts");
 });
 after(async () => { await server?.close(); });
 

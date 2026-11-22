@@ -11,21 +11,28 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     ...options
   });
 
-  if (!response.ok) {
-    let message = response.statusText;
-    const rawBody = await response.text();
-    try {
-      const body = JSON.parse(rawBody);
-      message = body.detail || message;
-    } catch {
-      message = rawBody || message;
-    }
-    throw new Error(message);
-  }
+  if (!response.ok) throw new Error(await errorMessage(response));
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     return response.json();
   }
   return response.text() as Promise<T>;
+}
+
+/** Binary download (e.g. a stored source file). */
+export async function apiRequestBinary(path: string, options: RequestInit = {}): Promise<ArrayBuffer> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { credentials: "include", ...options });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return response.arrayBuffer();
+}
+
+async function errorMessage(response: Response): Promise<string> {
+  const rawBody = await response.text();
+  try {
+    const body = JSON.parse(rawBody);
+    return body.detail || response.statusText;
+  } catch {
+    return rawBody || response.statusText;
+  }
 }

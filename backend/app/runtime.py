@@ -102,6 +102,13 @@ def ensure_project_write_allowed(request: Request, project_id: str) -> None:
         raise HTTPException(status_code=423, detail="This audit is locked. Visitors can view it, but only an admin can save changes.")
 
 
+def ensure_data_quality_write_allowed(request: Request) -> None:
+    """The hosted showcase is read-only for data quality: no uploads or runs except by an admin."""
+    if deployment_mode() == "local" or is_admin_request(request):
+        return
+    raise HTTPException(status_code=403, detail="Data quality runs are read-only in this hosted showcase.")
+
+
 def ensure_agent_log_access(request: Request, *, modify: bool = False) -> None:
     if deployment_mode() == "local":
         return

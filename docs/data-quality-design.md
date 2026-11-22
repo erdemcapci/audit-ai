@@ -1,7 +1,9 @@
 # Data Quality Tests — Design
 
-Status: draft for discussion. Nothing in this document is implemented yet except the
-existing character-pattern analysis (`frontend/src/features/data-quality/`).
+Status: Phase 1 (standard tests, run map, run storage) is implemented in
+`frontend/src/features/data-quality/` and `backend/app/features/data_quality/`.
+Phases 2–4 are design only. Where Phase 1 differs from the original design, the
+section says so under "Phase 1 implementation".
 
 ## 1. Goal
 
@@ -268,6 +270,17 @@ score = rate band × template weight × column role weight
 AI #2 may raise or lower a severity, but must state why. Both values are stored
 and the UI shows when AI changed one.
 
+Phase 1 implementation: rate bands score 1–4, template weights are 3 (wrong
+type, duplicate keys), 2 (blanks, placeholders, range, duplicate rows) or 1
+(spelling, outliers, weekend dates), type weights 1.5 (identifier, number), 1.25
+(date), 1 (category, yes/no) or 0.5 (text, empty). A score ≥ 6 is high, ≥ 3
+medium. Blank values within the blank tolerance are at most low. The pattern
+test keeps its existing priority rules.
+
+Without AI the run gets a code verdict that grades the findings, not the data's
+fitness for use: **Significant issues** (any high), **Issues to review** (any
+finding) or **No issues found**.
+
 ## 9. AI stage 1 — test plan
 
 ### 9.1 Input
@@ -527,8 +540,8 @@ Every run records:
   - AI steps: reference to the agent run log entry;
   - auditor step: the diff between proposed and approved plan.
 - Results: cards with counts, rates, classification, code and AI severity, and the
-  exception row numbers (capped, like the pattern engine's `MAX_STORED_RECORDS`),
-  so detail screens and exports work from the saved run.
+  first 20 exceptions per card. Full exception lists are not saved; they are
+  rebuilt from the stored source file (section 13.3).
 - AI interpretation, if any, and whether AI was used at all.
 
 ### 13.2 AI step logging
@@ -540,11 +553,16 @@ service is extended rather than bypassed.
 
 ### 13.3 Source file and reopening a run
 
-- When a run completes, the source file is uploaded to the backend and stored
-  gzip-compressed (CSV typically shrinks 5–10×) under its content hash. A file
-  used by several runs is stored once.
-- Reopening a run loads the saved results; detail screens read exception rows
-  from the stored file. No re-upload, no re-run, no AI call.
+- When a run completes, the browser gzips the source file and uploads it. The
+  backend checks it is valid gzip, computes the SHA-256 of the uncompressed
+  content and stores it as `files/<sha256>.csv.gz` (CSV typically shrinks 5–10×).
+  A file used by several runs is stored once.
+- Reopening a run shows the map and summaries from the saved record at once.
+  The browser then downloads the stored file and re-executes the saved plan,
+  which restores every exception record and the pattern drill-down. This is a
+  local re-computation of the saved plan, not a new run: nothing is saved and no
+  AI is called. If the re-computed totals differ from the saved ones (e.g. after
+  an engine change), the run shows a warning.
 - Because plan and data are both saved, a run can be re-executed later and must
   give identical results (same plan + same data = same results).
 - **Delete source file** on a run card removes the stored copy but keeps the
@@ -572,10 +590,13 @@ service is extended rather than bypassed.
   delete runs, and cannot change thresholds. This keeps bots from generating runs,
   uploads or AI calls in bulk.
 - Showcase runs are created by an admin from the sample files bundled with the
-  application (`sample-data/`), never from uploads.
-- The backend enforces this, not only the UI: in hosted mode the upload endpoint
-  is disabled, and run creation, update, deletion and AI endpoints reject anyone
-  but an authenticated admin.
+  application (`frontend/public/sample-data/`), never from the file picker.
+- The backend enforces this, not only the UI: in hosted mode every data quality
+  write (storing a file, creating or deleting a run or file) rejects anyone but an
+  authenticated admin (`ensure_data_quality_write_allowed`). Phase 1
+  implementation: the admin's stored file goes through the same file endpoint;
+  the UI offers admins only the bundled samples, the backend does not check that
+  the file is one of them.
 - Source files are stored in local mode (uploads) and hosted mode (bundled
   samples only).
 - Thresholds are defaults, editable per run (section 12.1).
@@ -586,47 +607,55 @@ service is extended rather than bypassed.
 Follows `docs/architecture.md`: the capability owns its prompts, schemas and
 normalisation; `llm/` stays generic.
 
+Phase 1 as implemented (later phases add `discovery.ts`, rule templates,
+`payload.ts` and the backend prompt/service files):
+
 ```
 frontend/src/features/data-quality/
   engine/
-    csv.ts                    existing
-    profile.ts                profile + technical types (from patterns.ts stage 1)
+    types.ts                  shared contracts (template, test, result card, run)
+    csv.ts                    parser (existing)
+    patterns.ts               character-pattern engine (existing, unchanged)
     dates.ts                  date format detection and parsing
-    discovery.ts              relationship discovery
+    profile.ts                column profile and technical types
     templates/
       registry.ts             explicit list of templates (no auto-discovery)
-      pattern.ts              existing engine, moved
-      blank.ts, placeholder.ts, type.ts, allowedValues.ts, range.ts,
-      uniqueness.ts, outlier.ts, calendar.ts, rules.ts
-    runner.ts                 runs a plan, in a Web Worker
-    classify.ts, severity.ts
-    payload.ts                AI payloads, masking
-  map/                        run map canvas and nodes
-  screens/                    start, plan review, test result, report
-  details/                    pattern (existing FindingDetail), records, distribution
-  api.ts, types.ts
+      common.ts               severity, result-card helpers
+      completeness.ts         blank values, placeholder values
+      validity.ts             wrong data type, inconsistent spelling, out of range
+      pattern.ts              format / pattern (wraps patterns.ts)
+      uniqueness.ts           duplicate keys, duplicate rows
+      accuracy.ts             unusual amounts, weekend dates
+    runner.ts                 standard plan, plan changes, runs a plan, verdict
+    report.ts                 Markdown result report (template sentences)
+    session.ts                step log, saved-run record, replay
+    source.ts                 gzip, downloads, exception CSV
+  map/                        run map model, canvas and side panel
+  DataQualityScreen.tsx       run list / new run / run view
+  RunList.tsx, NewRun.tsx, PlanReview.tsx, RunView.tsx
+  TestResultScreen.tsx, RecordsDetail.tsx, FindingDetail.tsx (existing)
+  SourceFileView.tsx, ReportView.tsx, api.ts, ui.tsx
 
 backend/app/features/data_quality/
-  schemas.py                  plan, proposal, interpretation, run record
-  prompts.py                  AI #1 and AI #2 prompt rendering
-  service.py                  calls the provider, validates, logs
+  models.py                   run record, source file metadata
+  store.py                    runs and gzip source files per project
 backend/app/api/data_quality.py
 ```
 
-Backend endpoints:
+Backend endpoints (Phase 1 marked ✓):
 
 ```
-POST /api/projects/{project_id}/data-quality/plan         AI #1
-POST /api/projects/{project_id}/data-quality/interpret    AI #2
-GET  /api/projects/{project_id}/data-quality/runs
-GET  /api/projects/{project_id}/data-quality/runs/{run_id}
-PUT  /api/projects/{project_id}/data-quality/runs/{run_id}
-DELETE /api/projects/{project_id}/data-quality/runs/{run_id}
-PUT  /api/projects/{project_id}/data-quality/files/{content_hash}
-GET  /api/projects/{project_id}/data-quality/files/{content_hash}
-DELETE /api/projects/{project_id}/data-quality/files/{content_hash}
-GET  /api/projects/{project_id}/data-quality/rules
-PUT  /api/projects/{project_id}/data-quality/rules
+✓ GET    /api/projects/{project_id}/data-quality/runs
+✓ GET    /api/projects/{project_id}/data-quality/runs/{run_id}
+✓ POST   /api/projects/{project_id}/data-quality/runs
+✓ DELETE /api/projects/{project_id}/data-quality/runs/{run_id}
+✓ POST   /api/projects/{project_id}/data-quality/files          body: gzip; returns content hash
+✓ GET    /api/projects/{project_id}/data-quality/files/{content_hash}
+✓ DELETE /api/projects/{project_id}/data-quality/files/{content_hash}
+  POST   /api/projects/{project_id}/data-quality/plan           AI #1
+  POST   /api/projects/{project_id}/data-quality/interpret      AI #2
+  GET    /api/projects/{project_id}/data-quality/rules
+  PUT    /api/projects/{project_id}/data-quality/rules
 ```
 
 Storage:
@@ -638,14 +667,17 @@ projects/{project_slug}/data_quality/
   rules.json                  rules saved for reuse in this project
 ```
 
-The runner moves to a Web Worker so 300k-row datasets do not freeze the page.
+Phase 1 implementation: the runner runs on the page and yields to the browser
+between templates, so the run map shows progress. Both samples (25k and 30k rows)
+finish in under a second. Moving it to a Web Worker is deferred until large files
+show a need; a worker would hold a second copy of the data.
 
 ## 16. Phases
 
 Each phase ships something usable on its own.
 
 **Phase 1 — Standard tests and run map (no AI)**
-- Template interface, registry and runner (Web Worker).
+- Template interface, registry and runner.
 - Profiler with technical types and date handling.
 - Standard templates: blank, placeholder, type, pattern (moved), allowed-value
   variants, basic range, key and row uniqueness, outliers, calendar.
@@ -654,8 +686,9 @@ Each phase ships something usable on its own.
 - Run list with run cards, run and source file storage, "View file", and step
   log for code steps.
 - Done when: `sample_invoices.csv` and `sample_materials.csv` surface their
-  seeded issues; existing pattern tests pass unchanged; the robustness battery
-  covers the new templates.
+  seeded issues; existing pattern tests pass unchanged; the new templates have
+  their own seeded test file (`frontend/tests/data-quality-engine.test.mjs`).
+  Extending the robustness battery to the new templates is still open.
 
 **Phase 2 — Discovery and rules (still no AI)**
 - Relationship discovery; rule templates; classification (finding / uncertain /
