@@ -133,6 +133,18 @@ class DataQualityAiPlanTests(unittest.TestCase):
         self.assertEqual(demo_role("material_number"), "record_id")
         self.assertEqual(demo_role("source_system"), "other")
 
+    def test_unquoted_constants_become_text_and_switch_offs_are_capped(self) -> None:
+        tests = [AiPlanTest(id=f"t{i}", template="completeness.blank", subject=f"c{i}", sentence="", enabled=True) for i in range(9)]
+        request = AiPlanRequest(file_name="f.csv", rows=1, columns=[AiPlanColumn(name="w", type="measure")], tests=tests)
+        data = {
+            "switch_off": [{"test_id": f"t{i}", "reason": "r"} for i in range(9)],
+            "new_rules": [{"rule": {"kind": "conditional", "if": {"column": "w", "op": "gt", "value": 0}, "then": {"column": "w", "op": "in", "values": [1, 2.5]}}, "reason": "r"}],
+        }
+        result = normalize(data, request)
+        self.assertEqual(len(result.switch_off), 5, "the AI cannot switch off most of a plan")
+        self.assertEqual(result.new_rules[0].rule["if"]["value"], "0")
+        self.assertEqual(result.new_rules[0].rule["then"]["values"], ["1", "2.5"])
+
     def test_normalize_tolerates_missing_and_wrong_types(self) -> None:
         result = normalize({"columns": "x", "switch_off": None, "new_rules": [{"rule": []}]}, invoices_request())
         self.assertEqual((result.columns, result.switch_off, result.new_rules), ([], [], []))

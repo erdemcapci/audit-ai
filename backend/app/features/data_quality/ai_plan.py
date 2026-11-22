@@ -25,6 +25,7 @@ from app.store.project_store import project_store
 LOG_AGENT = AgentState(id="data_quality_ai_plan", type="data_quality_ai_plan", title="Data quality: AI test plan", prompt="")
 RULE_KINDS = {"compare", "conditional", "dependency", "arithmetic"}
 MAX_RULES = 8
+MAX_SWITCH_OFF = 5
 MAX_IDEAS = 5
 MAX_TEXT = 300
 
@@ -80,6 +81,21 @@ def _text(value: Any) -> str:
     return str(value or "").strip()[:MAX_TEXT]
 
 
+def _constants_as_text(rule: dict[str, Any]) -> dict[str, Any]:
+    """Models often write numbers unquoted ("value": 0); the engine compares constants given as text."""
+    fixed = dict(rule)
+    for key in ("if", "then"):
+        condition = fixed.get(key)
+        if isinstance(condition, dict):
+            condition = dict(condition)
+            if isinstance(condition.get("value"), (int, float)) and not isinstance(condition.get("value"), bool):
+                condition["value"] = str(condition["value"])
+            if isinstance(condition.get("values"), list):
+                condition["values"] = [str(v) for v in condition["values"]]
+            fixed[key] = condition
+    return fixed
+
+
 def normalize(data: dict[str, Any], request: AiPlanRequest) -> AiPlanResponse:
     """Keeps only what refers to this file and plan. Rule contents are checked by the engine, which knows the columns."""
     names = {c.name for c in request.columns}
@@ -105,13 +121,14 @@ def normalize(data: dict[str, Any], request: AiPlanRequest) -> AiPlanResponse:
     for item in items("new_rules")[:MAX_RULES]:
         rule = item.get("rule")
         if isinstance(rule, dict) and rule.get("kind") in RULE_KINDS:
-            rules.append(AiNewRule(rule=rule, reason=_text(item.get("reason"))))
+            rules.append(AiNewRule(rule=_constants_as_text(rule), reason=_text(item.get("reason"))))
 
     ideas = [AiIdea(idea=_text(item.get("idea")), reason=_text(item.get("reason"))) for item in items("not_testable")[:MAX_IDEAS] if _text(item.get("idea"))]
     return AiPlanResponse(
         summary=_text(data.get("summary")),
         columns=columns,
-        switch_off=changes("switch_off", True),
+        # A guard on top of the prompt: an AI that switches off much of the plan defeats the tests' purpose.
+        switch_off=changes("switch_off", True)[:MAX_SWITCH_OFF],
         switch_on=changes("switch_on", False),
         new_rules=rules,
         not_testable=ideas,

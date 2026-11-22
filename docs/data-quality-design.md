@@ -412,6 +412,14 @@ Semantic roles (closed list, `other` allowed): `record_id`, `document_number`,
   dependency rule when both exist, batch-number keys switched off, and a
   duplicate-payment idea for fieldwork. It is labelled "Demo — fixed rules, no AI
   model" everywhere.
+- Checked with a real model (OpenAI `gpt-5.4-mini`, both samples): the first prompt
+  let it switch off 13 invoice tests, including the format, placeholder and
+  duplicate-row tests that find the seeded errors, because problems "seemed
+  unlikely". The prompt now says tests are cheap and exist to find the
+  unexpected, names the tests to keep, and asks for at most 5 switch-offs; the
+  backend also keeps at most 5. Models write numeric constants unquoted, so the
+  backend turns rule constants into text. Its rules tend to restate values it
+  sees (they then simply hold); useful, but rarely a source of findings.
 - Every review is logged through `AgentRunLogService` as agent "Data quality: AI
   test plan" (prompt and response when full logging is on), and the run records
   an `ai_plan` step with provider, model, token estimate, sample rows sent and
@@ -492,6 +500,10 @@ with a visible warning on the affected card.
   "usable with conditions" when there are findings, an action per test type,
   questions for findings that need the client), labelled as demo.
 - Logged in Agent Logs as "Data quality: AI interpretation".
+- Checked with a real model (OpenAI `gpt-5.4-mini`, both samples, ~8 s each):
+  every card sent was interpreted, every number passed the check on the first
+  attempt, verdicts were "usable with conditions", and the client questions name
+  the column and the counts.
 
 ## 11. Run map
 

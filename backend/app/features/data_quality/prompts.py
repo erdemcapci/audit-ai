@@ -66,11 +66,19 @@ def build_plan_prompts(request: AiPlanRequest, audit: AuditProject, planning: Pl
             "",
             "Review the proposed tests for this file in the context of the audit.",
             "1. columns: give every column a role from this list and a short plain meaning: " + ", ".join(SEMANTIC_ROLES) + ".",
-            "2. switch_off: tests in the plan that do not make sense for this data (use the exact test_id). Only when you are confident.",
+            "2. switch_off: at most 5 tests (exact test_id) whose result would be meaningless for this data, for example a "
+            "duplicate-key test on a column that is not a key, or a blank test on a column that is optional by design. The tests "
+            "are cheap and their purpose is to find problems nobody expects, so never switch a test off because problems seem "
+            "unlikely, because a column looks controlled or system-generated, or because a format may vary. Keep blank, "
+            "placeholder, wrong-type, format/pattern and duplicate tests on identifier, date and amount columns, and keep the "
+            "duplicate-row test. Most plans need no switch_off at all.",
             "3. switch_on: tests that are off but should run (use the exact test_id).",
             "4. new_rules: business rules between columns that the plan does not have yet and that the audit would care about. "
-            "At most 8. Prefer rules a data owner would agree with. Do not repeat rules already in the plan.",
-            "5. not_testable: useful checks that cannot be written as these rules (they may suit fieldwork). At most 5.",
+            "At most 8. Prefer rules a data owner would agree with. Do not repeat rules already in the plan. Combine similar rules "
+            "into one (use \"in\" with several values instead of one rule per value). Do not propose a rule that the sample rows "
+            "already contradict. Write every constant as a string.",
+            "5. not_testable: checks specific to this file that cannot be written as these rules (they may suit fieldwork), "
+            "naming the columns involved. At most 5. Skip generic audit steps such as checking approvals or source documents.",
             "Keep every reason to one sentence. If nothing needs changing, return empty lists.",
             "",
             RULE_SCHEMA,
