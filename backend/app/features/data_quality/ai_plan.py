@@ -2,6 +2,7 @@
 every proposal against the file before anything runs, and the auditor accepts or changes the result."""
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -96,6 +97,39 @@ def _constants_as_text(rule: dict[str, Any]) -> dict[str, Any]:
     return fixed
 
 
+def _merge_similar(rules: list[AiNewRule]) -> list[AiNewRule]:
+    """Conditional rules that differ only in the value of their "if" column become one rule with "in",
+    so the plan says "country in DE, FR, NL ⇒ tax number filled" once instead of once per country."""
+    merged: list[AiNewRule] = []
+    groups: dict[str, int] = {}
+    sizes: dict[int, int] = {}
+    for item in rules:
+        rule = item.rule
+        condition = rule.get("if") if rule.get("kind") == "conditional" else None
+        if not isinstance(condition, dict) or condition.get("op") not in ("eq", "in"):
+            key = json.dumps(rule, sort_keys=True)
+            if key not in groups:
+                groups[key] = len(merged)
+                merged.append(item)
+            continue
+        values = [condition.get("value")] if condition.get("op") == "eq" else list(condition.get("values") or [])
+        key = json.dumps({"if": condition.get("column"), "then": rule.get("then")}, sort_keys=True)
+        if key not in groups:
+            groups[key] = len(merged)
+            merged.append(item.model_copy(update={"rule": {**rule, "if": {"column": condition.get("column"), "op": "in", "values": [str(v) for v in values]}}}))
+            continue
+        index = groups[key]
+        first = merged[index]
+        known = first.rule["if"]["values"]
+        combined = {**first.rule, "if": {**first.rule["if"], "values": known + [str(v) for v in values if str(v) not in known]}}
+        merged[index] = first.model_copy(update={"rule": combined})
+        sizes[index] = sizes.get(index, 1) + 1
+    for index, size in sizes.items():
+        item = merged[index]
+        merged[index] = item.model_copy(update={"reason": _text(f"Combined from {size} similar suggestions, for example: {item.reason}")})
+    return merged
+
+
 def normalize(data: dict[str, Any], request: AiPlanRequest) -> AiPlanResponse:
     """Keeps only what refers to this file and plan. Rule contents are checked by the engine, which knows the columns."""
     names = {c.name for c in request.columns}
@@ -118,10 +152,12 @@ def normalize(data: dict[str, Any], request: AiPlanRequest) -> AiPlanResponse:
         return found
 
     rules: list[AiNewRule] = []
-    for item in items("new_rules")[:MAX_RULES]:
-        rule = item.get("rule")
-        if isinstance(rule, dict) and rule.get("kind") in RULE_KINDS:
-            rules.append(AiNewRule(rule=_constants_as_text(rule), reason=_text(item.get("reason"))))
+    for item in items("new_rules"):
+        rule, catches = item.get("rule"), _text(item.get("catches"))
+        # The model must say what the rule adds to the plan; a rule it cannot justify is left out.
+        if isinstance(rule, dict) and rule.get("kind") in RULE_KINDS and catches and catches.lower().rstrip(".") != "none":
+            rules.append(AiNewRule(rule=_constants_as_text(rule), reason=_text(item.get("reason")), catches=catches))
+    rules = _merge_similar(rules)[:MAX_RULES]
 
     ideas = [AiIdea(idea=_text(item.get("idea")), reason=_text(item.get("reason"))) for item in items("not_testable")[:MAX_IDEAS] if _text(item.get("idea"))]
     return AiPlanResponse(
@@ -175,7 +211,8 @@ def demo_plan(request: AiPlanRequest) -> dict[str, Any]:
     for document in by_role("document_number")[:1]:
         for party in by_role("party_id")[:1]:
             new_rules.append({"rule": {"kind": "dependency", "from": document, "to": party},
-                              "reason": f"A document number should always belong to one {party.replace('_', ' ')}; a repeated number with another party is a red flag."})
+                              "reason": f"A document number should always belong to one {party.replace('_', ' ')}; a repeated number with another party is a red flag.",
+                              "catches": f"Repeated document numbers that point to different {party.replace('_', ' ')} values; the duplicate test alone does not say whether the party differs."})
     ideas = []
     if by_role("party_id") and by_role("amount"):
         ideas.append({"idea": "Same party and same amount within a few days (possible duplicate payments)",

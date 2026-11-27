@@ -83,6 +83,17 @@ test("a proposed rule that is already in the plan but off is switched on instead
   assert.equal(applied.switchedOn.length, 1);
 });
 
+test("an AI rule that lists values of an identifier column is not used", () => {
+  const { profile, plan } = setup();
+  assert.equal(profile.columns.find((c) => c.name === "invoice_no").type, "identifier");
+  const listed = { kind: "conditional", if: { column: "status", op: "eq", value: "Closed" }, then: { column: "invoice_no", op: "in", values: ["INV1000", "INV1002"] } };
+  const category = { kind: "conditional", if: { column: "status", op: "in", values: ["Closed"] }, then: { column: "close_date", op: "not_empty" } };
+  const { applied } = aiPlan.applyAiPlan(plan, answer(plan, { switch_off: [], new_rules: [{ rule: listed, reason: "Closed invoices." }, { rule: category, reason: "Closed invoices have a close date." }] }), profile, { requestedAt: "", durationMs: 0 });
+  assert.equal(applied.rejectedRules.length, 1);
+  assert.match(applied.rejectedRules[0].problem, /individual values of “invoice_no”/);
+  assert.equal(rules.validateRule(listed, profile).length, 0, "the same rule written by the auditor is allowed");
+});
+
 test("a run with an AI review records the AI step, the AI rule results and the report section", async () => {
   const { data, profile, plan } = setup();
   const { plan: afterAi, applied } = aiPlan.applyAiPlan(plan, answer(plan), profile, { requestedAt: "2026-11-22T10:00:00Z", durationMs: 1500 });

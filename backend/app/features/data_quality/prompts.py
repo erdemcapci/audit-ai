@@ -22,7 +22,8 @@ RESPONSE_SHAPE = {
     "switch_off": [{"test_id": "uniqueness.key:batch_number", "reason": "Batch numbers repeat across materials, so duplicates are expected."}],
     "switch_on": [{"test_id": "rule:doc_date ≤ post_date", "reason": "Documents are always dated before they are posted."}],
     "new_rules": [
-        {"rule": {"kind": "conditional", "if": {"column": "close_date", "op": "not_empty"}, "then": {"column": "status", "op": "in", "values": ["Closed"]}}, "reason": "A record with a close date should be closed."}
+        {"rule": {"kind": "conditional", "if": {"column": "close_date", "op": "not_empty"}, "then": {"column": "status", "op": "in", "values": ["Closed"]}}, "reason": "A record with a close date should be closed.",
+         "catches": "Records with a close date whose status is still open; no test in the plan compares these two columns."}
     ],
     "not_testable": [{"idea": "Same vendor and amount within three days", "reason": "Needs a time-window comparison; consider it in fieldwork."}],
 }
@@ -74,9 +75,12 @@ def build_plan_prompts(request: AiPlanRequest, audit: AuditProject, planning: Pl
             "duplicate-row test. Most plans need no switch_off at all.",
             "3. switch_on: tests that are off but should run (use the exact test_id).",
             "4. new_rules: business rules between columns that the plan does not have yet and that the audit would care about. "
-            "At most 8. Prefer rules a data owner would agree with. Do not repeat rules already in the plan. Combine similar rules "
-            "into one (use \"in\" with several values instead of one rule per value). Do not propose a rule that the sample rows "
-            "already contradict. Write every constant as a string.",
+            "At most 8. Prefer rules a data owner would agree with. For every rule, fill \"catches\": which records it would flag "
+            "that no test in the plan already flags. Check this against the proposed tests, the relationships found and the column "
+            "facts (blank_percent, distinct, unique_percent). If the honest answer is \"none\", leave the rule out. Combine similar "
+            "rules into one (use \"in\" with several values instead of one rule per value). A rule states what should be true of "
+            "any record, so never list individual values of an identifier column. Do not propose a rule that the sample rows already "
+            "contradict. Write every constant as a string.",
             "5. not_testable: checks specific to this file that cannot be written as these rules (they may suit fieldwork), "
             "naming the columns involved. At most 5. Skip generic audit steps such as checking approvals or source documents.",
             "Keep every reason to one sentence. If nothing needs changing, return empty lists.",

@@ -88,12 +88,22 @@ test("the standard plan follows the column types", async () => {
   const templatesFor = (subject) => plan.filter((t) => t.subject === subject).map((t) => t.template).sort();
   assert.deepEqual(templatesFor("posted"), ["accuracy.calendar", "completeness.blank", "completeness.placeholder", "validity.range", "validity.type"]);
   assert.deepEqual(templatesFor("approved"), ["completeness.blank", "validity.type"]);
-  assert.deepEqual(templatesFor("amount"), ["accuracy.outlier", "completeness.blank", "completeness.placeholder", "validity.range", "validity.type"]);
+  assert.deepEqual(templatesFor("amount"), ["accuracy.outlier", "completeness.blank", "completeness.placeholder", "validity.pattern", "validity.range", "validity.type"]);
+  const amountPattern = plan.find((t) => t.id === "validity.pattern:amount");
+  assert.equal(amountPattern.enabled, false, "a column not suited to pattern analysis is in the plan, switched off");
+  assert.match(amountPattern.offReason, /^Not suitable: /);
   assert.ok(templatesFor("doc_id").includes("uniqueness.key"));
   assert.ok(templatesFor("doc_id").includes("validity.pattern"));
-  assert.deepEqual(templatesFor("status").filter((t) => t.startsWith("validity")), ["validity.allowed_values"]);
+  assert.deepEqual(plan.filter((t) => t.subject === "status" && t.enabled && t.template.startsWith("validity")).map((t) => t.template), ["validity.allowed_values"]);
   assert.equal(new Set(plan.map((t) => t.id)).size, plan.length, "test ids are unique");
   assert.ok(plan.every((t) => t.source === "standard" && t.reason));
+});
+
+test("columns left out of the pattern test are reported with their own reason", async () => {
+  const { results } = await runFixture();
+  const notes = results.tests.find((t) => t.template === "validity.pattern").notes;
+  assert.match(notes.find((n) => n.subject === "amount").reason, /^Not suitable: /);
+  assert.ok(notes.some((n) => n.subject === "posted" && /Wrong data type/.test(n.reason)), "date columns are checked by another test");
 });
 
 test("every standard test finds exactly the seeded issues", async () => {

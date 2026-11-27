@@ -241,6 +241,26 @@ The existing pattern engine becomes `validity.pattern` without behaviour change.
 Its tests (`data-quality.test.mjs`, `data-quality-robustness.test.mjs`) keep
 passing.
 
+**The format / pattern test is its own module in the UI.** Folding it into the
+generic test list lost what made the original pattern screen useful: which
+columns were left out and why, the choice to analyse any column, and the choice
+of what to compare within (for example tax numbers within each country). So:
+
+- Every column gets a pattern test; only columns the engine finds suitable start
+  switched on. The others carry an `offReason` ("Not suitable: …") that the run
+  reports if they stay off. Date and yes/no columns stay with "Wrong data type".
+- In the test plan the test has its own panel after the validity tests: one row
+  per column with the automatic assessment and its reason, "Analyse"
+  (Automatic / Always / Never), "Compare within" and example values, plus the
+  rare-pattern threshold and the special-character setting (moved out of the
+  general advanced settings).
+- Its result screen has the original layout: columns analysed / not analysed,
+  non-standard records, one card per column with its pattern mix and what it
+  was compared within, the selected column's patterns below, "Export all
+  flagged", and the table of columns not analysed with the reason.
+- The run map, the report and the AI interpretation treat it like any other
+  test; only the two screens differ.
+
 ### 7.3 Example definitions
 
 ```json
@@ -420,6 +440,23 @@ Semantic roles (closed list, `other` allowed): `record_id`, `document_number`,
   backend also keeps at most 5. Models write numeric constants unquoted, so the
   backend turns rule constants into text. Its rules tend to restate values it
   sees (they then simply hold); useful, but rarely a source of findings.
+- A later test produced one rule per country ("country = DE ⇒ tax number
+  filled", then FR, NL, IT) and a GB rule listing four tax numbers from the
+  sample, although the blank test, the format test and the discovered
+  "tax number → country" rule already covered all of it. The model had every
+  fact it needed; it was not asked to use them. Three general measures, none
+  specific to a file:
+  - Self-check: every rule must say in `catches` which records it flags that no
+    test in the plan already flags; the backend drops a rule without an answer
+    (or with "none").
+  - Merging: conditional rules that differ only in the value of their "if"
+    column become one rule with "in"; the reason says how many were combined.
+  - An AI rule that lists individual values of an identifier column is not
+    used (shown under "not used" with the reason). An auditor's own rule may.
+  After this, repeated runs on the invoices gave either no rules or a few
+  general ones (invoice number → customer, customer ID filled ⇒ tax number
+  filled), each with its own `catches`. A rule can still overlap a test in
+  part; the auditor sees the reason and can switch it off.
 - Every review is logged through `AgentRunLogService` as agent "Data quality: AI
   test plan" (prompt and response when full logging is on), and the run records
   an `ai_plan` step with provider, model, token estimate, sample rows sent and

@@ -155,6 +155,8 @@ export type TestDefinition<P = Record<string, unknown>> = {
   savedAt?: string;
   /** What the AI review changed about this test, and why. */
   aiNote?: string;
+  /** Why the test is off in the standard plan, when it is; reported if it stays off. */
+  offReason?: string;
 };
 
 /** Rule results are judged by violation rate: a wrong assumption must not look like broken data. */

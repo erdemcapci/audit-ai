@@ -11,6 +11,11 @@ const coveredElsewhere = (profile: DatasetProfile, name: string) => {
   return "";
 };
 
+export const VERDICT_TEXT = { suitable: "Suitable", review: "Needs review", unsuitable: "Not suitable" } as const;
+
+/** Dates and yes/no values are checked by the "Wrong data type" test instead; the reason, or "". */
+export const patternCoveredElsewhere = (profile: DatasetProfile, name: string) => coveredElsewhere(profile, name);
+
 /** "auto" keeps the grouping chosen by profiling, "none" compares across all records. */
 type PatternParams = { column: string; group: string };
 
@@ -21,12 +26,16 @@ export const characterPatterns: TestTemplate<PatternParams> = {
   summary: "Finds identifiers and codes that break their usual character format, such as a tax number with a missing digit.",
   appliesTo: "Identifier and code columns with a repeating format",
   detailView: "pattern",
+  // Every column gets a test, so the auditor can analyse any of them; only suitable ones start switched on.
   autoInstances: (profile) => profile.patterns
-    .filter((p) => p.verdict !== "unsuitable" && !coveredElsewhere(profile, p.column))
-    .map((p) => definition("validity.pattern", p.column, { column: p.column, group: "auto" }, p.reasons.join(" "), p.verdict === "suitable")),
+    .filter((p) => !coveredElsewhere(profile, p.column))
+    .map((p) => {
+      const test = definition("validity.pattern", p.column, { column: p.column, group: "auto" }, p.reasons.join(" "), p.verdict === "suitable");
+      return test.enabled ? test : { ...test, offReason: `${VERDICT_TEXT[p.verdict]}: ${p.reasons.join(" ")}` };
+    }),
   notApplied: (profile) => profile.patterns
-    .filter((p) => p.verdict === "unsuitable" || coveredElsewhere(profile, p.column))
-    .map((p) => ({ subject: p.column, reason: coveredElsewhere(profile, p.column) || p.reasons.join(" ") })),
+    .filter((p) => coveredElsewhere(profile, p.column))
+    .map((p) => ({ subject: p.column, reason: coveredElsewhere(profile, p.column) })),
   describe: (d) => `Values in ${quote(d.params.column)} should follow the column's usual format${d.params.group !== "auto" && d.params.group !== "none" ? ` within each ${quote(d.params.group)}` : ""}.`,
   run(data, params, ctx) {
     const profile = ctx.profile.patterns.find((p) => p.column === params.column);

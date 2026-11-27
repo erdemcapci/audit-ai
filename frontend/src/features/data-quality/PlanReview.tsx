@@ -4,6 +4,7 @@ import { describeTest } from "./engine/runner";
 import { TEMPLATES } from "./engine/templates/registry";
 import type { DateFormat, DatasetProfile, Dimension, RunSettings, TestDefinition, TestSource } from "./engine/types";
 import { rolesOf, type AppliedAiPlan } from "./engine/aiPlan";
+import { PatternPlan } from "./PatternPlan";
 import { RuleForm } from "./RuleForm";
 import { FileIcon, Working } from "./ui";
 
@@ -79,10 +80,14 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
       <ColumnOverview profile={profile} roles={rolesOf(ai.applied)} />
 
       {DIMENSIONS.map((dimension) => {
-        const templates = TEMPLATES.filter((t) => t.dimension === dimension.id && plan.some((d) => d.template === t.id));
+        // The format / pattern test has its own panel, right after the other validity tests.
+        const templates = TEMPLATES.filter((t) => t.dimension === dimension.id && t.id !== "validity.pattern" && plan.some((d) => d.template === t.id));
         const rules = dimension.id === "consistency";
-        if (!templates.length && !rules) return null;
-        return (
+        const patterns = dimension.id === "validity" && plan.some((d) => d.template === "validity.pattern")
+          ? <PatternPlan key="patterns" headers={headers} profile={profile} plan={plan} settings={settings} onPlanChange={onPlanChange} onSettingsChange={onSettingsChange} />
+          : null;
+        if (!templates.length && !rules) return patterns;
+        return [
           <section key={dimension.id} className="dq-plan-group">
             <div className="dq-section-head">
               <h4>{dimension.title} <span className="muted">— {dimension.text}</span></h4>
@@ -97,7 +102,7 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
               const tests = plan.filter((d) => d.template === template.id);
               const on = tests.filter((t) => t.enabled).length;
               return (
-                <details key={template.id} className="dq-plan-test" open={tests.length <= 3 || template.id === "rule"}>
+                <details key={template.id} className="dq-plan-test">
                   <summary>
                     <span className="dq-plan-title">{template.title}</span>
                     <span className="muted">{template.summary}</span>
@@ -121,24 +126,15 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
                           {test.source === "auditor" && !test.savedAt ? <> <button className="dq-link" onClick={() => remove(test.id)}>Remove</button></> : null}
                           {test.savedAt ? <> <button className="dq-link" onClick={() => onForgetRule(test.id)} title="Remove this rule from the project's saved rules">Forget this saved rule</button></> : null}
                         </p>
-                        {test.template === "validity.pattern" ? (
-                          <label className="dq-inline-field">
-                            Compare within
-                            <select value={String((test.params as { group: string }).group)} onChange={(e) => update(test.id, { params: { ...test.params, group: e.target.value } })}>
-                              <option value="auto">Automatic{groupLabel(profile, test.subject)}</option>
-                              <option value="none">All records (no grouping)</option>
-                              {headers.filter((h) => h !== test.subject).map((h) => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                          </label>
-                        ) : null}
                       </li>
                     ))}
                   </ul>
                 </details>
               );
             })}
-          </section>
-        );
+          </section>,
+          patterns
+        ];
       })}
 
       {notApplicable.length ? (
@@ -151,11 +147,6 @@ export function PlanReview({ fileName, headers, profile, plan, settings, onPlanC
       <AdvancedSettings settings={settings} onChange={onSettingsChange} />
     </div>
   );
-}
-
-function groupLabel(profile: DatasetProfile, column: string) {
-  const grouping = profile.patterns.find((p) => p.column === column)?.grouping;
-  return grouping ? ` (${grouping.column})` : " (none)";
 }
 
 function ColumnOverview({ profile, roles }: { profile: DatasetProfile; roles: Map<string, { role: string; meaning: string }> }) {
@@ -216,10 +207,10 @@ function AiReview({ applied, onDiscard }: { applied: AppliedAiPlan; onDiscard: (
 
 function AdvancedSettings({ settings, onChange }: { settings: RunSettings; onChange: (settings: RunSettings) => void }) {
   const [draft, setDraft] = useState(settings);
-  type NumberKey = "blankThresholdPercent" | "patternThresholdPercent" | "outlierFactor" | "discoveryMinHoldPercent" | "ruleFindingMaxPercent" | "ruleUncertainMaxPercent";
+  type NumberKey = "blankThresholdPercent" | "outlierFactor" | "discoveryMinHoldPercent" | "ruleFindingMaxPercent" | "ruleUncertainMaxPercent";
   const number = (key: NumberKey, min: number, max: number) => (value: string) =>
     setDraft((d) => ({ ...d, [key]: Math.min(max, Math.max(min, Number(value) || 0)) }));
-  const keys = ["blankThresholdPercent", "patternThresholdPercent", "outlierFactor", "keepSpecial", "discoveryMinHoldPercent", "ruleFindingMaxPercent", "ruleUncertainMaxPercent"] as const;
+  const keys = ["blankThresholdPercent", "outlierFactor", "discoveryMinHoldPercent", "ruleFindingMaxPercent", "ruleUncertainMaxPercent"] as const;
   const invalid = draft.ruleFindingMaxPercent > draft.ruleUncertainMaxPercent;
   const changed = keys.some((k) => draft[k] !== settings[k]);
   const apply = () => onChange({ ...settings, ...Object.fromEntries(keys.map((k) => [k, draft[k]])) });
@@ -228,9 +219,7 @@ function AdvancedSettings({ settings, onChange }: { settings: RunSettings; onCha
       <summary>Advanced settings (optional)</summary>
       <div className="dq-advanced">
         <label><span className="dq-label">Blank tolerance (% of a column)</span><input type="number" min={0} max={100} step={0.5} value={draft.blankThresholdPercent} onChange={(e) => number("blankThresholdPercent", 0, 100)(e.target.value)} /></label>
-        <label><span className="dq-label">Rare-pattern threshold (% of group)</span><input type="number" min={0} max={50} step={0.5} value={draft.patternThresholdPercent} onChange={(e) => number("patternThresholdPercent", 0, 50)(e.target.value)} /></label>
         <label><span className="dq-label">Unusual amounts (× interquartile range)</span><input type="number" min={1} max={10} step={0.5} value={draft.outlierFactor} onChange={(e) => number("outlierFactor", 1, 10)(e.target.value)} /></label>
-        <label className="dq-check"><input type="checkbox" checked={draft.keepSpecial} onChange={(e) => setDraft((d) => ({ ...d, keepSpecial: e.target.checked }))} /> Keep special characters in patterns (otherwise “S”)</label>
       </div>
       <div className="dq-advanced">
         <label><span className="dq-label">Propose a relationship when it holds for (%)</span><input type="number" min={50} max={100} step={0.5} value={draft.discoveryMinHoldPercent} onChange={(e) => number("discoveryMinHoldPercent", 50, 100)(e.target.value)} /></label>
@@ -239,7 +228,7 @@ function AdvancedSettings({ settings, onChange }: { settings: RunSettings; onCha
         <button className="dq-btn" onClick={apply} disabled={!changed || invalid}>Apply</button>
       </div>
       {invalid ? <p className="dq-hint dq-error-text">The “findings” limit cannot be higher than the “to be confirmed” limit.</p> : null}
-      <p className="muted dq-hint">Applying keeps the tests you switched off and the rules you added. Above the “to be confirmed” limit a rule is reported as not holding.</p>
+      <p className="muted dq-hint">Applying keeps the tests you switched off and the rules you added. The format / pattern settings are in its own panel above. Above the “to be confirmed” limit a rule is reported as not holding.</p>
     </details>
   );
 }

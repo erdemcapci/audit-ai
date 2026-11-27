@@ -64,7 +64,7 @@ export async function runPlan(
       if (performance.now() - lastYield > YIELD_EVERY_MS) { await yieldToBrowser(); lastYield = performance.now(); }
     }
     cards.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.rate - a.rate);
-    const switchedOff = all.filter((t) => !t.enabled).map((t) => ({ subject: t.subject, reason: "Switched off in the test plan." }));
+    const switchedOff = all.filter((t) => !t.enabled).map((t) => ({ subject: t.subject, reason: t.offReason ?? "Switched off in the test plan." }));
     tests.push({ ...base, notes: [...failed, ...switchedOff, ...base.notes], status: "done", cards, durationMs: Math.round(performance.now() - started) });
     onProgress?.(template.id, "done");
   }

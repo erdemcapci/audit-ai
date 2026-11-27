@@ -15,8 +15,15 @@ export type FullState = "loading" | "ready" | "unavailable" | "error";
 
 export type RuleSaving = { savedIds: Set<string>; onSave: (testId: string) => void };
 
-/** One screen skeleton for every test: KPIs, result cards by severity on the left, the selected card's detail on the right. */
-export function TestResultScreen({ stored, full, fullState, onBack, ruleSaving, interpretations }: { stored: TestNodeResult; full: TestNodeResult | null; fullState: FullState; onBack: () => void; ruleSaving?: RuleSaving; interpretations?: Map<string, AiCardInterpretation> }) {
+type ScreenProps = { stored: TestNodeResult; full: TestNodeResult | null; fullState: FullState; onBack: () => void; ruleSaving?: RuleSaving; interpretations?: Map<string, AiCardInterpretation> };
+
+/** The format / pattern test has its own screen; every other test shares one skeleton. */
+export function TestResultScreen(props: ScreenProps) {
+  return props.stored.template === "validity.pattern" ? <PatternResultScreen {...props} /> : <StandardResultScreen {...props} />;
+}
+
+/** KPIs, result cards by severity on the left, the selected card's detail on the right. */
+function StandardResultScreen({ stored, full, fullState, onBack, ruleSaving, interpretations }: ScreenProps) {
   const template = getTemplate(stored.template);
   const cards = full?.cards ?? stored.cards;
   const found = cards.filter(isFinding);
@@ -84,6 +91,97 @@ export function TestResultScreen({ stored, full, fullState, onBack, ruleSaving, 
         </details>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Format / pattern: every analysed column as a card with its pattern mix, the selected column's patterns
+ * below, and the columns that were not analysed with the reason.
+ */
+function PatternResultScreen({ stored, full, fullState, onBack, interpretations }: ScreenProps) {
+  const template = getTemplate(stored.template);
+  const cards = [...(full?.cards ?? stored.cards)].sort((a, b) => Number(isFinding(b)) - Number(isFinding(a)) || b.exceptions - a.exceptions);
+  const complete = fullState === "ready" && full !== null;
+  const findings = complete ? cards.map((c) => c.detail as Finding | undefined).filter((f): f is Finding => Boolean(f)) : [];
+  const [selectedId, setSelectedId] = useState<string | null>(cards.find(isFinding)?.testId ?? null);
+  const selected = cards.find((c) => c.testId === selectedId) ?? null;
+  const nonStandard = cards.reduce((n, c) => n + c.exceptions, 0);
+
+  return (
+    <div className="dq-result">
+      <div className="dq-section-head">
+        <div>
+          <button className="dq-link" onClick={onBack}>← Run map</button>
+          <h3>{template.title}</h3>
+          <p className="muted dq-hint">{template.summary}</p>
+        </div>
+      </div>
+      {fullState === "loading" ? <Working>Loading the source file to show every pattern…</Working> : null}
+      {fullState === "unavailable" ? <div className="dq-banner">The source file of this run was deleted, so the pattern details and the full lists of flagged records cannot be shown.</div> : null}
+      {fullState === "error" ? <div className="dq-banner">The source file could not be loaded, so the pattern details cannot be shown.</div> : null}
+
+      <div className="dq-kpis">
+        <Kpi label="Columns analysed" value={String(cards.length)} />
+        <Kpi label="Columns not analysed" value={String(stored.notes.length)} />
+        <Kpi label="With findings" value={String(cards.filter(isFinding).length)} tone={cards.some(isFinding) ? "alert" : "ok"} />
+        <Kpi label="Non-standard records" value={nonStandard.toLocaleString()} tone={nonStandard ? "alert" : "ok"} />
+      </div>
+
+      <div className="dq-section-head">
+        <h3>Columns</h3>
+        <ExportButton label="Export all flagged" title="Download the flagged records of every analysed column as one CSV" onClick={() => downloadFlagged(findings, "flagged-patterns.csv")} disabled={!findings.some((f) => f.anomalyRecords.length)} />
+      </div>
+      {cards.length ? (
+        <div className="dq-findings">
+          {cards.map((card) => (
+            <PatternCard key={card.testId} card={card} finding={complete ? (card.detail as Finding | undefined) : undefined} ai={interpretations?.get(card.testId)}
+              active={card.testId === selectedId} onSelect={() => setSelectedId(card.testId === selectedId ? null : card.testId)} />
+          ))}
+        </div>
+      ) : <div className="dq-empty"><strong>No columns were analysed</strong><span>See the columns below, or choose “Always” for a column in the test plan.</span></div>}
+      {selected ? <CardDetail card={selected} ai={interpretations?.get(selected.testId)} detailView="pattern" complete={complete} /> : null}
+
+      {stored.notes.length ? (
+        <details className="dq-section" open>
+          <summary>Columns not analysed ({stored.notes.length}) and why</summary>
+          <div className="dq-table-wrap">
+            <table className="dq-table">
+              <thead><tr><th>Column</th><th>Reason</th></tr></thead>
+              <tbody>{stored.notes.map((note) => <tr key={note.subject}><td>{note.subject}</td><td>{note.reason}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+/** One analysed column: its count, the share of its most common patterns, and what it was compared within. */
+function PatternCard({ card, finding, ai, active, onSelect }: { card: ResultCard; finding?: Finding; ai?: AiCardInterpretation; active: boolean; onSelect: () => void }) {
+  const top = finding?.patterns.slice(0, 6) ?? [];
+  const topShare = top.reduce((n, p) => n + p.share, 0);
+  const comparison = finding ? (finding.group ? `Compared within “${finding.group}”` : "Compared across all records") : String(card.facts?.Comparison ?? "");
+  return (
+    <button className={`dq-finding dq-finding-${card.severity}${active ? " active" : ""}`} onClick={onSelect} aria-pressed={active}>
+      <div className="dq-finding-head">
+        <strong className="dq-finding-subject" title={card.subject}>{card.subject}</strong>
+        <span className="dq-badges">
+          <SeverityBadge severity={card.severity} />
+          {ai && ai.severity !== card.severity ? <span className="dq-ai-badge" title={ai.severity_reason}>AI: {ai.severity}</span> : null}
+        </span>
+      </div>
+      <div className="dq-finding-count"><span>{card.exceptions.toLocaleString()}</span><small>{card.tested ? `non-standard of ${card.tested.toLocaleString()}` : ""}</small></div>
+      {top.length ? (
+        <div className="dq-stack" aria-label="Share of records by pattern">
+          {top.map((p, i) => <span key={p.pattern} className={`dq-seg dq-seg-${i}`} style={{ width: `${p.share * 100}%` }} title={`${p.pattern}: ${(p.share * 100).toFixed(1)}%`} />)}
+          {topShare < 1 ? <span className="dq-seg dq-seg-other" style={{ width: `${(1 - topShare) * 100}%` }} title="Other patterns" /> : null}
+        </div>
+      ) : null}
+      <div className="dq-finding-meta">
+        <span>{comparison}</span>
+        {finding ? <span>{finding.patterns.length.toLocaleString()} pattern{finding.patterns.length === 1 ? "" : "s"}{finding.blank ? ` · ${finding.blank.toLocaleString()} blank` : ""}</span> : null}
+      </div>
+    </button>
   );
 }
 

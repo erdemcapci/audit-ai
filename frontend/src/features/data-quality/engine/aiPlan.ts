@@ -26,7 +26,7 @@ export type AiPlanResponse = {
   columns: { column: string; role: string; meaning: string }[];
   switch_off: { test_id: string; reason: string }[];
   switch_on: { test_id: string; reason: string }[];
-  new_rules: { rule: Record<string, unknown>; reason: string }[];
+  new_rules: { rule: Record<string, unknown>; reason: string; catches?: string }[];
   not_testable: { idea: string; reason: string }[];
   provider: string;
   model: string;
@@ -100,7 +100,7 @@ export function applyAiPlan(plan: TestDefinition[], response: AiPlanResponse, pr
     const rule = proposal.rule as RuleParams;
     let problem = "";
     try {
-      problem = validateRule(rule, profile)[0] ?? "";
+      problem = validateRule(rule, profile)[0] ?? identifierValueList(rule, profile);
     } catch {
       problem = "The rule is incomplete.";
     }
@@ -124,6 +124,16 @@ export function applyAiPlan(plan: TestDefinition[], response: AiPlanResponse, pr
   // Keep the original order; new rules go at the end.
   const ordered = [...plan.map((t) => next.get(t.id)!), ...[...next.values()].filter((t) => !byId.has(t.id))];
   return { plan: ordered, applied };
+}
+
+/**
+ * An AI rule that names individual values of an identifier column (a tax number, an invoice number) copies
+ * values from the sample rather than stating a business rule, so it is not used. An auditor's own rule may.
+ */
+function identifierValueList(rule: RuleParams, profile: DatasetProfile): string {
+  if (rule.kind !== "conditional") return "";
+  const listed = [rule.if, rule.then].find((c) => ["eq", "neq", "in", "not_in"].includes(c.op) && profile.columns.find((col) => col.name === c.column)?.type === "identifier");
+  return listed ? `It lists individual values of “${listed.column}”, which holds identifiers; a rule should hold for any record, and the format test already checks how identifiers look.` : "";
 }
 
 /** Column meanings from the AI review, by column name. */

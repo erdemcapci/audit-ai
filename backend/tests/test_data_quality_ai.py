@@ -96,7 +96,8 @@ class DataQualityAiPlanTests(unittest.TestCase):
             "columns": [{"column": "amount", "role": "amount", "meaning": "Net amount"}, {"column": "nope", "role": "amount"}, {"column": "country", "role": "planet"}],
             "switch_off": [{"test_id": "uniqueness.key:invoice_number", "reason": "x"}, {"test_id": "missing", "reason": "y"}, {"test_id": "rule:customer_id → country", "reason": "already off"}],
             "switch_on": [{"test_id": "rule:customer_id → country", "reason": "Customers have one country."}],
-            "new_rules": [{"rule": {"kind": "dependency", "from": "invoice_number", "to": "customer_id"}, "reason": "r"}, {"rule": {"kind": "magic"}, "reason": "bad"}, "junk"],
+            "new_rules": [{"rule": {"kind": "dependency", "from": "invoice_number", "to": "customer_id"}, "reason": "r", "catches": "Numbers reused for another customer."},
+                          {"rule": {"kind": "magic"}, "reason": "bad", "catches": "x"}, "junk"],
             "not_testable": [{"idea": "", "reason": "empty"}, {"idea": "Split invoices", "reason": "needs windows"}],
         }
         fake = FakeProvider("```json\n" + json.dumps(answer) + "\n```")
@@ -138,12 +139,32 @@ class DataQualityAiPlanTests(unittest.TestCase):
         request = AiPlanRequest(file_name="f.csv", rows=1, columns=[AiPlanColumn(name="w", type="measure")], tests=tests)
         data = {
             "switch_off": [{"test_id": f"t{i}", "reason": "r"} for i in range(9)],
-            "new_rules": [{"rule": {"kind": "conditional", "if": {"column": "w", "op": "gt", "value": 0}, "then": {"column": "w", "op": "in", "values": [1, 2.5]}}, "reason": "r"}],
+            "new_rules": [{"rule": {"kind": "conditional", "if": {"column": "w", "op": "gt", "value": 0}, "then": {"column": "w", "op": "in", "values": [1, 2.5]}}, "reason": "r", "catches": "c"}],
         }
         result = normalize(data, request)
         self.assertEqual(len(result.switch_off), 5, "the AI cannot switch off most of a plan")
         self.assertEqual(result.new_rules[0].rule["if"]["value"], "0")
         self.assertEqual(result.new_rules[0].rule["then"]["values"], ["1", "2.5"])
+
+    def test_rules_without_a_stated_gain_are_dropped_and_similar_rules_are_merged(self) -> None:
+        filled = {"column": "tax_number", "op": "not_empty"}
+        rule = lambda country: {"kind": "conditional", "if": {"column": "country", "op": "eq", "value": country}, "then": filled}  # noqa: E731
+        data = {"new_rules": [
+            {"rule": rule("DE"), "reason": "German records need a tax number.", "catches": "German records without a tax number."},
+            {"rule": rule("FR"), "reason": "French records need a tax number.", "catches": "French records without a tax number."},
+            {"rule": {**rule("NL"), "if": {"column": "country", "op": "in", "values": ["NL", "DE"]}}, "reason": "r", "catches": "c"},
+            {"rule": rule("IT"), "reason": "r", "catches": "None."},
+            {"rule": rule("GB"), "reason": "r"},
+            {"rule": {"kind": "dependency", "from": "invoice_number", "to": "customer_id"}, "reason": "r", "catches": "c"},
+            {"rule": {"kind": "dependency", "from": "invoice_number", "to": "customer_id"}, "reason": "again", "catches": "c"},
+        ]}
+        result = normalize(data, invoices_request())
+        self.assertEqual([r.rule for r in result.new_rules], [
+            {"kind": "conditional", "if": {"column": "country", "op": "in", "values": ["DE", "FR", "NL"]}, "then": filled},
+            {"kind": "dependency", "from": "invoice_number", "to": "customer_id"},
+        ])
+        self.assertEqual(result.new_rules[0].reason, "Combined from 3 similar suggestions, for example: German records need a tax number.")
+        self.assertEqual(result.new_rules[1].reason, "r", "an exact repeat is dropped, not counted as combined")
 
     def test_normalize_tolerates_missing_and_wrong_types(self) -> None:
         result = normalize({"columns": "x", "switch_off": None, "new_rules": [{"rule": []}]}, invoices_request())

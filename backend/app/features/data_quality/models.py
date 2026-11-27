@@ -130,6 +130,7 @@ class AiTestChange(BaseModel):
 class AiNewRule(BaseModel):
     rule: dict[str, Any]
     reason: str
+    catches: str = ""
 
 
 class AiIdea(BaseModel):
