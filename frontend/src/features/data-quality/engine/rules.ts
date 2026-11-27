@@ -104,7 +104,7 @@ function opWords(op: CompareOp, date: boolean): string {
   }
 }
 
-function conditionWords(c: Condition, profile: DatasetProfile | null, should: boolean): string {
+function conditionWords(c: Condition, profile: Pick<DatasetProfile, "columns"> | null, should: boolean): string {
   const date = profile?.columns.find((col) => col.name === c.column)?.type === "date";
   const be = should ? "should be" : "is";
   const list = (c.values ?? []).map(q).join(" or ");
@@ -120,7 +120,7 @@ function conditionWords(c: Condition, profile: DatasetProfile | null, should: bo
 }
 
 /** The rule as a plain-language sentence for the auditor. */
-export function ruleSentence(rule: RuleParams, profile: DatasetProfile | null = null): string {
+export function ruleSentence(rule: RuleParams, profile: Pick<DatasetProfile, "columns"> | null = null): string {
   switch (rule.kind) {
     case "compare": {
       const date = profile?.columns.find((c) => c.name === rule.left)?.type === "date";

@@ -21,15 +21,17 @@ const ai = {
   provider: "claude", model: "claude-x", demo: false, log_run_id: "run_1", estimated_tokens: 900, cards_sent: 3, attempts: 2, created_at: ""
 };
 const tests = [{ template: "uniqueness.key", title: "Duplicate keys", cards: [{ testId: "uniqueness.key:invoice_number", subject: "invoice_number" }] }];
-const report = "# Data quality report — x.csv\n\n- Run: today\n\n## Findings\n\n- something\n";
+const report = "# Data quality report — x.csv\n\ntoday\n\n## Summary\n\nShort.\n\n## Findings\n\n- something\n";
 
 test("the interpretation goes right after the report header, before the findings", () => {
   const md = interpretation.reportWithInterpretation(report, ai, tests);
-  assert.ok(md.indexOf("## AI interpretation") < md.indexOf("## Findings"));
-  assert.ok(md.startsWith("# Data quality report — x.csv\n\n- Run: today\n"));
-  assert.match(md, /Verdict: \*\*Usable with conditions\*\* \(by AI \(claude, claude-x\)/);
-  assert.match(md, /### Questions for the client\n\n- Why do 98 invoice numbers appear twice\?/);
-  assert.match(md, /\*\*Duplicate keys — invoice_number\*\* \(AI: high\) — Some invoice numbers repeat\. Ask the client: Ask why\./);
+  assert.ok(md.indexOf("## Summary") < md.indexOf("## AI interpretation") && md.indexOf("## AI interpretation") < md.indexOf("## Findings"));
+  assert.ok(md.startsWith("# Data quality report — x.csv\n\ntoday\n"));
+  assert.match(md, /\*\*Usable with conditions\.\*\*/);
+  assert.match(md, /_By AI \(claude, claude-x\)\./);
+  assert.match(md, /\*\*Ask the client\*\*\n\n- Why do 98 invoice numbers appear twice\?/);
+  assert.match(md, /\| Duplicate keys — invoice_number \| High \| Ask the client: Ask why\. \|/);
+  assert.match(md, /## AI interpretation details\n\n- \*\*Duplicate keys — invoice_number\*\* — Some invoice numbers repeat\./);
   assert.match(md, /numbers that are not in the results \(777\)/);
 });
 

@@ -101,20 +101,22 @@ export function buildMap(input: MapInput): { nodes: Node<MapNodeData>[]; edges: 
     severity: totals ? (totals.high ? "high" : totals.medium ? "medium" : totals.low ? "low" : "clean") : undefined
   }));
   const interpretation = input.interpretation;
+  // Both reports are built from the exceptions: side by side in the last column, not one behind the other.
+  const reportY = interpretation ? middle - ROW / 2 - 6 : middle;
   if (interpretation) {
-    nodes.push(node("interpretation", testX + 620, middle, {
+    nodes.push(node("interpretation", testX + 620, middle + ROW / 2 + 6, {
       kind: "interpretation", actor: "AI", title: interpretation.demo ? "AI interpretation (demo)" : "AI interpretation",
       subtitle: `${AI_VERDICT_LABEL[interpretation.verdict]} · ${n(interpretation.client_questions.length)} question${interpretation.client_questions.length === 1 ? "" : "s"} for the client`, state: "done"
     }));
   }
-  nodes.push(node("result", testX + (interpretation ? 910 : 620), middle, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
+  nodes.push(node("result", testX + 620, reportY, { kind: "result", actor: "Result", title: "Result report", subtitle: input.verdict ? VERDICT_LABEL[input.verdict] : "Waiting for tests", state: done ? "done" : "pending" }));
 
   const edge = (source: string, target: string, dim = false): Edge => ({
     id: `${source}->${target}`, source, target, type: "smoothstep", animated: false,
     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
     style: { stroke: dim ? "#cbd5e1" : "#64748b", strokeWidth: dim ? 1 : 1.5, strokeDasharray: dim ? "4 4" : undefined }
   });
-  const tail = interpretation ? [edge("exceptions", "interpretation"), edge("interpretation", "result")] : [edge("exceptions", "result")];
+  const tail = interpretation ? [edge("exceptions", "result"), edge("exceptions", "interpretation")] : [edge("exceptions", "result")];
   const edges: Edge[] = [...chain.slice(1).map(([id], i) => edge(chain[i][0], id)), ...tail];
   nodes.filter((nd) => nd.data.kind === "test").forEach((nd) => {
     const inactive = nd.data.state === "not_applicable" || nd.data.state === "switched_off";

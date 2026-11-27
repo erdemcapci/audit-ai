@@ -2,11 +2,11 @@ import { TYPE_LABEL } from "../engine/profile";
 import { formatRunDate } from "../engine/report";
 import type { AppliedAiPlan } from "../engine/aiPlan";
 import { AI_VERDICT_LABEL, type AiInterpretation } from "../engine/interpretation";
-import { ruleId, ruleLabel } from "../engine/rules";
+import { ruleId, ruleLabel, ruleSentence } from "../engine/rules";
 import { isFinding, VERDICT_LABEL } from "../engine/runner";
 import type { RunRecord } from "../engine/session";
 import { getTemplate } from "../engine/templates/registry";
-import { withDefaults, type PlanChange, type TemplateId, type TestNodeResult } from "../engine/types";
+import { withDefaults, type PlanChange, type RuleParams, type TemplateId, type TestNodeResult } from "../engine/types";
 import { formatBytes, SeverityBadge } from "../ui";
 
 const n = (value: number) => value.toLocaleString("en-US");
@@ -98,27 +98,47 @@ function ProfilePanel({ record }: { record: RunRecord }) {
   );
 }
 
+const RELATIONSHIP_KINDS: { kind: RuleParams["kind"]; title: string }[] = [
+  { kind: "dependency", title: "Values that always go together" },
+  { kind: "compare", title: "Dates and numbers in order" },
+  { kind: "conditional", title: "One column depends on another" },
+  { kind: "arithmetic", title: "Amounts that add up" }
+];
+
+/** What discovery found, in plain sentences, with what each rule did on the full file. */
 function DiscoveryPanel({ record }: { record: RunRecord }) {
   const relationships = record.profile.relationships ?? [];
   const settings = withDefaults(record.settings);
   const inPlan = new Map(record.plan.map((t) => [t.id, t.enabled]));
+  const outcomes = new Map((record.results.find((t) => t.template === "rule")?.cards ?? []).map((c) => [c.subject, c]));
   return (
     <div className="dq-panel-body">
-      <p>The code looked for relationships between columns in a sample of the rows. Each one that held for at least {settings.discoveryMinHoldPercent}% of the rows it applies to was proposed as a rule.</p>
+      <p>Rules the data already follows (at least {settings.discoveryMinHoldPercent}% of sampled rows), turned into tests. Rows that break them are the exceptions.</p>
       {record.profile.discoveryNote ? <p className="muted dq-hint">{record.profile.discoveryNote}</p> : null}
-      {relationships.length ? (
-        <ul className="dq-panel-cards">
-          {relationships.map((r) => {
-            const enabled = inPlan.get(ruleId(r.rule));
-            return (
-              <li key={ruleId(r.rule)}>
-                <strong>{ruleLabel(r.rule)}</strong>
-                <span className="muted">Holds for {(r.holdRate * 100).toFixed(1)}% of {n(r.checked)} sampled rows · {enabled === undefined ? "not in the plan" : enabled ? "tested" : "switched off"}</span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : <p className="muted dq-hint">No relationship between columns was strong enough to propose as a rule.</p>}
+      {relationships.length ? RELATIONSHIP_KINDS.map(({ kind, title }) => {
+        const group = relationships.filter((r) => r.rule.kind === kind);
+        if (!group.length) return null;
+        return (
+          <section key={kind} className="dq-rel-group">
+            <h4>{title}</h4>
+            <ul className="dq-panel-cards">
+              {group.map((r) => {
+                const enabled = inPlan.get(ruleId(r.rule));
+                const outcome = outcomes.get(ruleLabel(r.rule));
+                const brokenInSample = Math.round((1 - r.holdRate) * r.checked);
+                return (
+                  <li key={ruleId(r.rule)}>
+                    <strong>{ruleSentence(r.rule, record.profile)}</strong>
+                    <span className="muted">In the sample: {brokenInSample ? `${n(brokenInSample)} of ${n(r.checked)} rows break it (${(r.holdRate * 100).toFixed(1)}% hold)` : `all ${n(r.checked)} rows follow it`}</span>
+                    <span className="muted">{enabled === undefined ? "Not in the test plan" : !enabled ? "Test switched off" : outcome ? `In the full file: ${outcome.exceptions ? `${n(outcome.exceptions)} of ${n(outcome.tested)} rows break it` : "no exceptions"}` : "Tested"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      }) : <p className="muted dq-hint">No relationship between columns was strong enough to propose as a rule.</p>}
+      <p className="muted dq-hint">Patterns in the data, not known business rules. You decide whether each one applies.</p>
     </div>
   );
 }

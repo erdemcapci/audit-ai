@@ -21,7 +21,6 @@ export type ReportInput = {
 };
 
 const n = (value: number) => value.toLocaleString("en-US");
-const SEVERITY_TITLE: Record<Exclude<Severity, "clean">, string> = { high: "High severity", medium: "Medium severity", low: "Low severity" };
 
 export function formatRunDate(iso: string) {
   return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -36,24 +35,35 @@ export function buildReport(input: ReportInput): string {
   const toConfirm = rules.filter((c) => c.classification === "uncertain");
   const notHeld = rules.filter((c) => c.classification === "rule_did_not_hold");
 
-  lines.push(`# Data quality report — ${input.fileName}`, "");
-  lines.push(`- Run: ${formatRunDate(input.createdAt)}`);
-  lines.push(`- File: ${input.fileName} · ${n(input.rows)} rows · ${n(input.columns.length)} columns`);
-  lines.push(`- Result: **${VERDICT_LABEL[results.verdict]}** — ${n(totals.tests)} tests, ${n(totals.findings)} with findings (${n(totals.high)} high, ${n(totals.medium)} medium, ${n(totals.low)} low)${totals.uncertain ? `, ${n(totals.uncertain)} rule${totals.uncertain === 1 ? "" : "s"} to confirm` : ""}`);
   const ai = input.ai;
+  const ranked = [...findings].sort((a, b) => SEVERITY_ORDER[a.card.severity] - SEVERITY_ORDER[b.card.severity] || b.card.exceptions - a.card.exceptions);
+
+  lines.push(`# Data quality report — ${input.fileName}`, "");
+  lines.push(`${n(input.rows)} rows · ${n(input.columns.length)} columns · ${formatRunDate(input.createdAt)}`, "");
+
+  lines.push("## Summary", "");
+  lines.push(`**${VERDICT_LABEL[results.verdict]}.** ${n(totals.findings)} of ${n(totals.tests)} tests found exceptions: ${n(totals.high)} high, ${n(totals.medium)} medium, ${n(totals.low)} low.`, "");
+  if (ranked.length) {
+    lines.push("**Top issues**", "");
+    ranked.slice(0, TOP_ISSUES).forEach(({ test, card }, i) => lines.push(`${i + 1}. ${severityTag(card.severity)} ${test.title} — ${card.subject}: ${n(card.exceptions)} ${card.exceptions === 1 ? "record" : "records"} (${shareText(card.rate)})`));
+    if (ranked.length > TOP_ISSUES) lines.push(`_…and ${n(ranked.length - TOP_ISSUES)} more in the findings table below._`);
+    lines.push("");
+  }
+  if (totals.uncertain) lines.push(`**To confirm:** ${n(totals.uncertain)} rule${totals.uncertain === 1 ? "" : "s"} broken by many rows — check with the client before relying on ${totals.uncertain === 1 ? "it" : "them"}.`, "");
   lines.push(ai
-    ? `- Prepared by: automated tests. The test plan was reviewed by ${ai.response.demo ? "the demo AI (fixed rules, no model)" : `AI (${ai.response.provider}${ai.response.model ? `, ${ai.response.model}` : ""})`} and approved by the auditor; every result was computed by the tests, not by AI.`
-    : "- Prepared by: automated standard tests. No AI was used.", "");
+    ? `_Results computed by tests, not AI. Test plan reviewed by ${ai.response.demo ? "the demo AI (fixed rules, no model)" : `AI (${ai.response.provider}${ai.response.model ? `, ${ai.response.model}` : ""})`} and approved by the auditor._`
+    : "_Results computed by automated standard tests. No AI was used._", "");
 
   lines.push("## Findings", "");
   if (!findings.length) lines.push("No test found any exceptions.", "");
-  (["high", "medium", "low"] as const).forEach((severity) => {
-    const group = findings.filter((f) => f.card.severity === severity);
-    if (!group.length) return;
-    lines.push(`### ${SEVERITY_TITLE[severity]}`, "");
-    group.forEach(({ test, card }) => lines.push(`- **${test.title} — ${card.subject}:** ${card.summary}${examplesText(card)}`));
+  else {
+    lines.push("| Severity | Test | Column | Exceptions | Share | Example |", "| --- | --- | --- | ---: | ---: | --- |");
+    ranked.forEach(({ test, card }) => lines.push(`| ${card.severity[0].toUpperCase()}${card.severity.slice(1)} | ${cell(test.title)} | ${cell(card.subject)} | ${n(card.exceptions)} | ${shareText(card.rate)} | ${cell(firstExample(card))} |`));
     lines.push("");
-  });
+    lines.push("## Finding details", "");
+    ranked.forEach(({ test, card }) => lines.push(`- **${test.title} — ${card.subject}:** ${card.summary}${examplesText(card)}`));
+    lines.push("");
+  }
 
   if (toConfirm.length) {
     lines.push("## Rules to confirm", "", "These rules are broken by too many rows to treat the rows as exceptions. Confirm with the client whether each rule applies before relying on it.", "");
@@ -113,6 +123,17 @@ export function buildReport(input: ReportInput): string {
   lines.push("");
   return lines.join("\n");
 }
+
+const SEVERITY_ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2, clean: 3 };
+const TOP_ISSUES = 5;
+const severityTag = (severity: Severity) => `**${severity === "clean" ? "" : severity.toUpperCase()}**`;
+const shareText = (rate: number) => `${rate >= 10 ? rate.toFixed(0) : rate >= 1 ? rate.toFixed(1) : rate.toFixed(2)}%`;
+/** Table cells cannot contain pipes or line breaks. */
+const cell = (text: string) => text.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
+const firstExample = (card: ResultCard) => {
+  const value = card.examples.map((e) => e.value.trim()).find(Boolean);
+  return value ? `“${value.length > 28 ? `${value.slice(0, 27)}…` : value}”` : "";
+};
 
 function examplesText(card: ResultCard) {
   const values = [...new Set(card.examples.map((e) => e.value.trim()).filter(Boolean))].slice(0, 3);
