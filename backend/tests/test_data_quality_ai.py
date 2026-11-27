@@ -170,6 +170,11 @@ class DataQualityAiPlanTests(unittest.TestCase):
         result = normalize({"columns": "x", "switch_off": None, "new_rules": [{"rule": []}]}, invoices_request())
         self.assertEqual((result.columns, result.switch_off, result.new_rules), ([], [], []))
 
+    def test_long_ai_texts_are_shortened_at_a_sentence_or_word_end(self) -> None:
+        self.assertEqual(ai_plan.clip("Invoices from one system. More text follows here.", 40), "Invoices from one system.")
+        self.assertEqual(ai_plan.clip("validity of identifiers and codes", 20), "validity of…")
+        self.assertEqual(ai_plan.clip("short", 20), "short")
+
 
 if __name__ == "__main__":
     unittest.main()

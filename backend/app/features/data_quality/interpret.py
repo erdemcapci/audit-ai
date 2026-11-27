@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from app.config import settings
+from app.features.data_quality.ai_plan import clip
 from app.features.data_quality.models import (
     AI_ACTIONS,
     AI_SEVERITIES,
@@ -117,7 +118,7 @@ def allowed_numbers(results: dict[str, Any]) -> list[float]:
 
 
 def _text(value: Any) -> str:
-    return str(value or "").strip()[:MAX_TEXT]
+    return clip(value, MAX_TEXT)
 
 
 def normalize(data: dict[str, Any], results: dict[str, Any]) -> AiInterpretation:

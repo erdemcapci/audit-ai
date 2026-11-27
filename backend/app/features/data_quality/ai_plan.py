@@ -29,6 +29,7 @@ MAX_RULES = 8
 MAX_SWITCH_OFF = 5
 MAX_IDEAS = 5
 MAX_TEXT = 300
+MAX_SUMMARY = 600
 
 
 class DataQualityAiPlanService:
@@ -78,8 +79,20 @@ class DataQualityAiPlanService:
         return result
 
 
+def clip(value: Any, limit: int) -> str:
+    """Shortens an AI text to the limit at a sentence end (or a word end with "…"), never mid-word."""
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    sentence = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    if sentence >= limit // 2:
+        return cut[:sentence + 1]
+    return cut[:cut.rfind(" ")].rstrip(" ,;:") + "…" if " " in cut else cut
+
+
 def _text(value: Any) -> str:
-    return str(value or "").strip()[:MAX_TEXT]
+    return clip(value, MAX_TEXT)
 
 
 def _constants_as_text(rule: dict[str, Any]) -> dict[str, Any]:
@@ -161,7 +174,7 @@ def normalize(data: dict[str, Any], request: AiPlanRequest) -> AiPlanResponse:
 
     ideas = [AiIdea(idea=_text(item.get("idea")), reason=_text(item.get("reason"))) for item in items("not_testable")[:MAX_IDEAS] if _text(item.get("idea"))]
     return AiPlanResponse(
-        summary=_text(data.get("summary")),
+        summary=clip(data.get("summary"), MAX_SUMMARY),
         columns=columns,
         # A guard on top of the prompt: an AI that switches off much of the plan defeats the tests' purpose.
         switch_off=changes("switch_off", True)[:MAX_SWITCH_OFF],
